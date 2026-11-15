@@ -1,3 +1,30 @@
 packages:
-  - "apps/*"
   - "packages/*"
+
+# Versions that must move together are pinned here once. A package asks for one with "catalog:".
+catalog:
+  # Alchemy, one release for every package.
+  alchemy: 2.0.0-beta.87
+  "@alchemy.run/docker": 2.0.0-beta.87
+  "@alchemy.run/domain": 2.0.0-beta.87
+  "@alchemy.run/effect-cluster": 2.0.0-beta.87
+  # Effect and every @effect/* package.
+  effect: 4.1.4
+  "@effect/platform-bun": 4.1.4
+  "@effect/platform-browser": 4.1.4
+  "@effect/sql-pg": 4.1.4
+  "@effect/vitest": 4.1.4
+  # Foldkit and the web build.
+  foldkit: 0.170.0
+  "@foldkit/vite-plugin": 0.29.0
+  vite: 8.3.8
+  # Toolchain.
+  "@types/node": 26.6.6
+  oxfmt: 0.78.0
+  oxlint: 1.92.0
+  typescript: 7.0.2
+  vitest: 5.1.0
+
+# One copy of Effect in the whole tree, whatever a dependency asks for.
+overrides:
+  effect: 4.1.4
