@@ -12,6 +12,7 @@ catalog:
   effect: 4.1.4
   "@effect/platform-bun": 4.1.4
   "@effect/platform-browser": 4.1.4
+  "@effect/platform-node": 4.1.4
   "@effect/sql-pg": 4.1.4
   "@effect/vitest": 4.1.4
   # Foldkit and the web build.
@@ -22,6 +23,10 @@ catalog:
   "@types/node": 26.6.6
   oxfmt: 0.78.0
   oxlint: 1.92.0
+  "@oxlint/plugins": 1.92.0
+  oxlint-tsgolint: 7.0.2007
+  "@effect/tsgo": 0.69.0
+  ultracite: 8.2.1
   typescript: 7.0.2
   vitest: 5.1.0
 

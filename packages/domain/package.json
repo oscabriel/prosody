@@ -1,19 +1,19 @@
 {
-  "name": "@prosody/domain",
-  "private": true,
-  "type": "module",
-  "sideEffects": false,
-  "exports": {
-    "./*": "./src/*.ts"
-  },
-  "scripts": {
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@alchemy.run/domain": "catalog:",
-    "effect": "catalog:"
-  },
-  "devDependencies": {
-    "@effect/vitest": "catalog:"
-  }
+	"name": "@prosody/domain",
+	"private": true,
+	"type": "module",
+	"sideEffects": false,
+	"exports": {
+		"./*": "./src/*.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@alchemy.run/domain": "catalog:",
+		"effect": "catalog:"
+	},
+	"devDependencies": {
+		"@effect/vitest": "catalog:"
+	}
 }

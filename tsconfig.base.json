@@ -1,19 +1,37 @@
 {
-  "compilerOptions": {
-    "target": "ESNext",
-    "module": "Preserve",
-    "moduleResolution": "bundler",
-    "lib": ["ESNext"],
-    "types": ["node"],
-    "moduleDetection": "force",
-    "verbatimModuleSyntax": true,
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "noImplicitOverride": true,
-    "noFallthroughCasesInSwitch": true
-  }
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "Preserve",
+		"moduleResolution": "bundler",
+		"lib": ["ESNext"],
+		"types": ["node"],
+		"moduleDetection": "force",
+		"verbatimModuleSyntax": true,
+		"allowImportingTsExtensions": true,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"noUncheckedIndexedAccess": true,
+		"exactOptionalPropertyTypes": true,
+		"noImplicitOverride": true,
+		"noFallthroughCasesInSwitch": true,
+		"plugins": [
+			{
+				"name": "@effect/language-service",
+				"diagnostics": false,
+				"barrelImportPackages": ["effect"],
+				"allowedUnstableApis": [
+					"@effect/platform-node",
+					"@effect/vitest",
+					"effect/FileSystem",
+					"effect/Path",
+					"effect/PlatformError",
+					"effect/crypto",
+					"effect/http",
+					"effect/http-api",
+					"effect/socket"
+				]
+			}
+		]
+	}
 }
