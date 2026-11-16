@@ -1,0 +1,20 @@
+{
+	"name": "@prosody/server",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./*": "./src/*.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@alchemy.run/docker": "catalog:",
+		"@alchemy.run/domain": "catalog:",
+		"@alchemy.run/effect-cluster": "catalog:",
+		"@effect/sql-pg": "catalog:",
+		"@prosody/domain": "workspace:*",
+		"alchemy": "catalog:",
+		"effect": "catalog:"
+	}
+}

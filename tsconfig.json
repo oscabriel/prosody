@@ -1,4 +1,4 @@
 {
 	"extends": "./tsconfig.base.json",
-	"include": ["oxfmt.config.ts", "oxlint.config.ts"]
+	"include": ["alchemy.run.ts", "oxfmt.config.ts", "oxlint.config.ts"]
 }
