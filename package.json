@@ -18,6 +18,7 @@
 		"@alchemy.run/docker": "catalog:",
 		"@alchemy.run/effect-cluster": "catalog:",
 		"@effect/platform-bun": "catalog:",
+		"@prosody/press": "workspace:*",
 		"@prosody/server": "workspace:*",
 		"alchemy": "catalog:",
 		"effect": "catalog:"

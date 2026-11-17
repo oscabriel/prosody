@@ -1,5 +1,6 @@
 import * as Docker from "@alchemy.run/docker";
 import * as Cluster from "@alchemy.run/effect-cluster";
+import Press from "@prosody/press/Press";
 import Api from "@prosody/server/Api";
 import { API_ALIAS, Front } from "@prosody/server/Front";
 import * as Alchemy from "alchemy";
@@ -21,6 +22,7 @@ export default Alchemy.Stack(
 	Effect.gen(function* () {
 		const front = yield* Front;
 		const api = yield* Api;
+		const press = yield* Press;
 
 		// Caddy cannot join a swarm network, and a swarm service's published port listens on every
 		// interface. This plain container is the one door: it joins the Front network and listens on
@@ -41,6 +43,6 @@ export default Alchemy.Stack(
 			start: true,
 		});
 
-		return { api: api.name, relay: relay.name };
+		return { api: api.name, press: press.name, relay: relay.name };
 	})
 );
