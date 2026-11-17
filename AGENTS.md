@@ -4,6 +4,13 @@ One self-hosted app for the whole route a book travels: wanting it, fetching it,
 
 ## State
 
+The foundation is built: the workspace and its checks, the library half of the model, the stack on the swarm, a shelf page, and a press that walks the library. `pnpm check` must pass before a commit. The next work is pairing and alignment, then the reading room.
+
+- `pnpm check` formats, lints, typechecks and tests. `pnpm run deploy` deploys; `pnpm deploy` is a different, built-in pnpm command.
+- `packages/domain` imports only `effect` and `@alchemy.run/domain`. The linter enforces it.
+- The shelf page runs from its dev server (`pnpm --filter @prosody/web dev`) at `https://prosody.example.com`. Nothing serves a built copy yet.
+- `.alchemy/` is Alchemy's record of what is deployed. Never delete it while the stack is up.
+
 ## Before using an API
 
 - Alchemy's domain framework (`@alchemy.run/domain`) and its Effect Cluster host are weeks old. Read the installed `node_modules` source, and Alchemy's own docs, before writing against them. The code in the plan is a sketch that was never run.
