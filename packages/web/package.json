@@ -1,0 +1,20 @@
+{
+	"name": "@prosody/web",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "vite build",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@alchemy.run/domain": "catalog:",
+		"@prosody/domain": "workspace:*",
+		"effect": "catalog:",
+		"foldkit": "catalog:"
+	},
+	"devDependencies": {
+		"@foldkit/vite-plugin": "catalog:",
+		"vite": "catalog:"
+	}
+}

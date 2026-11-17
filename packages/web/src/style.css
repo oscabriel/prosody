@@ -1,0 +1,86 @@
+:root {
+	--bg: #f5f3ee;
+	--surface: #fffefb;
+	--ink: #1c1b19;
+	--muted: #67625a;
+	--line: #dfdad0;
+	--accent: #23656a;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg: #171614;
+		--surface: #1f1e1b;
+		--ink: #ece9e2;
+		--muted: #a39d92;
+		--line: #34322d;
+		--accent: #6fb7bb;
+	}
+}
+
+body {
+	margin: 0;
+	background: var(--bg);
+	color: var(--ink);
+	font:
+		17px/1.5 Georgia,
+		"Iowan Old Style",
+		serif;
+}
+
+main {
+	max-width: 44rem;
+	margin: 0 auto;
+	padding: 2.5rem 1.25rem 4rem;
+}
+
+h1 {
+	margin: 0;
+	font-size: 1.9rem;
+	font-weight: 500;
+	letter-spacing: -0.01em;
+}
+
+.status {
+	margin: 0.25rem 0 2rem;
+	color: var(--muted);
+	font:
+		0.85rem/1.4 system-ui,
+		sans-serif;
+}
+
+.shelf {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	border-top: 1px solid var(--line);
+}
+
+.work {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	gap: 0 1rem;
+	padding: 0.85rem 0;
+	border-bottom: 1px solid var(--line);
+}
+
+.title {
+	font-size: 1.1rem;
+}
+
+.author {
+	grid-column: 1;
+	color: var(--muted);
+	font-size: 0.95rem;
+}
+
+.editions {
+	grid-column: 2;
+	grid-row: 1 / span 2;
+	align-self: center;
+	color: var(--accent);
+	font:
+		0.78rem/1 system-ui,
+		sans-serif;
+	white-space: nowrap;
+}
