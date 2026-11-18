@@ -3,6 +3,8 @@ import type { AnyNode, Element } from "domhandler";
 import { strFromU8, unzipSync } from "fflate";
 import { parseDocument } from "htmlparser2";
 
+import { isNarrated } from "./Sections.ts";
+
 /** An EPUB opened in memory: its files by path, its package document, and its pages in order. */
 export interface Book {
 	readonly files: Map<string, Uint8Array>;
@@ -17,6 +19,8 @@ export interface Page {
 	readonly path: string;
 	/** The page's manifest id. */
 	readonly id: string;
+	/** Whether a narrator reads it: not a cover, an index, the copyright page and the like. */
+	readonly narrated: boolean;
 }
 
 /** The EPUB could not be read. */
@@ -114,5 +118,32 @@ export const open = (bytes: Uint8Array): Book => {
 		})
 		.filter((page) => files.has(page.path));
 
-	return { files, packagePath, packageXml, pages };
+	// An EPUB 2 package names its cover, index and the like in its guide.
+	const guide = new Map(
+		all
+			.filter((element) => local(element) === "reference")
+			.map(
+				(reference) =>
+					[
+						resolve(packagePath, reference.attribs.href ?? ""),
+						(reference.attribs.type ?? "").toLowerCase(),
+					] as const
+			)
+	);
+
+	return {
+		files,
+		packagePath,
+		packageXml,
+		pages: pages.map((page, index) => ({
+			...page,
+			narrated: isNarrated(
+				page.path,
+				strFromU8(files.get(page.path) ?? new Uint8Array()),
+				index,
+				pages.length,
+				guide.get(page.path)
+			),
+		})),
+	};
 };

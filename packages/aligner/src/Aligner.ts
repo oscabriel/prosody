@@ -131,19 +131,21 @@ export class Aligner extends Context.Service<
 
 			const markups = new Map<string, string>();
 
-			const sentences = book.pages.flatMap((page) => {
-				const marked = mark(
-					strFromU8(book.files.get(page.path) ?? new Uint8Array()),
-					"ps-"
-				);
+			const sentences = book.pages
+				.filter((page) => page.narrated)
+				.flatMap((page) => {
+					const marked = mark(
+						strFromU8(book.files.get(page.path) ?? new Uint8Array()),
+						"ps-"
+					);
 
-				markups.set(page.path, marked.markup);
+					markups.set(page.path, marked.markup);
 
-				return marked.sentences.map((sentence) => ({
-					key: `${page.path}#${sentence.id}`,
-					text: sentence.text,
-				}));
-			});
+					return marked.sentences.map((sentence) => ({
+						key: `${page.path}#${sentence.id}`,
+						text: sentence.text,
+					}));
+				});
 
 			const said = yield* Effect.forEach(sentences, (sentence) => {
 				const words = spoken(sentence.text);

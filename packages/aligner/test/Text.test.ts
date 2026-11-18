@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 
+import { isNarrated } from "../src/Sections.ts";
 import { mark, sentenceRanges } from "../src/Sentences.ts";
 import { cardinal, ordinal, spoken, year } from "../src/Spoken.ts";
 
@@ -111,5 +112,53 @@ describe("the spoken form", () => {
 			"and",
 			"all",
 		]);
+	});
+});
+
+describe("what is narrated", () => {
+	it("skips a section headed References, up to the next heading as high", () => {
+		const { sentences } = mark(
+			page(
+				"<h2>Summary</h2><p>All done.</p><h5>References</h5><ol><li>Kleppmann, M. 2017.</li></ol><h2>Next</h2><p>Onward.</p>"
+			),
+			"s"
+		);
+
+		expect(sentences.map((s) => s.text)).toStrictEqual([
+			"Summary",
+			"All done.",
+			"Next",
+			"Onward.",
+		]);
+	});
+
+	it("knows a copyright page or an index from a chapter", () => {
+		expect(
+			isNarrated(
+				"OEBPS/c.xhtml",
+				page('<section epub:type="copyright-page"><p>©</p></section>'),
+				1,
+				20,
+				undefined
+			)
+		).toBeFalsy();
+		expect(
+			isNarrated("OEBPS/ix01.html", page("<p>A</p>"), 19, 20, undefined)
+		).toBeFalsy();
+		expect(
+			isNarrated("OEBPS/ix01.html", page("<p>A</p>"), 10, 20, undefined)
+		).toBeTruthy();
+		expect(
+			isNarrated("OEBPS/c.xhtml", page("<p>A</p>"), 1, 20, "copyright-page")
+		).toBeFalsy();
+		expect(
+			isNarrated(
+				"OEBPS/ch01.xhtml",
+				page('<section epub:type="chapter"><p>It began.</p></section>'),
+				3,
+				20,
+				undefined
+			)
+		).toBeTruthy();
 	});
 });

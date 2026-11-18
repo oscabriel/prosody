@@ -323,6 +323,38 @@ const markRun = (
 };
 
 /** Mark every block under `node`: a run of inline content is a block of its own. */
+/** Headings of parts of a page no narrator reads. */
+const UNREAD_HEADING =
+	/^\s*(?:references|footnotes|notes|endnotes|bibliography|further reading)\s*$/iu;
+
+/** Kinds of element that hold notes or references, as EPUB 3 names them. */
+const NOTES = new Set([
+	"footnote",
+	"footnotes",
+	"endnote",
+	"endnotes",
+	"rearnote",
+	"rearnotes",
+	"bibliography",
+]);
+
+const isNotes = (node: AnyNode): boolean =>
+	isTag(node) &&
+	(node.attribs["epub:type"] ?? "")
+		.split(/\s+/u)
+		.some((type) => NOTES.has(type));
+
+/** A heading's level, 1 to 6, or undefined for anything else. */
+const headingLevel = (node: AnyNode): number | undefined => {
+	if (!isTag(node)) {
+		return undefined;
+	}
+
+	const level = /^h(?<level>[1-6])$/iu.exec(node.name)?.groups?.level;
+
+	return level === undefined ? undefined : Number(level);
+};
+
 const markIn = (
 	node: ParentNode,
 	nextId: () => string,
@@ -340,8 +372,20 @@ const markIn = (
 
 	// A copy, since marking a run replaces it in the children.
 	const children = [...node.children];
+	// Below a heading such as "References", siblings are skipped until a heading as high or higher.
+	let skipBelow: number | undefined;
 
 	for (const child of children) {
+		const level = headingLevel(child);
+
+		if (skipBelow !== undefined) {
+			if (level === undefined || level > skipBelow) {
+				continue;
+			}
+
+			skipBelow = undefined;
+		}
+
 		if (isInline(child)) {
 			run.push(child);
 			continue;
@@ -349,7 +393,16 @@ const markIn = (
 
 		flush();
 
-		if (isTag(child) && !SKIP.has(child.name.toLowerCase())) {
+		if (level !== undefined && UNREAD_HEADING.test(textOf(child))) {
+			skipBelow = level;
+			continue;
+		}
+
+		if (
+			isTag(child) &&
+			!SKIP.has(child.name.toLowerCase()) &&
+			!isNotes(child)
+		) {
 			markIn(child, nextId, sentences);
 		}
 	}

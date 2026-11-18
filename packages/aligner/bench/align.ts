@@ -47,16 +47,21 @@ const book = open(new Uint8Array(readFileSync(epubPath ?? "")));
 
 const markups = new Map<string, string>();
 
-const sentences = book.pages.flatMap((page) => {
-	const marked = mark(
-		strFromU8(book.files.get(page.path) ?? new Uint8Array()),
-		"ps-"
-	);
+const sentences = book.pages
+	.filter((page) => page.narrated)
+	.flatMap((page) => {
+		const marked = mark(
+			strFromU8(book.files.get(page.path) ?? new Uint8Array()),
+			"ps-"
+		);
 
-	markups.set(page.path, marked.markup);
+		markups.set(page.path, marked.markup);
 
-	return marked.sentences.map((sentence) => ({ page: page.path, ...sentence }));
-});
+		return marked.sentences.map((sentence) => ({
+			page: page.path,
+			...sentence,
+		}));
+	});
 
 const said = sentences.map((sentence) => {
 	const words = spoken(sentence.text);
