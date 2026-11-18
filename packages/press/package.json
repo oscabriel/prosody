@@ -11,6 +11,7 @@
 	"dependencies": {
 		"@alchemy.run/docker": "catalog:",
 		"@alchemy.run/domain": "catalog:",
+		"@prosody/aligner": "workspace:*",
 		"@prosody/domain": "workspace:*",
 		"@prosody/server": "workspace:*",
 		"alchemy": "catalog:",

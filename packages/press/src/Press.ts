@@ -26,7 +26,6 @@ import { Digest } from "effect/crypto";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 
 import { COPIES, LIBRARY, ReadingCopies } from "./ReadingCopies.ts";
-import { SpotCheck } from "./SpotCheck.ts";
 import type { Book } from "./Stacks.ts";
 import { Stacks } from "./Stacks.ts";
 
@@ -37,11 +36,11 @@ const LIBRARY_ON_HOST = "/mnt/media/books";
 const COPIES_ON_HOST = "/srv/prosody/copies";
 
 /**
- * The press's base image: Node, ffmpeg, Storyteller's aligner and its models, and Bun. Bump the tag
- * whenever `image/Dockerfile` changes; the press is rebuilt on top of it only when the tag moves.
+ * The press's base image: Bun, ffmpeg, the speech models and the library that runs them. Bump the
+ * tag whenever `image/Dockerfile` changes; the press is rebuilt on top of it only when the tag moves.
  */
 const PressImage = Docker.Image("PressImage", {
-	tag: "align-0.2.16-2",
+	tag: "aligner-1",
 	build: { context: "packages/press/image" },
 });
 
@@ -59,10 +58,9 @@ interface Report {
 }
 
 /** The walk's and the workshop's own services. The container provides files and processes. */
-const PressLive = Layer.mergeAll(
-	Stacks.layer,
-	ReadingCopies.layer.pipe(Layer.provide(SpotCheck.layer))
-).pipe(Layer.provide(Digest.layerWebCrypto));
+const PressLive = Layer.mergeAll(Stacks.layer, ReadingCopies.layer).pipe(
+	Layer.provide(Digest.layerWebCrypto)
+);
 
 /**
  * The press: the one service that touches book files. It walks the library and reports each work,
@@ -86,7 +84,13 @@ export default class Press extends Docker.Service<Press>()(
 			main: import.meta.url,
 			image: image.imageRef,
 			port: 3000,
-			environment: { PROSODY_SOURCE: yield* sourceFingerprint },
+			// The speech models' runtime loads a native library, so it is installed in the image and
+			// left out of the bundle.
+			build: { input: { external: ["@huggingface/transformers"] } },
+			environment: {
+				PROSODY_SOURCE: yield* sourceFingerprint,
+				PROSODY_ALIGNER_MODELS: "/models",
+			},
 			networks: [{ name: front.name }, ...clusterNetworks],
 			volumes: [
 				{ hostPath: LIBRARY_ON_HOST, containerPath: LIBRARY, readOnly: true },

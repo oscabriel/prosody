@@ -1,18 +1,7 @@
+import { Aligner } from "@prosody/aligner/Aligner";
+import type { AlignFailed } from "@prosody/aligner/Aligner";
 import type { AlignRequest } from "@prosody/domain/Narration/Aligner.external";
-import {
-	Array,
-	Context,
-	Effect,
-	FileSystem,
-	Layer,
-	Option,
-	Path,
-	Schema,
-	Stream,
-} from "effect";
-import { ChildProcess, ChildProcessSpawner } from "effect/process";
-
-import { SpotCheck } from "./SpotCheck.ts";
+import { Context, Effect, FileSystem, Layer, Path, Schema } from "effect";
 
 /** Where the press's container sees the library (read-only) and the reading copies (on the host's own disk). */
 export const LIBRARY = "/library";
@@ -24,7 +13,7 @@ export class Unaligned extends Schema.TaggedError<Unaligned>()("Unaligned", {
 	reason: Schema.String,
 }) {}
 
-/** A finished reading copy: the aligner's counts, and what the spot check heard. */
+/** A finished reading copy: how much of the text was found in the audio, and what the spot check heard. */
 export interface Aligned {
 	readonly sentences: number;
 	readonly matched: number;
@@ -32,28 +21,48 @@ export interface Aligned {
 	readonly heard: number;
 }
 
-/** The part of the aligner's `reports.json` the press reads. */
-const Report = Schema.Struct({
-	totals: Schema.Struct({
-		sentences: Schema.Int,
-		matchedSentences: Schema.Int,
-	}),
-});
+/** What went wrong, in words for the shelf. */
+const reasonOf = (error: AlignFailed): string => {
+	switch (error._tag) {
+		case "UndecodableAudio": {
+			return `its audio is ${error.format}, which ffmpeg can't decode whole`;
+		}
 
-const decodeReport = Schema.decodeUnknownEffect(Schema.fromJsonString(Report));
+		case "UnreadableEpub": {
+			return `its text could not be read: ${error.reason}`;
+		}
 
-/** Whether ffmpeg decodes this audio whole. Spike 1 found xHE-AAC loses frames without an error. */
-const isDecodable = (codec: string, profile: string) =>
-	codec === "mp3" || (codec === "aac" && profile === "LC");
+		case "NothingAligned": {
+			return "no sentence was found in the audio";
+		}
+
+		case "CopyFailed": {
+			return `the reading copy could not be written: ${error.reason}`;
+		}
+
+		case "ListenFailed":
+		case "CheckFailed": {
+			return error.reason;
+		}
+
+		default: {
+			return error.message;
+		}
+	}
+};
 
 /**
- * Makes reading copies on the host's own disk, one pair at a time: the audio's codec is checked, both files are
- * copied out of the library, Storyteller's aligner marks every sentence and finds it in the audio, and a
- * spot check listens to a spread of sentences with a second speech model.
+ * Makes reading copies on the host's own disk, one pair at a time: both files are copied out of the library, and the
+ * aligner marks every sentence, finds it in the audio, writes the copy and listens to a spread of
+ * sentences with a second speech model.
  *
- *   /copies/<work>/<work>.epub    the reading copy: marked text, its timeline, and the audio inside
- *   /copies/<work>/audio/         the audio, kept to play from
- *   /copies/<work>/report.json    the aligner's report
+ *   /copies/<work>/<work>.epub          the reading copy: marked text, its overlays, and the audio
+ *   /copies/<work>/audio/               the audio, kept to play from
+ *   /copies/<work>/timeline.json        every sentence's place in the audio, or none
+ *   /copies/<work>/heard-<size>.emissions
+ *                                       what the speech model heard, kept so a retry need not
+ *                                       listen again; named by the audio's size, so new audio is
+ *                                       heard afresh
  */
 export class ReadingCopies extends Context.Service<
 	ReadingCopies,
@@ -64,207 +73,88 @@ export class ReadingCopies extends Context.Service<
 	make: Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
-		const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-		const spotCheck = yield* SpotCheck;
-
-		/**
-		 * Run a program to its end: its exit code, and the line that says why it stopped. A Node program
-		 * prints its error, then a stack trace, so the line naming the error is the one worth keeping.
-		 */
-		const run = (command: ChildProcess.Command) =>
-			Effect.scoped(
-				Effect.gen(function* () {
-					const handle = yield* spawner.spawn(command);
-
-					const lines = yield* handle.all.pipe(
-						Stream.decodeText(),
-						Stream.splitLines,
-						Stream.runCollect
-					);
-
-					const why = Array.findLast(
-						lines,
-						(line) => /\w*Error\b/u.test(line) && !line.trim().startsWith("at ")
-					);
-
-					return {
-						exitCode: yield* handle.exitCode,
-						why: Option.getOrElse(why, () =>
-							Array.last(lines).pipe(Option.getOrElse(() => ""))
-						),
-					};
-				})
-			);
-
-		/** The first audio stream's codec and profile, as ffprobe names them. */
-		const codecOf = Effect.fnUntraced(function* (audio: string) {
-			const probed = yield* spawner.string(
-				ChildProcess.make("ffprobe", [
-					"-v",
-					"error",
-					"-select_streams",
-					"a:0",
-					"-show_entries",
-					"stream=codec_name,profile",
-					"-of",
-					"csv=p=0",
-					audio,
-				])
-			);
-
-			const [codec = "", profile = ""] = probed.trim().split(",");
-
-			return { codec, profile };
-		});
+		const aligner = yield* Aligner;
 
 		const make = Effect.fn("ReadingCopies.make")(
 			function* (request: AlignRequest) {
 				const folder = path.join(COPIES, request.work);
 				const audioFolder = path.join(folder, "audio");
+
+				const source = path.join(
+					LIBRARY,
+					"audiobooks",
+					request.shelfmark,
+					request.audio
+				);
+
 				const audio = path.join(audioFolder, request.audio);
 				const text = path.join(folder, "source.epub");
-				const copy = path.join(folder, `${request.work}.epub`);
-				const report = path.join(folder, "report.json");
+				const { size } = yield* fs.stat(source);
+				const heard = `heard-${size}.emissions`;
 
-				// The format first, in the library, before copying a file that can't be aligned.
-				const { codec, profile } = yield* codecOf(
-					path.join(LIBRARY, "audiobooks", request.shelfmark, request.audio)
-				);
+				// A fresh folder for the try, keeping what the model heard of this same audio.
+				yield* fs.makeDirectory(folder, { recursive: true });
 
-				if (!isDecodable(codec, profile)) {
-					return yield* new Unaligned({
-						reason:
-							codec === ""
-								? "its audio could not be read"
-								: `its audio is ${profile || codec}, which ffmpeg can't decode whole`,
-					});
+				for (const name of yield* fs.readDirectory(folder)) {
+					if (name !== heard) {
+						yield* fs.remove(path.join(folder, name), {
+							recursive: true,
+							force: true,
+						});
+					}
 				}
 
-				yield* fs.remove(folder, { recursive: true, force: true });
 				yield* fs.makeDirectory(audioFolder, { recursive: true });
-
-				yield* fs.copyFile(
-					path.join(LIBRARY, "audiobooks", request.shelfmark, request.audio),
-					audio
-				);
-
+				yield* fs.copyFile(source, audio);
 				yield* fs.copyFile(
 					path.join(LIBRARY, "ebooks", request.shelfmark, request.text),
 					text
 				);
 
-				const aligned = yield* run(
-					ChildProcess.make(
-						"nice",
-						[
-							"-n",
-							"10",
-							"align",
-							"--ctc",
-							"--model",
-							"quartznet15x5",
-							"--language",
-							"en",
-							"--device",
-							"cpu",
-							"--audiobook",
-							audioFolder,
-							"--epub",
-							text,
-							// Some of the library's EPUBs are EPUB 2, and the aligner reads only EPUB 3.
-							"--autoupgrade",
-							"--emissions",
-							path.join(folder, "emissions"),
-							"--reports",
-							report,
-							"--output",
-							copy,
-							"--no-progress",
-							"--log-level",
-							"warn",
-						],
-						// The aligner's scratch files hold the audio too, so they go on the host's own disk, in the try's
-						// own folder, and are removed with the rest below.
-						{
-							env: { STORYTELLER_SCRATCH_DIR: path.join(folder, "scratch") },
-							extendEnv: true,
-						}
-					)
-				);
+				const aligned = yield* aligner
+					.align({
+						audio: [audio],
+						epub: text,
+						copy: path.join(folder, `${request.work}.epub`),
+						timeline: path.join(folder, "timeline.json"),
+						emissions: path.join(folder, heard),
+					})
+					.pipe(
+						Effect.mapError(
+							(error) => new Unaligned({ reason: reasonOf(error) })
+						)
+					);
 
-				if (aligned.exitCode !== ChildProcessSpawner.ExitCode(0)) {
-					return yield* new Unaligned({
-						reason: `the aligner stopped: ${aligned.why.trim().slice(0, 300)}`,
-					});
-				}
-
-				const { totals } = yield* fs
-					.readFileString(report)
-					.pipe(Effect.flatMap(decodeReport));
-
-				// The aligner exits cleanly even when it is wrong, so listen before believing it.
-				const book = path.join(folder, "book");
-
-				yield* spawner.exitCode(
-					ChildProcess.make("unzip", [
-						"-q",
-						"-o",
-						copy,
-						"-x",
-						"*.m4b",
-						"*.m4a",
-						"*.mp3",
-						"-d",
-						book,
-					])
-				);
-
-				const { checked, heard } = yield* spotCheck.listen(
-					book,
-					audio,
-					path.join(folder, "check")
-				);
-
-				for (const scratch of [
-					book,
-					path.join(folder, "check"),
-					path.join(folder, "emissions"),
-					text,
-					path.join(folder, "scratch"),
-				]) {
-					yield* fs.remove(scratch, { recursive: true, force: true });
-				}
+				yield* fs.remove(text, { force: true });
 
 				// Three in four heard right. Spike 1's good books scored 37 to 40 of 40; the bad one 0.
-				if (checked === 0 || 4 * heard < 3 * checked) {
+				if (aligned.checked === 0 || 4 * aligned.heard < 3 * aligned.checked) {
 					return yield* new Unaligned({
 						reason:
-							checked === 0
-								? "no sentence was found in the audio"
-								: `the spot check heard the right words in only ${heard} of ${checked} sentences`,
+							aligned.checked === 0
+								? "no sentence was long enough to check"
+								: `the spot check heard the right words in only ${aligned.heard} of ${aligned.checked} sentences`,
 					});
 				}
 
 				return {
-					sentences: totals.sentences,
-					matched: totals.matchedSentences,
-					checked,
-					heard,
+					sentences: aligned.sentences,
+					matched: aligned.aligned,
+					checked: aligned.checked,
+					heard: aligned.heard,
 				};
 			},
 			// A file that can't be read or written ends the try too, with the platform's words.
 			Effect.catchTags({
 				PlatformError: (error) =>
 					Effect.fail(new Unaligned({ reason: error.message })),
-				SchemaError: () =>
-					Effect.fail(
-						new Unaligned({ reason: "the aligner's report could not be read" })
-					),
 			})
 		);
 
 		return { make };
 	}),
 }) {
-	static readonly layer = Layer.effect(this, this.make);
+	static readonly layer = Layer.effect(this, this.make).pipe(
+		Layer.provide(Aligner.layer)
+	);
 }

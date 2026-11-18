@@ -1,0 +1,24 @@
+{
+	"name": "@prosody/aligner",
+	"private": true,
+	"type": "module",
+	"exports": {
+		"./*": "./src/*.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@huggingface/transformers": "4.3.2",
+		"dom-serializer": "2.0.0",
+		"domhandler": "5.0.3",
+		"effect": "catalog:",
+		"entities": "6.0.1",
+		"fflate": "0.8.2",
+		"htmlparser2": "10.0.0"
+	},
+	"devDependencies": {
+		"@effect/platform-bun": "catalog:",
+		"@effect/vitest": "catalog:"
+	}
+}
