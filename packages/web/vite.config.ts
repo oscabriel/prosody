@@ -20,12 +20,12 @@ export default defineConfig(({ mode }) => {
 	const host = loadEnv(mode, import.meta.dirname, "").CADDY_DEV_HOST ?? "";
 
 	if (host !== "") {
-		server.allowedHosts = ["localhost", "127.0.0.1, host"];
+		server.allowedHosts = ["localhost", "127.0.0.1", host];
 		server.hmr = { clientPort: 443, host, protocol: "wss" };
 	}
 
 	return {
-		plugin: [foldkit()],
+		plugins: [foldkit()],
 		optimizeDeps: {
 			entries: ["src/entry.ts"],
 			// The foldkit plugin keeps foldkit out of pre-bundling, so Vite never sees its imports of
