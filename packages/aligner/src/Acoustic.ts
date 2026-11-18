@@ -117,48 +117,62 @@ export class Acoustic extends Context.Service<
 	make: Effect.gen(function* () {
 		const audio = yield* Audio;
 		const fs = yield* FileSystem.FileSystem;
-		const models = yield* Config.String("PROSODY_ALIGNER_MODELS");
-
-		const cpuinfo = yield* fs
-			.readFileString("/proc/cpuinfo")
-			.pipe(Effect.orElseSucceed(() => ""));
-
-		const threads = yield* Config.Int("PROSODY_ALIGNER_THREADS").pipe(
-			Config.withDefault(coresOf(cpuinfo, availableParallelism()))
-		);
-
-		env.cacheDir = models;
 
 		// The models load on first use, not with the layer, so a model that won't load fails one
-		// alignment, with a reason, instead of the whole press.
-		const load = yield* Effect.cached(
-			Effect.tryPromise({
-				try: async () => ({
-					processor: await AutoProcessor.from_pretrained(MODEL),
-					tokenizer: await AutoTokenizer.from_pretrained(MODEL),
-					model: await AutoModelForCTC.from_pretrained(MODEL, {
-						dtype: "int8",
-						session_options: { intraOpNumThreads: threads },
-					}),
-				}),
-				catch: (error) =>
+		// alignment, with a reason, instead of the whole press. Their settings are read then too:
+		// Alchemy builds the press's layers on the host when it plans a deploy, where none are set.
+		const settings = Effect.gen(function* () {
+			const cpuinfo = yield* fs
+				.readFileString("/proc/cpuinfo")
+				.pipe(Effect.orElseSucceed(() => ""));
+
+			return {
+				models: yield* Config.String("PROSODY_ALIGNER_MODELS"),
+				threads: yield* Config.Int("PROSODY_ALIGNER_THREADS").pipe(
+					Config.withDefault(coresOf(cpuinfo, availableParallelism()))
+				),
+			};
+		}).pipe(
+			Effect.mapError(
+				(missing) =>
 					new ListenFailed({
-						reason: `the speech model did not load: ${String(error)}`,
-					}),
-			}).pipe(
-				Effect.map((loaded) => {
-					// The tokenizer's last id is the blank, which the model scores apart from the tokens.
-					const vocabulary: Array<string> = [];
-
-					for (const [piece, id] of loaded.tokenizer.get_vocab()) {
-						vocabulary[id] = piece;
-					}
-
-					vocabulary.length = Math.max(0, vocabulary.length - 1);
-
-					return { ...loaded, vocabulary, blankId: vocabulary.length };
-				})
+						reason: `the speech model has no settings: ${String(missing)}`,
+					})
 			)
+		);
+
+		const load = yield* Effect.cached(
+			Effect.flatMap(settings, ({ models, threads }) => {
+				env.cacheDir = models;
+
+				return Effect.tryPromise({
+					try: async () => ({
+						processor: await AutoProcessor.from_pretrained(MODEL),
+						tokenizer: await AutoTokenizer.from_pretrained(MODEL),
+						model: await AutoModelForCTC.from_pretrained(MODEL, {
+							dtype: "int8",
+							session_options: { intraOpNumThreads: threads },
+						}),
+					}),
+					catch: (error) =>
+						new ListenFailed({
+							reason: `the speech model did not load: ${String(error)}`,
+						}),
+				}).pipe(
+					Effect.map((loaded) => {
+						// The tokenizer's last id is the blank, which the model scores apart from the tokens.
+						const vocabulary: Array<string> = [];
+
+						for (const [piece, id] of loaded.tokenizer.get_vocab()) {
+							vocabulary[id] = piece;
+						}
+
+						vocabulary.length = Math.max(0, vocabulary.length - 1);
+
+						return { ...loaded, vocabulary, blankId: vocabulary.length };
+					})
+				);
+			})
 		);
 
 		/** The model's log-probabilities for one stretch of samples: frames by tokens plus the blank. */

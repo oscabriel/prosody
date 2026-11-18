@@ -104,19 +104,31 @@ export class SpotCheck extends Context.Service<
 	make: Effect.gen(function* () {
 		const audio = yield* Audio;
 
-		env.cacheDir = yield* Config.String("PROSODY_ALIGNER_MODELS");
-
-		// Whisper loads on first use, like the aligner's model.
+		// Whisper loads on first use, like the aligner's model, and reads where it is kept then.
 		const whisper = yield* Effect.cached(
-			Effect.tryPromise({
-				try: async () =>
-					await pipeline("automatic-speech-recognition", CHECK_MODEL, {
-						dtype: "fp32",
-						session_options: { intraOpNumThreads: 4 },
-					}),
-				catch: (error) =>
-					new CheckFailed({ reason: `Whisper did not load: ${String(error)}` }),
-			})
+			Config.String("PROSODY_ALIGNER_MODELS").pipe(
+				Effect.mapError(
+					(error) =>
+						new CheckFailed({
+							reason: `Whisper has no settings: ${String(error)}`,
+						})
+				),
+				Effect.flatMap((models) => {
+					env.cacheDir = models;
+
+					return Effect.tryPromise({
+						try: async () =>
+							await pipeline("automatic-speech-recognition", CHECK_MODEL, {
+								dtype: "fp32",
+								session_options: { intraOpNumThreads: 4 },
+							}),
+						catch: (error) =>
+							new CheckFailed({
+								reason: `Whisper did not load: ${String(error)}`,
+							}),
+					});
+				})
+			)
 		);
 
 		const listen = Effect.fn("SpotCheck.listen")(function* (
