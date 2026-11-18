@@ -65,19 +65,44 @@ const INITIAL = /(?:^|\s)[A-HJ-Z]\.\s*$/u;
 
 const segmenter = new Intl.Segmenter("en", { granularity: "sentence" });
 
+/** A character the segmenter ignores, to fill the room an entity took. */
+const FILLER = "\u2060";
+
+/**
+ * Text with each entity read as its character, at the same length: `&#8221;` becomes a closing
+ * quote and six fillers, and an entity for a space becomes spaces. The page keeps its entities as
+ * written, so offsets must not move, but a sentence cannot be told from `.&#8221; She`.
+ */
+const entitiesRead = (text: string): string =>
+	text.replaceAll(/&(?:#\d+|#x[\da-f]+|[a-z][\da-z]*);/giu, (entity) => {
+		const character = decodeHTML(entity);
+
+		if (character === entity || character.length > entity.length) {
+			return entity;
+		}
+
+		return character.trim() === ""
+			? " ".repeat(entity.length)
+			: character + FILLER.repeat(entity.length - character.length);
+	});
+
 /**
  * A block's text split into sentences, as ranges of it. The segmenter alone ends a sentence after
  * "Dr." and inside "“Why?” she asked.", so a piece after an abbreviation or before a lower case
  * word joins its neighbour.
  */
 export const sentenceRanges = (
-	text: string
+	written: string
 ): Array<readonly [number, number]> => {
+	const text = entitiesRead(written);
 	const pieces: Array<[number, number]> = [];
+
+	const unfilled = (from: number, to: number) =>
+		text.slice(from, to).replaceAll(FILLER, "");
 
 	for (const { index, segment } of segmenter.segment(text)) {
 		const previous = pieces.at(-1);
-		const lead = segment.trimStart();
+		const lead = segment.replaceAll(FILLER, "").trimStart();
 		const startsLower = /^["'“‘([]*[a-z]/u.test(lead);
 		const hasLetters = /[\p{L}\p{N}]/u.test(segment);
 
@@ -85,8 +110,8 @@ export const sentenceRanges = (
 			previous &&
 			(startsLower ||
 				!hasLetters ||
-				NOT_AN_END.test(text.slice(previous[0], previous[1])) ||
-				INITIAL.test(text.slice(previous[0], previous[1])))
+				NOT_AN_END.test(unfilled(previous[0], previous[1])) ||
+				INITIAL.test(unfilled(previous[0], previous[1])))
 		) {
 			previous[1] = index + segment.length;
 		} else {

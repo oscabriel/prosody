@@ -31,6 +31,24 @@ describe("sentences", () => {
 		).toStrictEqual(["“Why?” she asked.", "He shrugged."]);
 	});
 
+	it("reads a quote written as an entity as the quote it is", () => {
+		const marked = mark(
+			page(
+				"<p>He left.&#8221; She stayed.&#160;&#8220;Why?&#8221; he asked Dr.&#160;No.</p>"
+			),
+			"s"
+		);
+
+		expect(marked.sentences.map((sentence) => sentence.text)).toStrictEqual([
+			"He left.”",
+			"She stayed.",
+			"“Why?” he asked Dr. No.",
+		]);
+		expect(marked.markup).toContain(
+			'<span id="s1">He left.&#8221;</span> <span id="s2">She stayed.</span>&#160;<span id="s3">&#8220;Why?&#8221; he asked Dr.&#160;No.</span>'
+		);
+	});
+
 	it("wraps each sentence in a span, splitting inline markup between them", () => {
 		const { markup, sentences } = mark(
 			page('<p>Then <em id="e">he left. She</em> stayed.</p>'),
