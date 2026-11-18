@@ -34,6 +34,10 @@ const reasonOf = (error: AlignFailed): string =>
 	Match.valueTags(error, {
 		UndecodableAudio: (failed) =>
 			`its audio is ${failed.format}, which ffmpeg can't decode whole`,
+		AudioCutShort: (failed) =>
+			`ffmpeg decoded ${Math.round(failed.decoded)} of its audio's ${Math.round(failed.stated)} seconds`,
+		DecodeFailed: (failed) =>
+			`ffmpeg stopped decoding its audio (exit code ${failed.exitCode})`,
 		UnreadableEpub: (failed) => `its text could not be read: ${failed.reason}`,
 		NothingAligned: () => "no sentence was found in the audio",
 		CopyFailed: (failed) =>

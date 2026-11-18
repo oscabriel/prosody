@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 
 import { align } from "../src/Align.ts";
+import { wrongLength } from "../src/Aligner.ts";
 import { steadyTies, tiesOf } from "../src/Anchors.ts";
 import { clipsOf } from "../src/Boundaries.ts";
 import { decode, encode, transcriptOf } from "../src/Emissions.ts";
@@ -208,6 +209,16 @@ describe("the reading copy", () => {
 
 	it("writes durations as EPUB wants them", () => {
 		expect(clock(48_693.87)).toBe("13:31:33.870");
+	});
+});
+
+describe("the audio's length", () => {
+	it("tells audio that decoded short from audio that decoded whole", () => {
+		// Spike 1: the first 1,200 s of an xHE-AAC file decoded to 908 s, with no error.
+		expect(wrongLength([908], [1200])).toBe(0);
+		expect(wrongLength([48_693.87025], [48_693.870295])).toBeUndefined();
+		expect(wrongLength([100, 200], [100, 0])).toBeUndefined();
+		expect(wrongLength([100], [100, 200])).toBe(1);
 	});
 });
 

@@ -3,6 +3,7 @@ import { Config, Context, Effect, Layer, Schema } from "effect";
 import type { PlatformError } from "effect";
 
 import { Audio } from "./Audio.ts";
+import type { DecodeFailed } from "./Audio.ts";
 
 /** A second speech model, of a different family from the aligner's, so it does not share its mistakes. */
 export const CHECK_MODEL = "onnx-community/whisper-base.en";
@@ -94,7 +95,10 @@ export class SpotCheck extends Context.Service<
 	{
 		readonly listen: (
 			sightings: ReadonlyArray<Sighting>
-		) => Effect.Effect<Heard, CheckFailed | PlatformError.PlatformError>;
+		) => Effect.Effect<
+			Heard,
+			CheckFailed | DecodeFailed | PlatformError.PlatformError
+		>;
 	}
 >()("@prosody/aligner/SpotCheck", {
 	make: Effect.gen(function* () {

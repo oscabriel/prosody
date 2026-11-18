@@ -6,6 +6,7 @@ import type { ListenFailed } from "./Acoustic.ts";
 import { Acoustic } from "./Acoustic.ts";
 import { align } from "./Align.ts";
 import { Audio, isDecodable } from "./Audio.ts";
+import type { DecodeFailed } from "./Audio.ts";
 import { clipsOf } from "./Boundaries.ts";
 import { decode, encode } from "./Emissions.ts";
 import { open } from "./Epub.ts";
@@ -45,6 +46,12 @@ export class UndecodableAudio extends Schema.TaggedError<UndecodableAudio>()(
 	{ file: Schema.String, format: Schema.String }
 ) {}
 
+/** ffmpeg decoded less (or more) audio than the file says it holds, without saying why. */
+export class AudioCutShort extends Schema.TaggedError<AudioCutShort>()(
+	"AudioCutShort",
+	{ file: Schema.String, decoded: Schema.Finite, stated: Schema.Finite }
+) {}
+
 export class UnreadableEpub extends Schema.TaggedError<UnreadableEpub>()(
 	"UnreadableEpub",
 	{ reason: Schema.String }
@@ -62,12 +69,34 @@ export class NothingAligned extends Schema.TaggedError<NothingAligned>()(
 
 export type AlignFailed =
 	| UndecodableAudio
+	| AudioCutShort
+	| DecodeFailed
 	| UnreadableEpub
 	| CopyFailed
 	| NothingAligned
 	| ListenFailed
 	| CheckFailed
 	| PlatformError.PlatformError;
+
+/**
+ * The first track whose decoded length is not the length its file states, within a second and a
+ * thousandth, or `undefined` when all agree. A file that states no length is taken at its word.
+ */
+export const wrongLength = (
+	decoded: ReadonlyArray<number>,
+	stated: ReadonlyArray<number>
+): number | undefined => {
+	const wrong = stated.findIndex((seconds, index) => {
+		const heard = decoded[index];
+
+		return (
+			heard === undefined ||
+			(seconds > 0 && Math.abs(heard - seconds) > 1 + seconds / 1000)
+		);
+	});
+
+	return wrong === -1 ? undefined : wrong;
+};
 
 /**
  * Aligns a book's text with its audio and writes its reading copy: every sentence of the EPUB is
@@ -86,22 +115,41 @@ export class Aligner extends Context.Service<
 		const acoustic = yield* Acoustic;
 		const spotCheck = yield* SpotCheck;
 
-		/** What the model heard: from the saved file if there is one, or by listening and saving. */
-		const emissionsOf = Effect.fnUntraced(function* (pair: Pair) {
+		/**
+		 * What the model heard: from the saved file if there is one, or by listening and saving.
+		 * `stated` is each file's length as its container gives it.
+		 */
+		const emissionsOf = Effect.fnUntraced(function* (
+			pair: Pair,
+			stated: ReadonlyArray<number>
+		) {
 			const saved = pair.emissions;
 
 			if (saved !== undefined && (yield* fs.exists(saved))) {
 				const bytes = yield* fs.readFile(saved);
 
-				// A file that does not decode is heard again and replaced.
+				// A file that does not decode, or that holds other audio, is heard again and replaced.
 				const read = yield* Effect.try(() => decode(bytes)).pipe(Effect.option);
 
-				if (Option.isSome(read)) {
+				if (
+					Option.isSome(read) &&
+					wrongLength(read.value.tracks, stated) === undefined
+				) {
 					return read.value;
 				}
 			}
 
 			const heard = yield* acoustic.listen(pair.audio);
+			const wrong = wrongLength(heard.tracks, stated);
+
+			// xHE-AAC taught this: ffmpeg can drop what it cannot decode and exit cleanly.
+			if (wrong !== undefined) {
+				return yield* new AudioCutShort({
+					file: pair.audio[wrong] ?? "",
+					decoded: heard.tracks[wrong] ?? 0,
+					stated: stated[wrong] ?? 0,
+				});
+			}
 
 			if (saved !== undefined) {
 				yield* fs.writeFile(saved, encode(heard));
@@ -111,8 +159,12 @@ export class Aligner extends Context.Service<
 		});
 
 		const alignPair = Effect.fn("Aligner.align")(function* (pair: Pair) {
+			const stated: Array<number> = [];
+
 			for (const file of pair.audio) {
 				const probed = yield* audio.probe(file);
+
+				stated.push(probed.seconds);
 
 				if (!isDecodable(probed)) {
 					return yield* new UndecodableAudio({
@@ -158,7 +210,7 @@ export class Aligner extends Context.Service<
 				}));
 			});
 
-			const emissions = yield* emissionsOf(pair);
+			const emissions = yield* emissionsOf(pair, stated);
 			const clips = clipsOf(emissions, align(emissions, said));
 
 			const entries: Array<Entry> = sentences.map((sentence, index) => {

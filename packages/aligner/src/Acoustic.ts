@@ -19,6 +19,7 @@ import {
 import type { PlatformError } from "effect";
 
 import { Audio, SAMPLE_RATE } from "./Audio.ts";
+import type { DecodeFailed } from "./Audio.ts";
 import type { Emissions } from "./Emissions.ts";
 
 /** The speech model: NVIDIA's Parakeet CTC 0.6B, exported to ONNX and quantised to int8. */
@@ -82,7 +83,10 @@ export class Acoustic extends Context.Service<
 	{
 		readonly listen: (
 			files: ReadonlyArray<string>
-		) => Effect.Effect<Emissions, ListenFailed | PlatformError.PlatformError>;
+		) => Effect.Effect<
+			Emissions,
+			ListenFailed | DecodeFailed | PlatformError.PlatformError
+		>;
 		/** Spoken words as the model's tokens. */
 		readonly tokensOf: (
 			words: ReadonlyArray<string>
