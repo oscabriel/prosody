@@ -78,6 +78,20 @@ describe("sentences", () => {
 		expect(markup).toContain("Inside &amp; out.");
 	});
 
+	it("knows a note's marker by the names O'Reilly and accessible books give it", () => {
+		const marked = mark(
+			page(
+				'<p>Engineers shied away [<a data-type="noteref" href="#x">18</a>]. It held<a role="doc-noteref" href="#y">2</a>.</p>'
+			),
+			"s"
+		);
+
+		expect(marked.sentences.map((sentence) => sentence.text)).toStrictEqual([
+			"Engineers shied away [ ].",
+			"It held .",
+		]);
+	});
+
 	it("leaves a note's marker out of what is said", () => {
 		const { sentences } = mark(
 			page('<p>It was cold.<sup><a href="#n1">1</a></sup> Then it snowed.</p>'),

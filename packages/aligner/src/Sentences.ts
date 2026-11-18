@@ -153,9 +153,14 @@ const textOf = (node: AnyNode): string => {
 	return "";
 };
 
-/** A link to a note: the narrator does not read its marker. */
+/**
+ * A link to a note: the narrator does not read its marker. EPUB 3 names it with `epub:type`,
+ * accessible books with `role`, and O'Reilly's books with `data-type`.
+ */
 const isNoteReference = (node: Element): boolean =>
 	node.attribs["epub:type"]?.includes("noteref") === true ||
+	node.attribs.role === "doc-noteref" ||
+	node.attribs["data-type"] === "noteref" ||
 	(node.name === "sup" && /^\W*\d*\W*$/u.test(textOf(node)) && hasLink(node));
 
 const hasLink = (node: Element): boolean =>
