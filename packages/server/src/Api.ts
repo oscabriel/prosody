@@ -8,6 +8,7 @@ import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import { API_ALIAS, Front } from "./Front.ts";
 import { plainFetch } from "./Http.ts";
 import ProsodyLive, { Database } from "./ProsodyLive.ts";
+import { sourceFingerprint } from "./Source.ts";
 
 /**
  * The model's front door, as a swarm service. It publishes no port: the relay and the press reach
@@ -32,6 +33,7 @@ export default class Api extends Docker.Service<Api>()(
 		return {
 			main: import.meta.url,
 			port: 3000,
+			environment: { PROSODY_SOURCE: yield* sourceFingerprint },
 			networks: [
 				...clusterNetworks,
 				{ name: front.name, aliases: [API_ALIAS] },
