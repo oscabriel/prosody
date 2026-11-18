@@ -137,6 +137,14 @@ describe("forced alignment", () => {
 });
 
 describe("boundaries", () => {
+	it("runs an end on across a stop's closure to the last sound of the word", () => {
+		// Sound to 0.50 s, 30 ms of closure, sound to 0.70 s, then a pause.
+		const audio = sounding((at) => at < 50 || (at >= 53 && at < 70));
+		const [clip] = clipsOf(audio, [{ from: 2, to: 5, score: 0 }]);
+
+		expect(clip?.end).toBeCloseTo(0.7, 5);
+	});
+
 	it("gives sound between two sentences to one of them, at its quietest", () => {
 		// Speech runs on from 0.10 s to 1.50 s, dipping at 0.55 s.
 		const audio = sounding((at) => at >= 10 && at < 150);

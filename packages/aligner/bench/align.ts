@@ -95,6 +95,8 @@ const Tunable = Schema.Struct({
 	reachBack: Schema.optionalKey(Schema.Finite),
 	reachForward: Schema.optionalKey(Schema.Finite),
 	overQuiet: Schema.optionalKey(Schema.Finite),
+	underSpeech: Schema.optionalKey(Schema.Finite),
+	bridge: Schema.optionalKey(Schema.Finite),
 });
 
 const clips = clipsOf(emissions, placed, {

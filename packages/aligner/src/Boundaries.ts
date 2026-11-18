@@ -14,19 +14,34 @@ export interface Tuning {
 	/** How far a start may move back, and an end forward, to reach quiet. */
 	readonly reachBack: number;
 	readonly reachForward: number;
-	/** Loudness this many decibels over the book's quiet counts as sound. */
+	/**
+	 * An end runs on across quiet shorter than this. A stop's closure ("sys-tem") is 20 to 60 ms of
+	 * quiet inside a word; the pause after a sentence is longer.
+	 */
+	readonly bridge: number;
+	/**
+	 * Loudness counts as sound within this many decibels of the book's speech, and at least
+	 * `overQuiet` over its quiet. Speech spans about 40 dB; a studio's silence sits far under that,
+	 * and a noisy recording's does not, which is what the second bound is for.
+	 */
+	readonly underSpeech: number;
 	readonly overQuiet: number;
 }
 
 export const TUNING: Tuning = {
 	lead: -0.04,
 	reachBack: 0.3,
-	reachForward: 0.15,
-	overQuiet: 25,
+	reachForward: 0.45,
+	bridge: 0.06,
+	underSpeech: 40,
+	overQuiet: 10,
 };
 
-/** The loudness most of the book's quiet sits under: its tenth percentile. */
-const quietOf = (loudness: Float32Array): number => {
+/**
+ * The loudness that counts as sound: under the book's speech (its ninetieth percentile) by
+ * `underSpeech`, and over its quiet (its tenth percentile) by `overQuiet`, whichever is higher.
+ */
+const soundOf = (loudness: Float32Array, tuning: Tuning): number => {
 	const sample: Array<number> = [];
 	const step = Math.max(1, Math.floor(loudness.length / 50_000));
 
@@ -36,7 +51,10 @@ const quietOf = (loudness: Float32Array): number => {
 
 	sample.sort((a, b) => a - b);
 
-	return sample[Math.floor(sample.length / 10)] ?? -100;
+	const quiet = sample[Math.floor(sample.length / 10)] ?? -100;
+	const speech = sample[Math.floor((sample.length * 9) / 10)] ?? 0;
+
+	return Math.max(speech - tuning.underSpeech, quiet + tuning.overQuiet);
 };
 
 /**
@@ -52,7 +70,7 @@ export const clipsOf = (
 	tuning: Tuning = TUNING
 ): Array<Clip | undefined> => {
 	const step = emissions.secondsPerLoudness;
-	const sound = quietOf(emissions.loudness) + tuning.overQuiet;
+	const sound = soundOf(emissions.loudness, tuning);
 	const steps = (seconds: number) => Math.round(seconds / step);
 	const loud = (at: number) => (emissions.loudness[at] ?? -100) > sound;
 	const total = steps(emissions.frames * emissions.secondsPerFrame);
@@ -108,8 +126,20 @@ export const clipsOf = (
 			start -= 1;
 		}
 
-		while (end < ceiling && loud(end)) {
-			end += 1;
+		// On through sound, and across quiet too short to be a pause, to the last sound before one.
+		let quiet = 0;
+
+		for (
+			let at = clip.end;
+			at < ceiling && quiet <= steps(tuning.bridge);
+			at += 1
+		) {
+			if (loud(at)) {
+				end = at + 1;
+				quiet = 0;
+			} else {
+				quiet += 1;
+			}
 		}
 
 		return { start, end: Math.max(end, start + 1) };
