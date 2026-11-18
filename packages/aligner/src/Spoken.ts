@@ -225,6 +225,15 @@ const sayNumber = (bare: string): Array<string> | undefined => {
 		return decade(decadeMatch.groups?.digits ?? "");
 	}
 
+	// '90s
+	const shortDecade = /^(?<digits>\d0)'?s$/u.exec(bare);
+
+	if (shortDecade) {
+		const [tens = ""] = cardinal(Number(shortDecade.groups?.digits));
+
+		return [`${tens.slice(0, -1)}ies`];
+	}
+
 	// 21st, 2nd, 3rd, 4th
 	const nth = /^(?<digits>\d+)(?:st|nd|rd|th)$/u.exec(bare);
 
@@ -250,9 +259,9 @@ const sayNumber = (bare: string): Array<string> | undefined => {
 		];
 	}
 
-	// 1,234,567
-	if (/^\d{1,3}(?:,\d{3})+$/u.test(bare)) {
-		return cardinal(Number(bare.replaceAll(",", "")));
+	// 1,234,567 and 1,234.50
+	if (/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/u.test(bare)) {
+		return sayNumber(bare.replaceAll(",", ""));
 	}
 
 	if (/^\d+$/u.test(bare)) {
@@ -262,17 +271,17 @@ const sayNumber = (bare: string): Array<string> | undefined => {
 	return undefined;
 };
 
-/** Letters and digits mixed (a code, a model number): letters as words, digits one by one. */
+/**
+ * Letters, digits and marks mixed (a code, a model number, "key:value"): each run of letters is a
+ * word and each run of digits a number. Nothing but letters and apostrophes comes out, since the
+ * model has no token for anything else.
+ */
 const sayMixed = (bare: string): Array<string> =>
-	bare
-		.split(/(?<digits>\d+)/u)
+	(bare.match(/\d+|[a-z']+/gu) ?? [])
 		.flatMap((part) =>
 			/^\d+$/u.test(part)
 				? cardinal(Number(part))
-				: part
-						.replaceAll(".", " ")
-						.split(" ")
-						.map((word) => word.replaceAll(/^'+|'+$/gu, ""))
+				: [part.replaceAll(/^'+|'+$/gu, "")]
 		)
 		.filter((word) => /[a-z]/u.test(word));
 
@@ -343,7 +352,7 @@ export const spoken = (text: string): Array<string> => {
 		.toLowerCase()
 		.replaceAll(/[‘’ʼ`´]/gu, "'")
 		// Dashes and slashes join words without being said.
-		.replaceAll(/[-‐‑‒–—―/\\_]/gu, " ");
+		.replaceAll(/[-‐‑‒–—―/\\_⁄]/gu, " ");
 
 	for (const [symbol, word] of SYMBOLS) {
 		plain = plain.replaceAll(symbol, word);

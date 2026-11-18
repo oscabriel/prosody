@@ -121,6 +121,23 @@ describe("the spoken form", () => {
 		]);
 	});
 
+	it("says only letters, whatever marks a token holds", () => {
+		// The model has no token for a colon or a comma: left in, they become its unknown token.
+		expect(spoken("state:default and a,b")).toStrictEqual([
+			"state",
+			"default",
+			"and",
+			"a",
+			"b",
+		]);
+		expect(spoken("$1,234.50 in the '90s, a 3:2 ratio")).toStrictEqual([
+			..."one thousand two hundred thirty four point five zero dollars".split(
+				" "
+			),
+			..."in the nineties a three two ratio".split(" "),
+		]);
+	});
+
 	it("parts quoted speech from the narration around it", () => {
 		const parts = phrases("“No,” he said, “not at 2:23.”");
 
