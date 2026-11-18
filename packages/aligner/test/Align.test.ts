@@ -3,7 +3,7 @@ import { describe, expect, it } from "@effect/vitest";
 import { coresOf } from "../src/Acoustic.ts";
 import { align } from "../src/Align.ts";
 import { wrongLength } from "../src/Aligner.ts";
-import { steadyTies, tiesOf } from "../src/Anchors.ts";
+import { longestChain, steadyTies, straysOf, tiesOf } from "../src/Anchors.ts";
 import { clipsOf } from "../src/Boundaries.ts";
 import { decode, encode, transcriptOf } from "../src/Emissions.ts";
 import type { Emissions } from "../src/Emissions.ts";
@@ -192,6 +192,53 @@ describe("anchors", () => {
 			{ word: 800, heard: 801 },
 			{ word: 801, heard: 802 },
 		]);
+	});
+});
+
+describe("audio out of the book's order", () => {
+	// The book's words 100 to 299 are heard first, then its words 0 to 99: two files, swapped.
+	const candidates = Array.from({ length: 100 }, (_, index) => {
+		const word = index * 3;
+
+		return { word, heard: word < 100 ? word + 200 : word - 100 };
+	});
+
+	it("finds the run the chain left out, and the gaps it belongs in", () => {
+		const chain = steadyTies(longestChain(candidates));
+		const strays = straysOf(candidates, chain);
+
+		expect(chain.at(0)).toStrictEqual({ word: 102, heard: 2 });
+		expect(strays).toHaveLength(1);
+		expect(strays[0]?.candidates).toHaveLength(34);
+		// Its words come before the chain's first tie, and it was heard after the chain's last.
+		expect(strays[0]).toMatchObject({
+			wordsAfter: undefined,
+			wordsBefore: { word: 102, heard: 2 },
+			heardAfter: { word: 297, heard: 197 },
+			heardBefore: undefined,
+		});
+	});
+
+	it("takes a few matches out of order for chance, not for a run", () => {
+		const chain = candidates.filter((tie) => tie.word >= 100);
+
+		expect(
+			straysOf([...candidates.slice(0, 10), ...chain], chain)
+		).toHaveLength(0);
+	});
+
+	it("bounds each clip by the sentences heard around it, not the ones printed around it", () => {
+		// The second sentence of the book is heard first.
+		const audio = sounding(() => false);
+
+		const [first, second] = clipsOf(audio, [
+			{ from: 20, to: 25, score: 0 },
+			{ from: 2, to: 5, score: 0 },
+		]);
+
+		expect(second).toStrictEqual({ start: 0.12, end: 0.44 });
+		expect(first?.start).toBeCloseTo(1.56, 5);
+		expect(first?.end).toBeCloseTo(2.04, 5);
 	});
 });
 

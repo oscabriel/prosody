@@ -90,19 +90,26 @@ export const clipsOf = (
 			: undefined
 	);
 
-	// The nearest placed neighbours' edges, found once each way.
+	// The placed sentences in the audio's order, which is the book's unless the audio was read or
+	// filed out of order. A sentence's neighbours are the ones heard before and after it.
+	const inOrder = rough
+		.flatMap((clip, index) => (clip ? [{ index, start: clip.start }] : []))
+		.toSorted((a, b) => a.start - b.start)
+		.map((entry) => entry.index);
+
+	// The neighbours' edges, found once each way.
 	const endBefore = new Int32Array(rough.length);
 	const startAfter = new Int32Array(rough.length);
 	let edge = 0;
 
-	for (const [index, clip] of rough.entries()) {
+	for (const index of inOrder) {
 		endBefore[index] = edge;
-		edge = clip ? clip.end : edge;
+		edge = Math.max(edge, rough[index]?.end ?? edge);
 	}
 
 	edge = total;
 
-	for (let index = rough.length - 1; index >= 0; index -= 1) {
+	for (const index of inOrder.toReversed()) {
 		startAfter[index] = edge;
 		edge = rough[index]?.start ?? edge;
 	}
@@ -168,7 +175,8 @@ export const clipsOf = (
 	// at its quietest moment, so no audio belongs to two sentences.
 	let before: number | undefined;
 
-	for (const [index, clip] of clips.entries()) {
+	for (const index of inOrder) {
+		const clip = clips[index];
 		const previous = before === undefined ? undefined : clips[before];
 
 		if (clip && previous && before !== undefined && previous.end > clip.start) {
@@ -178,7 +186,7 @@ export const clipsOf = (
 			clips[index] = { start: meet, end: clip.end };
 		}
 
-		before = clip ? index : before;
+		before = index;
 	}
 
 	return clips.map((clip) =>
