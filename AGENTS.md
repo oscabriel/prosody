@@ -4,12 +4,18 @@ One self-hosted app for the whole route a book travels: wanting it, fetching it,
 
 ## State
 
-The foundation is built: the workspace and its checks, the library half of the model, the stack on the swarm, a shelf page, and a press that walks the library. `pnpm check` must pass before a commit. The next work is pairing and alignment, then the reading room.
+Pairing and alignment are built: each book with both editions is paired, aligned by the press, spot-checked by ear, and kept as a reading copy in the copies folder. `pnpm check` must pass before a commit. The next work is the reading room.
 
 - `pnpm check` formats, lints, typechecks and tests. `pnpm run deploy` deploys; `pnpm deploy` is a different, built-in pnpm command.
 - `packages/domain` imports only `effect` and `@alchemy.run/domain`. The linter enforces it.
 - The shelf page runs from its dev server (`pnpm --filter @prosody/web dev`) at `https://prosody.example.com`. Nothing serves a built copy yet.
 - `.alchemy/` is Alchemy's record of what is deployed. Never delete it while the stack is up.
+- The press runs in its own base image, `packages/press/image/Dockerfile`, as uid 1000. Bump `PressImage`'s tag in `Press.ts` whenever the Dockerfile changes, or the press keeps the old image.
+- Alchemy runs a service's setup on the host when it plans a deploy. Anything that touches the container's own files or mounts goes inside `host.run`.
+- Alchemy 2.0.0-beta.87 misses a change to a service's code alone when the service's settings depend on other resources. The Api and the press carry `PROSODY_SOURCE`, a fingerprint of the source (`packages/server/src/Source.ts`), so code changes deploy; give any new service the same.
+- Policies act only on new events, never on history. A rule that must also cover what is already recorded needs another trigger: the press reports pairs on every walk for this reason.
+- Bump a view's `version` whenever what it computes changes, so it is rebuilt from the history.
+- `.pending` in the copies folder is the press's queue. A request stays there until its answer is sent.
 
 ## Before using an API
 
