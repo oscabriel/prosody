@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 
+import { coresOf } from "../src/Acoustic.ts";
 import { align } from "../src/Align.ts";
 import { wrongLength } from "../src/Aligner.ts";
 import { steadyTies, tiesOf } from "../src/Anchors.ts";
@@ -210,6 +211,23 @@ describe("the reading copy", () => {
 	it("writes durations as EPUB wants them", () => {
 		expect(clock(48_693.87)).toBe("13:31:33.870");
 		expect(clock(59.9996)).toBe("0:01:00.000");
+	});
+});
+
+/** One processor's entry in /proc/cpuinfo, as far as the count reads it. */
+const processor = (socket: number, core: number) =>
+	`processor\t: 0\nphysical id\t: ${socket}\ncore id\t\t: ${core}\n`;
+
+describe("the model's threads", () => {
+	it("counts cores, not the two threads of each", () => {
+		const cpuinfo = [0, 0, 1, 1, 2, 2, 3, 3]
+			.map((core) => processor(0, core))
+			.join("\n");
+
+		expect(coresOf(cpuinfo, 8)).toBe(4);
+		expect(coresOf(`${cpuinfo}\n${processor(1, 0)}`, 9)).toBe(5);
+		expect(coresOf(cpuinfo, 2)).toBe(2);
+		expect(coresOf("", 6)).toBe(6);
 	});
 });
 

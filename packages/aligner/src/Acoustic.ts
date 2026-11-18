@@ -11,6 +11,7 @@ import {
 	Config,
 	Context,
 	Effect,
+	FileSystem,
 	Layer,
 	Predicate,
 	Schema,
@@ -44,6 +45,26 @@ export class ListenFailed extends Schema.TaggedError<ListenFailed>()(
 	"ListenFailed",
 	{ reason: Schema.String }
 ) {}
+
+/**
+ * How many cores the machine has, from Linux's `/proc/cpuinfo`: the distinct pairs of "physical id"
+ * and "core id". Two threads of one core share its arithmetic, and the model's threads spin while
+ * they wait, so a thread for every logical processor is slower than one for every core: 24 against
+ * 30 times real time on a machine of 8 cores, and 11 against 20 with other work beside it.
+ * `logical` is the answer when the file says nothing, and the most the answer can be.
+ */
+export const coresOf = (cpuinfo: string, logical: number): number => {
+	const cores = new Set(
+		cpuinfo.split(/\n\s*\n/u).flatMap((processor) => {
+			const socket = /^physical id\s*:\s*(?<id>\d+)/mu.exec(processor);
+			const core = /^core id\s*:\s*(?<id>\d+)/mu.exec(processor);
+
+			return core ? [`${socket?.groups?.id ?? "0"}:${core.groups?.id}`] : [];
+		})
+	);
+
+	return cores.size === 0 ? logical : Math.min(cores.size, logical);
+};
 
 /** Grows a typed array's worth of numbers without knowing the count up front. */
 class Growing {
@@ -95,10 +116,15 @@ export class Acoustic extends Context.Service<
 >()("@prosody/aligner/Acoustic", {
 	make: Effect.gen(function* () {
 		const audio = yield* Audio;
+		const fs = yield* FileSystem.FileSystem;
 		const models = yield* Config.String("PROSODY_ALIGNER_MODELS");
 
+		const cpuinfo = yield* fs
+			.readFileString("/proc/cpuinfo")
+			.pipe(Effect.orElseSucceed(() => ""));
+
 		const threads = yield* Config.Int("PROSODY_ALIGNER_THREADS").pipe(
-			Config.withDefault(availableParallelism())
+			Config.withDefault(coresOf(cpuinfo, availableParallelism()))
 		);
 
 		env.cacheDir = models;
