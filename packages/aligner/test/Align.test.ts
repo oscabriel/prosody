@@ -2,6 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 
 import { align } from "../src/Align.ts";
 import { steadyTies, tiesOf } from "../src/Anchors.ts";
+import { clipsOf } from "../src/Boundaries.ts";
 import { decode, encode, transcriptOf } from "../src/Emissions.ts";
 import type { Emissions } from "../src/Emissions.ts";
 import { relative, resolve } from "../src/Epub.ts";
@@ -44,6 +45,17 @@ const heard = (
 		vocabulary,
 	};
 };
+
+/** Loudness every 10 ms: speech where `speech` says so, and a studio's silence elsewhere. */
+const sounding = (speech: (centiseconds: number) => boolean): Emissions => ({
+	...heard(
+		Array.from({ length: 40 }, () => -1),
+		["▁a", "▁b"]
+	),
+	loudness: Float32Array.from({ length: 320 }, (_, at) =>
+		speech(at) ? -20 : -90
+	),
+});
 
 describe("forced alignment", () => {
 	// Silence, A B, a pause, C D, four frames of speech the text lacks, E, silence.
@@ -121,6 +133,22 @@ describe("forced alignment", () => {
 		expect([...back.ids]).toStrictEqual([...audio.ids]);
 		expect([...back.blank]).toStrictEqual([...audio.blank]);
 		expect(back.vocabulary).toStrictEqual(audio.vocabulary);
+	});
+});
+
+describe("boundaries", () => {
+	it("gives sound between two sentences to one of them, at its quietest", () => {
+		// Speech runs on from 0.10 s to 1.50 s, dipping at 0.55 s.
+		const audio = sounding((at) => at >= 10 && at < 150);
+		audio.loudness[55] = -35;
+
+		const [first, second] = clipsOf(audio, [
+			{ from: 2, to: 5, score: 0 },
+			{ from: 9, to: 15, score: 0 },
+		]);
+
+		expect(first?.end).toBeCloseTo(0.55, 5);
+		expect(second?.start).toBeCloseTo(0.55, 5);
 	});
 });
 

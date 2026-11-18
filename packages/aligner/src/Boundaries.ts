@@ -43,6 +43,8 @@ const quietOf = (loudness: Float32Array): number => {
  * Each placed sentence's clip. A start moves back through sound to the quiet before it, and an end
  * runs on through sound to the quiet after it, each only so far and never into a neighbour. An end
  * never stretches across a pause to the next sentence: the quiet between them belongs to neither.
+ *
+ * Times are counted in steps of the loudness (10 ms) until the end, so no edge lands between two.
  */
 export const clipsOf = (
 	emissions: Emissions,
@@ -51,27 +53,28 @@ export const clipsOf = (
 ): Array<Clip | undefined> => {
 	const step = emissions.secondsPerLoudness;
 	const sound = quietOf(emissions.loudness) + tuning.overQuiet;
-
-	const loud = (seconds: number) =>
-		(emissions.loudness[Math.floor(seconds / step)] ?? -100) > sound;
-
-	const total = emissions.frames * emissions.secondsPerFrame;
+	const steps = (seconds: number) => Math.round(seconds / step);
+	const loud = (at: number) => (emissions.loudness[at] ?? -100) > sound;
+	const total = steps(emissions.frames * emissions.secondsPerFrame);
 
 	const rough = placed.map((p) =>
 		p
 			? {
-					start: Math.max(0, p.from * emissions.secondsPerFrame + tuning.lead),
+					start: Math.max(
+						0,
+						steps(p.from * emissions.secondsPerFrame + tuning.lead)
+					),
 					end: Math.min(
 						total,
-						(p.to + 1) * emissions.secondsPerFrame + tuning.lead
+						steps((p.to + 1) * emissions.secondsPerFrame + tuning.lead)
 					),
 				}
 			: undefined
 	);
 
 	// The nearest placed neighbours' edges, found once each way.
-	const endBefore = new Float64Array(rough.length);
-	const startAfter = new Float64Array(rough.length);
+	const endBefore = new Int32Array(rough.length);
+	const startAfter = new Int32Array(rough.length);
 	let edge = 0;
 
 	for (const [index, clip] of rough.entries()) {
@@ -90,27 +93,65 @@ export const clipsOf = (
 	const settle = (clip: Clip, index: number): Clip => {
 		const floor = Math.max(
 			endBefore[index] ?? 0,
-			clip.start - tuning.reachBack
+			clip.start - steps(tuning.reachBack)
 		);
 
 		const ceiling = Math.min(
 			startAfter[index] ?? total,
-			clip.end + tuning.reachForward
+			clip.end + steps(tuning.reachForward)
 		);
 
 		let { start } = clip;
 		let { end } = clip;
 
-		while (start - step >= floor && loud(start - step)) {
-			start -= step;
+		while (start > floor && loud(start - 1)) {
+			start -= 1;
 		}
 
-		while (end + step <= ceiling && loud(end)) {
-			end += step;
+		while (end < ceiling && loud(end)) {
+			end += 1;
 		}
 
-		return { start, end: Math.max(end, start + step) };
+		return { start, end: Math.max(end, start + 1) };
 	};
 
-	return rough.map((clip, index) => (clip ? settle(clip, index) : undefined));
+	/** The quietest step from `from` to `to`: where one sentence gives way to the next. */
+	const quietest = (from: number, to: number): number => {
+		let best = from;
+
+		for (let at = from; at <= to; at += 1) {
+			if (
+				(emissions.loudness[at] ?? -100) < (emissions.loudness[best] ?? -100)
+			) {
+				best = at;
+			}
+		}
+
+		return best;
+	};
+
+	const clips = rough.map((clip, index) =>
+		clip ? settle(clip, index) : undefined
+	);
+
+	// Where speech runs on, an end and the next start each reach across the same sound. They meet
+	// at its quietest moment, so no audio belongs to two sentences.
+	let before: number | undefined;
+
+	for (const [index, clip] of clips.entries()) {
+		const previous = before === undefined ? undefined : clips[before];
+
+		if (clip && previous && before !== undefined && previous.end > clip.start) {
+			const meet = quietest(clip.start, Math.min(previous.end, clip.end - 1));
+
+			clips[before] = { start: previous.start, end: meet };
+			clips[index] = { start: meet, end: clip.end };
+		}
+
+		before = clip ? index : before;
+	}
+
+	return clips.map((clip) =>
+		clip ? { start: clip.start * step, end: clip.end * step } : undefined
+	);
 };
