@@ -325,8 +325,8 @@ const addAudio = (zip: Zip, path: string, source: string) => {
 				break;
 			}
 
-			// A copy, since the next read reuses `piece`.
-			file.push(piece.slice(0, read));
+			// No copy: a stored file's bytes are summed and written out before `push` returns.
+			file.push(piece.subarray(0, read));
 		}
 
 		file.push(new Uint8Array(0), true);
