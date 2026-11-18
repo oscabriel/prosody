@@ -1,6 +1,6 @@
 import type * as Domain from "@alchemy.run/domain";
 import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
-import type { ShelfEntry } from "@prosody/domain/Library/Shelf.view";
+import type { ShelfEntry, Sync } from "@prosody/domain/Library/Shelf.view";
 import { SHELF, Shelf } from "@prosody/domain/Library/Shelf.view";
 import { ReaderApi } from "@prosody/domain/ReaderApi.api";
 import { Option, Schema } from "effect";
@@ -90,14 +90,23 @@ export const subscriptions = Subscription.make<Model, Message, Reader>()(
 
 // VIEW
 
+/** A work as the page lists it: its id, its entry, and its sync if it has a pair. */
+type Listed = readonly [string, ShelfEntry, Option.Option<Sync>];
+
 /** The shelf's works with their ids, by author and then title. */
-const worksOf = (model: Model): ReadonlyArray<readonly [string, ShelfEntry]> =>
+const worksOf = (model: Model): ReadonlyArray<Listed> =>
 	Option.match(model.shelf, {
 		onNone: () => [],
-		onSome: ({ works }) =>
-			Object.entries(works).toSorted(([, a], [, b]) =>
-				`${a.author} ${a.title}`.localeCompare(`${b.author} ${b.title}`)
-			),
+		onSome: ({ works, syncs }) =>
+			Object.entries(works)
+				.toSorted(([, a], [, b]) =>
+					`${a.author} ${a.title}`.localeCompare(`${b.author} ${b.title}`)
+				)
+				.map(([id, entry]): Listed => [
+					id,
+					entry,
+					Option.fromUndefinedOr(syncs[id]),
+				]),
 	});
 
 /** What can be done with a work, from the editions it has. */
@@ -117,19 +126,36 @@ const editionsOf = (entry: ShelfEntry) => {
 	return "No editions";
 };
 
-const workView = (
-	[id, entry]: readonly [string, ShelfEntry],
-	h: HtmlBuilder<Message>
-) =>
-	h.keyed("li")(
+/** Whether a work's text and audio are joined, as a state for its mark and a line that says why. */
+const syncOf = (entry: ShelfEntry, sync: Option.Option<Sync>) =>
+	Option.match(sync, {
+		onSome: ({ state, note }) => ({
+			state,
+			line: `${{ syncing: "Syncing", synced: "Synced", failed: "Not synced" }[state]}: ${note}`,
+		}),
+		onNone: () => ({
+			state: "unpaired" as const,
+			line:
+				entry.text || entry.audio
+					? `Not synced: no ${entry.text ? "audio" : "text"}`
+					: "Not synced",
+		}),
+	});
+
+const workView = ([id, entry, sync]: Listed, h: HtmlBuilder<Message>) => {
+	const { state, line } = syncOf(entry, sync);
+
+	return h.keyed("li")(
 		id,
 		[h.Class("work")],
 		[
 			h.div([h.Class("title")], [entry.title]),
 			h.div([h.Class("author")], [entry.author]),
+			h.div([h.Class(`sync ${state}`)], [line]),
 			h.div([h.Class("editions")], [editionsOf(entry)]),
 		]
 	);
+};
 
 const statusOf = (model: Model, count: number) => {
 	if (Option.isSome(model.error)) {

@@ -76,11 +76,41 @@ h1 {
 
 .editions {
 	grid-column: 2;
-	grid-row: 1 / span 2;
+	grid-row: 1 / span 3;
 	align-self: center;
 	color: var(--accent);
 	font:
 		0.78rem/1 system-ui,
 		sans-serif;
 	white-space: nowrap;
+}
+
+/* A work's sync: a mark, never a hue, then a line that says why. Full is synced, half is syncing,
+   empty is not synced. The marks are drawn, so every font shows them alike. */
+.sync {
+	grid-column: 1;
+	margin-top: 0.15rem;
+	color: var(--muted);
+	font:
+		0.8rem/1.4 system-ui,
+		sans-serif;
+}
+
+.sync::before {
+	content: "";
+	display: inline-block;
+	width: 0.55em;
+	height: 0.55em;
+	margin-right: 0.5em;
+	border: 1.5px solid var(--ink);
+	border-radius: 50%;
+	vertical-align: 0.02em;
+}
+
+.sync.synced::before {
+	background: var(--ink);
+}
+
+.sync.syncing::before {
+	background: linear-gradient(90deg, var(--ink) 50%, transparent 50%);
 }
