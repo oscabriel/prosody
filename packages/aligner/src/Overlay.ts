@@ -1,4 +1,4 @@
-import { closeSync, openSync, readSync, writeSync } from "node:fs";
+import { closeSync, openSync, readSync, statSync, writeSync } from "node:fs";
 
 import { render } from "dom-serializer";
 import { Element, isTag } from "domhandler";
@@ -26,9 +26,11 @@ export interface Track {
 
 /** `h:mm:ss.fff`, as EPUB's `media:duration` wants it. */
 export const clock = (seconds: number): string => {
-	const h = Math.floor(seconds / 3600);
-	const m = Math.floor((seconds % 3600) / 60);
-	const s = seconds % 60;
+	// Whole milliseconds first: rounding the seconds alone turns 59.9996 into "60.000".
+	const ms = Math.round(seconds * 1000);
+	const h = Math.floor(ms / 3_600_000);
+	const m = Math.floor((ms % 3_600_000) / 60_000);
+	const s = (ms % 60_000) / 1000;
 
 	return `${h}:${String(m).padStart(2, "0")}:${s.toFixed(3).padStart(6, "0")}`;
 };
@@ -47,6 +49,14 @@ const MEDIA_TYPES = new Map([
 	["mp4", "audio/mp4"],
 	["mp3", "audio/mpeg"],
 ]);
+
+/** The archive is written without ZIP64, so it and every offset in it must stay under 4 GB. */
+const MOST_BYTES = 2 ** 32 - 2 ** 26;
+
+/** The reading copy would be too large to be a valid archive. */
+export class TooLargeError extends Error {
+	override readonly name = "TooLargeError";
+}
 
 /** Audio is copied into the archive this many bytes at a time. */
 const AUDIO_PIECE = 4 * 2 ** 20;
@@ -71,7 +81,6 @@ interface Layout {
 	readonly audioPaths: ReadonlyArray<string>;
 	/** Where each track starts in the book's time. */
 	readonly offsets: ReadonlyArray<number>;
-	readonly total: number;
 }
 
 const layoutOf = (book: Book, tracks: ReadonlyArray<Track>): Layout => {
@@ -94,7 +103,7 @@ const layoutOf = (book: Book, tracks: ReadonlyArray<Track>): Layout => {
 		)
 	);
 
-	return { inFolder, audioPaths, offsets, total };
+	return { inFolder, audioPaths, offsets };
 };
 
 /** The page's entry in `byPage`, made when its first sentence comes. */
@@ -115,9 +124,15 @@ const parsOf = (
 			.at(-1)
 			?.replace(/\.x?html?$/u, "") ?? "page";
 
+	// Two pages in different folders may share a name; their overlays must not.
+	const taken = new Set([...byPage.values()].map((other) => other.smil));
+	const plain = inFolder(`MediaOverlays/${name}.smil`);
+
 	const pars: Pars = {
 		page,
-		smil: inFolder(`MediaOverlays/${name}.smil`),
+		smil: taken.has(plain)
+			? inFolder(`MediaOverlays/${name}-${byPage.size + 1}.smil`)
+			: plain,
 		id: `mo-${byPage.size + 1}`,
 		pars: [],
 		seconds: 0,
@@ -260,7 +275,10 @@ const packageOf = (
 		}
 	}
 
-	append(metadata, meta("media:duration", clock(layout.total)));
+	// The book's duration is the sum of its overlays', as EPUB defines it, not the audio's length.
+	const spoken = [...byPage.values()].reduce((n, pars) => n + pars.seconds, 0);
+
+	append(metadata, meta("media:duration", clock(spoken)));
 	append(metadata, meta("media:active-class", "-epub-media-overlay-active"));
 
 	if (!all.some((element) => element.attribs.property === "dcterms:modified")) {
@@ -329,6 +347,14 @@ export const writeReadingCopy = (
 	tracks: ReadonlyArray<Track>,
 	out: string
 ): void => {
+	const bytes = tracks.reduce((n, track) => n + statSync(track.file).size, 0);
+
+	if (bytes > MOST_BYTES) {
+		throw new TooLargeError(
+			`the audio is ${(bytes / 2 ** 30).toFixed(1)} GB, and the archive holds 4`
+		);
+	}
+
 	const layout = layoutOf(book, tracks);
 	const byPage = byPageOf(entries, tracks, layout);
 	const opf = packageOf(book, byPage, layout);

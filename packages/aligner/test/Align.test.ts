@@ -209,6 +209,7 @@ describe("the reading copy", () => {
 
 	it("writes durations as EPUB wants them", () => {
 		expect(clock(48_693.87)).toBe("13:31:33.870");
+		expect(clock(59.9996)).toBe("0:01:00.000");
 	});
 });
 
