@@ -20,11 +20,17 @@ export interface Costs {
 	readonly skip: number;
 	/** A frame of audio that matches no text, over the frame's best guess. */
 	readonly garbage: number;
+	/**
+	 * A placed unit whose tokens were heard worse than this, as a mean log-probability, is not
+	 * believed. The path can find it cheaper to force a short unit onto audio than to skip it.
+	 */
+	readonly leastScore: number;
 }
 
 export const COSTS: Costs = {
 	skip: -10,
 	garbage: -3,
+	leastScore: -4,
 };
 
 const NONE = -Infinity;
@@ -372,7 +378,7 @@ export const forceAlign = (
 	for (let k = 0; k < units.length; k += 1) {
 		const score = (total[k] ?? 0) / Math.max(1, entered[k] ?? 0);
 
-		if ((firstFrame[k] ?? -1) !== -1) {
+		if ((firstFrame[k] ?? -1) !== -1 && score >= costs.leastScore) {
 			result[k] = {
 				from: from + (firstFrame[k] ?? 0),
 				to: from + (lastFrame[k] ?? 0),

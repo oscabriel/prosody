@@ -5,7 +5,7 @@ import { steadyTies, tiesOf } from "../src/Anchors.ts";
 import { decode, encode, transcriptOf } from "../src/Emissions.ts";
 import type { Emissions } from "../src/Emissions.ts";
 import { relative, resolve } from "../src/Epub.ts";
-import { forceAlign } from "../src/ForcedAlign.ts";
+import { COSTS, forceAlign } from "../src/ForcedAlign.ts";
 import { clock } from "../src/Overlay.ts";
 import { likeness, spread, wordsOf } from "../src/SpotCheck.ts";
 
@@ -66,6 +66,20 @@ describe("forced alignment", () => {
 			[8, 9],
 			[14, 14],
 		]);
+	});
+
+	it("does not believe a unit it could only force onto audio that does not hold it", () => {
+		// A B, silence, C. X was not read, but one frame of silence is cheaper for it than skipping.
+		const short = heard([0, 1, -1, -1, 2], ["▁a", "▁b", "▁c", "▁x"]);
+		const units = [{ tokens: [0, 1] }, { tokens: [3] }, { tokens: [2] }];
+
+		const frames = (costs = COSTS) =>
+			forceAlign(short, 0, short.frames, units, costs).map((p) =>
+				p ? [p.from, p.to] : undefined
+			);
+
+		expect(frames({ ...COSTS, leastScore: -Infinity })[1]).toBeDefined();
+		expect(frames()).toStrictEqual([[0, 1], undefined, [4, 4]]);
 	});
 
 	it("places the speech of a sentence whose narration was left out", () => {

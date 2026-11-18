@@ -77,6 +77,7 @@ const marked = performance.now();
 const Costly = Schema.Struct({
 	skip: Schema.optionalKey(Schema.Finite),
 	garbage: Schema.optionalKey(Schema.Finite),
+	leastScore: Schema.optionalKey(Schema.Finite),
 });
 
 const placed = align(emissions, said, {
