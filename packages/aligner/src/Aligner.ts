@@ -12,7 +12,7 @@ import { open } from "./Epub.ts";
 import type { Entry } from "./Overlay.ts";
 import { writeReadingCopy } from "./Overlay.ts";
 import { mark } from "./Sentences.ts";
-import { spoken } from "./Spoken.ts";
+import { phraseStarts, phrases } from "./Spoken.ts";
 import { SpotCheck } from "./SpotCheck.ts";
 import type { CheckFailed } from "./SpotCheck.ts";
 
@@ -148,11 +148,13 @@ export class Aligner extends Context.Service<
 				});
 
 			const said = yield* Effect.forEach(sentences, (sentence) => {
-				const words = spoken(sentence.text);
+				const parts = phrases(sentence.text);
+				const words = parts.flat();
 
 				return Effect.map(acoustic.tokensOf(words), (tokens) => ({
 					words,
 					tokens,
+					phrases: phraseStarts(parts),
 				}));
 			});
 

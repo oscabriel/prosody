@@ -306,6 +306,35 @@ const currency = (sign: string): string => {
 	return "euros";
 };
 
+/** Where quoted speech meets the narration around it: after a closing quote, before an opening one. */
+const SPEECH_EDGE = /(?<=[”"])\s+|\s+(?=[“"])/u;
+
+/**
+ * A sentence's spoken words, phrase by phrase: each run of quoted speech, and each run of narration
+ * between. A dramatised reading says "No" and leaves "he said" out, so the two are placed apart.
+ * Finer phrases (at every comma) were tried and placed scraps of code listings on chance matches.
+ */
+export const phrases = (text: string): Array<Array<string>> =>
+	text
+		.split(SPEECH_EDGE)
+		.map(spoken)
+		.filter((words) => words.length > 0);
+
+/** The index of the first word of each phrase after the first, as the alignment wants them. */
+export const phraseStarts = (
+	parts: ReadonlyArray<ReadonlyArray<string>>
+): Array<number> => {
+	const starts: Array<number> = [];
+	let at = 0;
+
+	for (const part of parts.slice(0, -1)) {
+		at += part.length;
+		starts.push(at);
+	}
+
+	return starts;
+};
+
 /** A sentence's spoken words. */
 export const spoken = (text: string): Array<string> => {
 	let plain = text

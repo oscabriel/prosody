@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 
+import { align } from "../src/Align.ts";
 import { steadyTies, tiesOf } from "../src/Anchors.ts";
 import { decode, encode, transcriptOf } from "../src/Emissions.ts";
 import type { Emissions } from "../src/Emissions.ts";
@@ -64,6 +65,27 @@ describe("forced alignment", () => {
 			undefined,
 			[8, 9],
 			[14, 14],
+		]);
+	});
+
+	it("places the speech of a sentence whose narration was left out", () => {
+		// "No," he said softly. Then go. A dramatised reading says "No" and "Then go".
+		const dramatised = heard(
+			[-1, 0, -1, -1, 3, 4, -1],
+			["▁no", "▁he", "▁said", "▁then", "▁go", "▁softly"]
+		);
+
+		const then = { words: ["then", "go"], tokens: [[3], [4]] };
+
+		const no = {
+			words: ["no", "he", "said", "softly"],
+			tokens: [[0], [1], [2], [5]],
+		};
+
+		expect(align(dramatised, [no, then])[0]).toBeUndefined();
+		expect(align(dramatised, [{ ...no, phrases: [1] }, then])).toMatchObject([
+			{ from: 1, to: 1 },
+			{ from: 4, to: 5 },
 		]);
 	});
 

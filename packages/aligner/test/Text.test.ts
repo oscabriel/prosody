@@ -2,7 +2,14 @@ import { describe, expect, it } from "@effect/vitest";
 
 import { isNarrated } from "../src/Sections.ts";
 import { mark, sentenceRanges } from "../src/Sentences.ts";
-import { cardinal, ordinal, spoken, year } from "../src/Spoken.ts";
+import {
+	cardinal,
+	ordinal,
+	phraseStarts,
+	phrases,
+	spoken,
+	year,
+} from "../src/Spoken.ts";
 
 const page = (body: string) =>
 	`<?xml version="1.0" encoding="UTF-8"?>\n<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title></head><body>${body}</body></html>`;
@@ -112,6 +119,18 @@ describe("the spoken form", () => {
 			"and",
 			"all",
 		]);
+	});
+
+	it("parts quoted speech from the narration around it", () => {
+		const parts = phrases("“No,” he said, “not at 2:23.”");
+
+		expect(parts).toStrictEqual([
+			["no"],
+			["he", "said"],
+			["not", "at", "two", "twenty", "three"],
+		]);
+		expect(phraseStarts(parts)).toStrictEqual([1, 3]);
+		expect(phrases("Plain narration, with a comma.")).toHaveLength(1);
 	});
 });
 

@@ -9,6 +9,11 @@ import type { Costs, Placed, Unit } from "./ForcedAlign.ts";
 export interface Said {
 	readonly words: ReadonlyArray<string>;
 	readonly tokens: ReadonlyArray<ReadonlyArray<number>>;
+	/**
+	 * The index of each word that starts a phrase after the first. A narrator may leave a phrase out
+	 * (a dramatised reading drops "he said"), so each is placed or skipped on its own.
+	 */
+	readonly phrases?: ReadonlyArray<number>;
 }
 
 /** Ties come from runs of this many words, and stretches between them are at least this long. */
@@ -29,9 +34,10 @@ interface Cut {
 	readonly frame: number;
 }
 
-/** A unit of one sentence's words, whose tokens grow as its words are gathered. */
+/** A unit of one phrase's words, whose tokens grow as its words are gathered. */
 interface Gathered extends Unit {
 	readonly sentence: number;
+	readonly phrase: number;
 	readonly tokens: Array<number>;
 }
 
@@ -83,12 +89,19 @@ export const align = (
 ): Array<Placed | undefined> => {
 	const words: Array<string> = [];
 	const sentenceOf: Array<number> = [];
+	const phraseOf: Array<number> = [];
 	const tokensOf: Array<ReadonlyArray<number>> = [];
+	let phrase = 0;
 
 	for (const [index, sentence] of sentences.entries()) {
+		const starts = new Set(sentence.phrases);
+		phrase += 1;
+
 		for (const [w, word] of sentence.words.entries()) {
+			phrase += starts.has(w) ? 1 : 0;
 			words.push(word);
 			sentenceOf.push(index);
+			phraseOf.push(phrase);
 			tokensOf.push(sentence.tokens[w] ?? []);
 		}
 	}
@@ -121,14 +134,17 @@ export const align = (
 		const units: Array<Gathered> = [];
 
 		for (let w = fromWord; w < toWord; w += 1) {
-			const sentence = sentenceOf[w] ?? 0;
 			const last = units.at(-1);
 			const tokens = tokensOf[w] ?? [];
 
-			if (last && last.sentence === sentence) {
+			if (last && last.phrase === phraseOf[w]) {
 				last.tokens.push(...tokens);
 			} else {
-				units.push({ sentence, tokens: [...tokens] });
+				units.push({
+					sentence: sentenceOf[w] ?? 0,
+					phrase: phraseOf[w] ?? 0,
+					tokens: [...tokens],
+				});
 			}
 		}
 

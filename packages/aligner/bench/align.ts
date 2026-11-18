@@ -19,7 +19,7 @@ import { COSTS } from "../src/ForcedAlign.ts";
 import { writeReadingCopy } from "../src/Overlay.ts";
 import type { Entry } from "../src/Overlay.ts";
 import { mark } from "../src/Sentences.ts";
-import { spoken } from "../src/Spoken.ts";
+import { phraseStarts, phrases } from "../src/Spoken.ts";
 
 const [emissionsPath, epubPath, out] = process.argv.slice(2);
 
@@ -65,9 +65,10 @@ const sentences = book.pages
 	});
 
 const said = sentences.map((sentence) => {
-	const words = spoken(sentence.text);
+	const parts = phrases(sentence.text);
+	const words = parts.flat();
 
-	return { words, tokens: words.map(piecesOf) };
+	return { words, tokens: words.map(piecesOf), phrases: phraseStarts(parts) };
 });
 
 const marked = performance.now();
