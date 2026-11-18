@@ -20,8 +20,8 @@ export interface Page {
 }
 
 /** The EPUB could not be read. */
-export class NotAnEpub extends Error {
-	override readonly name = "NotAnEpub";
+export class NotAnEpubError extends Error {
+	override readonly name = "NotAnEpubError";
 }
 
 const elements = (nodes: ReadonlyArray<AnyNode>): Array<Element> =>
@@ -78,18 +78,18 @@ export const open = (bytes: Uint8Array): Book => {
 	const container = files.get("META-INF/container.xml");
 
 	if (!container) {
-		throw new NotAnEpub("it has no META-INF/container.xml");
+		throw new NotAnEpubError("it has no META-INF/container.xml");
 	}
 
 	const rootfile = elements(
 		parseDocument(strFromU8(container), { xmlMode: true }).children
 	).find((element) => local(element) === "rootfile");
 
-	const packagePath = rootfile?.attribs["full-path"];
-	const packageBytes = packagePath ? files.get(packagePath) : undefined;
+	const packagePath = rootfile?.attribs["full-path"] ?? "";
+	const packageBytes = files.get(packagePath);
 
-	if (!packagePath || !packageBytes) {
-		throw new NotAnEpub("its container names no package document");
+	if (packagePath === "" || packageBytes === undefined) {
+		throw new NotAnEpubError("its container names no package document");
 	}
 
 	const packageXml = strFromU8(packageBytes);
@@ -106,8 +106,10 @@ export const open = (bytes: Uint8Array): Book => {
 		.flatMap((ref) => {
 			const item = manifest.get(ref.attribs.idref ?? "");
 
-			return item?.href && XHTML.has(item["media-type"] ?? "")
-				? [{ path: resolve(packagePath, item.href), id: item.id ?? "" }]
+			const href = item?.href ?? "";
+
+			return href !== "" && XHTML.has(item?.["media-type"] ?? "")
+				? [{ path: resolve(packagePath, href), id: item?.id ?? "" }]
 				: [];
 		})
 		.filter((page) => files.has(page.path));

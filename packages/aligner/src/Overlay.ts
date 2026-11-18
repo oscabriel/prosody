@@ -1,12 +1,11 @@
 import { closeSync, openSync, readSync, writeSync } from "node:fs";
 
-import render from "dom-serializer";
+import { render } from "dom-serializer";
 import { Element, isTag } from "domhandler";
 import type { AnyNode } from "domhandler";
 import { Zip, ZipDeflate, ZipPassThrough, strToU8 } from "fflate";
 import { parseDocument } from "htmlparser2";
 
-import type { Clip } from "./Boundaries.ts";
 import { relative } from "./Epub.ts";
 import type { Book } from "./Epub.ts";
 
@@ -42,12 +41,15 @@ const elements = (nodes: ReadonlyArray<AnyNode>): Array<Element> =>
 const local = (element: Element) =>
 	element.name.toLowerCase().replace(/^.*:/u, "");
 
-const MEDIA_TYPES: Record<string, string> = {
-	m4b: "audio/mp4",
-	m4a: "audio/mp4",
-	mp4: "audio/mp4",
-	mp3: "audio/mpeg",
-};
+const MEDIA_TYPES = new Map([
+	["m4b", "audio/mp4"],
+	["m4a", "audio/mp4"],
+	["mp4", "audio/mp4"],
+	["mp3", "audio/mpeg"],
+]);
+
+/** Audio is copied into the archive this many bytes at a time. */
+const AUDIO_PIECE = 4 * 2 ** 20;
 
 /** A page's sentences in order, each with its clip in one track's own time. */
 interface Pars {
@@ -63,18 +65,16 @@ interface Pars {
 	seconds: number;
 }
 
-/**
- * Write the reading copy: the book with its pages marked, a media overlay (SMIL) for every page with
- * an aligned sentence, the audio, and a package document upgraded to EPUB 3 that ties them
- * together. The audio is streamed into the archive, so a long book never sits in memory.
- */
-export const writeReadingCopy = (
-	book: Book,
-	marked: ReadonlyMap<string, string>,
-	entries: ReadonlyArray<Entry>,
-	tracks: ReadonlyArray<Track>,
-	out: string
-): void => {
+/** Where the reading copy puts its files: beside the package document, and the audio's paths. */
+interface Layout {
+	readonly inFolder: (path: string) => string;
+	readonly audioPaths: ReadonlyArray<string>;
+	/** Where each track starts in the book's time. */
+	readonly offsets: ReadonlyArray<number>;
+	readonly total: number;
+}
+
+const layoutOf = (book: Book, tracks: ReadonlyArray<Track>): Layout => {
 	const folder = book.packagePath.split("/").slice(0, -1).join("/");
 
 	const inFolder = (path: string) =>
@@ -94,7 +94,57 @@ export const writeReadingCopy = (
 		)
 	);
 
-	// Sentences by page, in the book's order.
+	return { inFolder, audioPaths, offsets, total };
+};
+
+/** The page's entry in `byPage`, made when its first sentence comes. */
+const parsOf = (
+	byPage: Map<string, Pars>,
+	page: string,
+	inFolder: (path: string) => string
+): Pars => {
+	const known = byPage.get(page);
+
+	if (known) {
+		return known;
+	}
+
+	const name =
+		page
+			.split("/")
+			.at(-1)
+			?.replace(/\.x?html?$/u, "") ?? "page";
+
+	const pars: Pars = {
+		page,
+		smil: inFolder(`MediaOverlays/${name}.smil`),
+		id: `mo-${byPage.size + 1}`,
+		pars: [],
+		seconds: 0,
+	};
+
+	byPage.set(page, pars);
+
+	return pars;
+};
+
+/** The track a moment of the book's time falls in. */
+const trackAt = (offsets: ReadonlyArray<number>, seconds: number): number => {
+	let track = 0;
+
+	while (track + 1 < offsets.length && (offsets[track + 1] ?? 0) <= seconds) {
+		track += 1;
+	}
+
+	return track;
+};
+
+/** The aligned sentences by page, in the book's order, each clip in its own track's time. */
+const byPageOf = (
+	entries: ReadonlyArray<Entry>,
+	tracks: ReadonlyArray<Track>,
+	layout: Layout
+): Map<string, Pars> => {
 	const byPage = new Map<string, Pars>();
 
 	for (const entry of entries) {
@@ -107,38 +157,12 @@ export const writeReadingCopy = (
 		}
 
 		const [page = "", id = ""] = entry.sentence.split("#");
-		let pars = byPage.get(page);
-
-		if (!pars) {
-			const name =
-				page
-					.split("/")
-					.at(-1)
-					?.replace(/\.x?html?$/u, "") ?? "page";
-
-			pars = {
-				page,
-				smil: inFolder(`MediaOverlays/${name}.smil`),
-				id: `mo-${byPage.size + 1}`,
-				pars: [],
-				seconds: 0,
-			};
-			byPage.set(page, pars);
-		}
-
-		let track = 0;
-
-		while (
-			track + 1 < offsets.length &&
-			(offsets[track + 1] ?? 0) <= entry.start
-		) {
-			track += 1;
-		}
-
-		const begin = entry.start - (offsets[track] ?? 0);
+		const pars = parsOf(byPage, page, layout.inFolder);
+		const track = trackAt(layout.offsets, entry.start);
+		const begin = entry.start - (layout.offsets[track] ?? 0);
 
 		const end = Math.min(
-			entry.end - (offsets[track] ?? 0),
+			entry.end - (layout.offsets[track] ?? 0),
 			tracks[track]?.seconds ?? entry.end
 		);
 
@@ -146,7 +170,39 @@ export const writeReadingCopy = (
 		pars.seconds += end - begin;
 	}
 
-	// The package document, upgraded and extended.
+	return byPage;
+};
+
+const append = (parent: Element | undefined, child: Element) => {
+	if (parent) {
+		child.parent = parent;
+		parent.children.push(child);
+	}
+};
+
+const meta = (property: string, value: string, refines?: string) => {
+	const element = new Element(
+		"meta",
+		refines === undefined ? { property } : { property, refines: `#${refines}` },
+		[]
+	);
+
+	const [text] = parseDocument(value, { xmlMode: true }).children;
+
+	if (text) {
+		text.parent = element;
+		element.children.push(text);
+	}
+
+	return element;
+};
+
+/** The package document, upgraded to EPUB 3 and extended with the audio and the overlays. */
+const packageOf = (
+	book: Book,
+	byPage: ReadonlyMap<string, Pars>,
+	layout: Layout
+) => {
 	const opf = parseDocument(book.packageXml, {
 		xmlMode: true,
 		decodeEntities: false,
@@ -161,40 +217,14 @@ export const writeReadingCopy = (
 		pkg.attribs.version = "3.0";
 	}
 
-	const append = (parent: Element | undefined, child: Element) => {
-		if (parent) {
-			child.parent = parent;
-			parent.children.push(child);
-		}
-	};
-
-	const meta = (property: string, value: string, refines?: string) => {
-		const element = new Element(
-			"meta",
-			refines === undefined
-				? { property }
-				: { property, refines: `#${refines}` },
-			[]
-		);
-
-		const text = parseDocument(value, { xmlMode: true }).children[0];
-
-		if (text) {
-			text.parent = element;
-			element.children.push(text);
-		}
-
-		return element;
-	};
-
-	for (const [index, path] of audioPaths.entries()) {
+	for (const [index, path] of layout.audioPaths.entries()) {
 		const extension = path.split(".").at(-1)?.toLowerCase() ?? "";
 		append(
 			manifest,
 			new Element("item", {
 				id: `audio-${index + 1}`,
 				href: relative(book.packagePath, path),
-				"media-type": MEDIA_TYPES[extension] ?? "audio/mp4",
+				"media-type": MEDIA_TYPES.get(extension) ?? "audio/mp4",
 			})
 		);
 	}
@@ -230,7 +260,7 @@ export const writeReadingCopy = (
 		}
 	}
 
-	append(metadata, meta("media:duration", clock(total)));
+	append(metadata, meta("media:duration", clock(layout.total)));
 	append(metadata, meta("media:active-class", "-epub-media-overlay-active"));
 
 	if (!all.some((element) => element.attribs.property === "dcterms:modified")) {
@@ -240,31 +270,76 @@ export const writeReadingCopy = (
 		);
 	}
 
-	const smilOf = (pars: Pars) => {
-		const textref = relative(pars.smil, pars.page);
+	return opf;
+};
 
-		const body = pars.pars
-			.map(
-				(par, index) =>
-					`<par id="par-${index + 1}"><text src="${textref}#${par.id}"/>` +
-					`<audio src="${relative(pars.smil, audioPaths[par.track] ?? "")}" clipBegin="${par.begin.toFixed(3)}s" clipEnd="${par.end.toFixed(3)}s"/></par>`
-			)
-			.join("\n");
+/** A page's media overlay. */
+const smilOf = (pars: Pars, audioPaths: ReadonlyArray<string>) => {
+	const textref = relative(pars.smil, pars.page);
 
-		return (
-			'<?xml version="1.0" encoding="UTF-8"?>\n' +
-			'<smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops" version="3.0">\n' +
-			`<body><seq id="seq-1" epub:textref="${textref}">\n${body}\n</seq></body></smil>\n`
-		);
-	};
+	const body = pars.pars
+		.map(
+			(par, index) =>
+				`<par id="par-${index + 1}"><text src="${textref}#${par.id}"/>` +
+				`<audio src="${relative(pars.smil, audioPaths[par.track] ?? "")}" clipBegin="${par.begin.toFixed(3)}s" clipEnd="${par.end.toFixed(3)}s"/></par>`
+		)
+		.join("\n");
+
+	return (
+		'<?xml version="1.0" encoding="UTF-8"?>\n' +
+		'<smil xmlns="http://www.w3.org/ns/SMIL" xmlns:epub="http://www.idpf.org/2007/ops" version="3.0">\n' +
+		`<body><seq id="seq-1" epub:textref="${textref}">\n${body}\n</seq></body></smil>\n`
+	);
+};
+
+/** Stream one audio file into the archive, stored, in pieces. */
+const addAudio = (zip: Zip, path: string, source: string) => {
+	const file = new ZipPassThrough(path);
+	zip.add(file);
+	const fd = openSync(source, "r");
+	const piece = new Uint8Array(AUDIO_PIECE);
+
+	try {
+		for (;;) {
+			const read = readSync(fd, piece, 0, piece.length, null);
+
+			if (read === 0) {
+				break;
+			}
+
+			// A copy, since the next read reuses `piece`.
+			file.push(piece.slice(0, read));
+		}
+
+		file.push(new Uint8Array(0), true);
+	} finally {
+		closeSync(fd);
+	}
+};
+
+/**
+ * Write the reading copy: the book with its pages marked, a media overlay (SMIL) for every page with
+ * an aligned sentence, the audio, and a package document upgraded to EPUB 3 that ties them
+ * together. The audio is streamed into the archive, so a long book never sits in memory.
+ */
+export const writeReadingCopy = (
+	book: Book,
+	marked: ReadonlyMap<string, string>,
+	entries: ReadonlyArray<Entry>,
+	tracks: ReadonlyArray<Track>,
+	out: string
+): void => {
+	const layout = layoutOf(book, tracks);
+	const byPage = byPageOf(entries, tracks, layout);
+	const opf = packageOf(book, byPage, layout);
 
 	// The archive, streamed to disk: mimetype first and stored, as EPUB requires.
 	const fd = openSync(out, "w");
-	let failure: Error | null = null;
+	const failures: Array<Error> = [];
 
 	const zip = new Zip((error, chunk) => {
 		if (error) {
-			failure = error;
+			failures.push(error);
 
 			return;
 		}
@@ -300,37 +375,21 @@ export const writeReadingCopy = (
 		);
 
 		for (const pars of byPage.values()) {
-			add(pars.smil, strToU8(smilOf(pars)), false);
+			add(pars.smil, strToU8(smilOf(pars, layout.audioPaths)), false);
 		}
 
 		// Audio is already compressed: stored, and read in pieces.
 		for (const [index, track] of tracks.entries()) {
-			const file = new ZipPassThrough(audioPaths[index] ?? "");
-			zip.add(file);
-			const source = openSync(track.file, "r");
-			const piece = new Uint8Array(4 << 20);
-
-			try {
-				for (;;) {
-					const read = readSync(source, piece, 0, piece.length, null);
-
-					if (read === 0) {
-						break;
-					}
-
-					file.push(piece.slice(0, read));
-				}
-
-				file.push(new Uint8Array(0), true);
-			} finally {
-				closeSync(source);
-			}
+			addAudio(zip, layout.audioPaths[index] ?? "", track.file);
 		}
 
 		zip.end();
 	} finally {
 		closeSync(fd);
 	}
+
+	// The archive reports its errors through the callback; the last one is thrown.
+	const failure = failures.at(-1);
 
 	if (failure) {
 		throw failure;

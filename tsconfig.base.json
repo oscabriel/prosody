@@ -21,6 +21,7 @@
 				"diagnostics": false,
 				"barrelImportPackages": ["effect"],
 				"allowedUnstableApis": [
+					"@effect/platform-bun",
 					"@effect/platform-node",
 					"@effect/vitest",
 					"effect/FileSystem",

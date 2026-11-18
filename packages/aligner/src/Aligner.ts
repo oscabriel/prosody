@@ -1,4 +1,4 @@
-import { Context, Effect, FileSystem, Layer, Schema } from "effect";
+import { Context, Effect, FileSystem, Layer, Option, Schema } from "effect";
 import type { PlatformError } from "effect";
 import { strFromU8 } from "fflate";
 
@@ -8,7 +8,6 @@ import { align } from "./Align.ts";
 import { Audio, isDecodable } from "./Audio.ts";
 import { clipsOf } from "./Boundaries.ts";
 import { decode, encode } from "./Emissions.ts";
-import type { Emissions } from "./Emissions.ts";
 import { open } from "./Epub.ts";
 import type { Entry } from "./Overlay.ts";
 import { writeReadingCopy } from "./Overlay.ts";
@@ -94,13 +93,11 @@ export class Aligner extends Context.Service<
 			if (saved !== undefined && (yield* fs.exists(saved))) {
 				const bytes = yield* fs.readFile(saved);
 
-				const read = yield* Effect.try({
-					try: (): Emissions => decode(bytes),
-					catch: () => {},
-				}).pipe(Effect.orElseSucceed(() => {}));
+				// A file that does not decode is heard again and replaced.
+				const read = yield* Effect.try(() => decode(bytes)).pipe(Effect.option);
 
-				if (read !== undefined) {
-					return read;
+				if (Option.isSome(read)) {
+					return read.value;
 				}
 			}
 

@@ -29,6 +29,27 @@ interface Cut {
 	readonly frame: number;
 }
 
+/** A unit of one sentence's words, whose tokens grow as its words are gathered. */
+interface Gathered extends Unit {
+	readonly sentence: number;
+	readonly tokens: Array<number>;
+}
+
+/** Call `between` on each point and the one after it, in order. */
+const eachStretch = (
+	points: ReadonlyArray<Cut>,
+	between: (a: Cut, b: Cut) => void
+) => {
+	for (let i = 1; i < points.length; i += 1) {
+		const a = points[i - 1];
+		const b = points[i];
+
+		if (a !== undefined && b !== undefined) {
+			between(a, b);
+		}
+	}
+};
+
 /** Ties at least `stretch` book words apart, with the heard frames strictly rising. */
 const cutsOf = (
 	ties: ReadonlyArray<Tie>,
@@ -96,15 +117,15 @@ export const align = (
 			return;
 		}
 
-		const units: Array<Unit & { sentence: number }> = [];
+		const units: Array<Gathered> = [];
 
-		for (let w = fromWord; w < toWord; w++) {
+		for (let w = fromWord; w < toWord; w += 1) {
 			const sentence = sentenceOf[w] ?? 0;
 			const last = units.at(-1);
 			const tokens = tokensOf[w] ?? [];
 
 			if (last && last.sentence === sentence) {
-				(last.tokens as Array<number>).push(...tokens);
+				last.tokens.push(...tokens);
 			} else {
 				units.push({ sentence, tokens: [...tokens] });
 			}
@@ -118,11 +139,9 @@ export const align = (
 			}
 
 			// Tie the stretch down with shorter runs, heard only within its frames.
-			const inside = heard.filter(
-				(h) => h.from >= fromFrame && h.from < toFrame
-			);
-
-			const firstHeard = heard.indexOf(inside[0] as Heard);
+			const within = (h: Heard) => h.from >= fromFrame && h.from < toFrame;
+			const inside = heard.filter(within);
+			const firstHeard = heard.findIndex(within);
 
 			const smaller = steadyTies(
 				tiesOf(
@@ -142,11 +161,9 @@ export const align = (
 				{ word: toWord, frame: toFrame },
 			];
 
-			for (let i = 0; i + 1 < points.length; i++) {
-				const a = points[i] as Cut;
-				const b = points[i + 1] as Cut;
+			eachStretch(points, (a, b) => {
 				stretch(a.word, b.word, a.frame, b.frame, depth + 1);
-			}
+			});
 
 			return;
 		}
@@ -178,11 +195,9 @@ export const align = (
 		{ word: words.length, frame: emissions.frames },
 	];
 
-	for (let i = 0; i + 1 < points.length; i++) {
-		const a = points[i] as Cut;
-		const b = points[i + 1] as Cut;
+	eachStretch(points, (a, b) => {
 		stretch(a.word, b.word, a.frame, b.frame, 0);
-	}
+	});
 
 	return placed;
 };

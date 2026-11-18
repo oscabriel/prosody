@@ -22,7 +22,7 @@ export const tiesOf = (
 	const grams = (words: ReadonlyArray<string>) => {
 		const seen = new Map<string, number>();
 
-		for (let i = 0; i + n <= words.length; i++) {
+		for (let i = 0; i + n <= words.length; i += 1) {
 			const gram = words
 				.slice(i, i + n)
 				.map(keyOf)
@@ -62,7 +62,7 @@ const longestChain = (candidates: ReadonlyArray<Tie>): Array<Tie> => {
 		let high = tails.length;
 
 		while (low < high) {
-			const middle = (low + high) >> 1;
+			const middle = Math.floor((low + high) / 2);
 
 			if ((candidates[tails[middle] ?? 0]?.heard ?? 0) < tie.heard) {
 				low = middle + 1;
@@ -88,7 +88,7 @@ const longestChain = (candidates: ReadonlyArray<Tie>): Array<Tie> => {
 		at = before[at] ?? -1;
 	}
 
-	return chain.reverse();
+	return chain.toReversed();
 };
 
 /**

@@ -58,39 +58,41 @@ export const cardinal = (n: number): Array<string> => {
 	}
 
 	if (n < 1000) {
+		const words = [ONES[Math.floor(n / 100)] ?? "", "hundred"];
 		const rest = n % 100;
 
-		return [
-			ONES[Math.floor(n / 100)] ?? "",
-			"hundred",
-			...(rest === 0 ? [] : cardinal(rest)),
-		];
+		if (rest !== 0) {
+			words.push(...cardinal(rest));
+		}
+
+		return words;
 	}
 
 	for (const [size, name] of SCALES) {
 		if (n >= size) {
+			const words = [...cardinal(Math.floor(n / size)), name];
 			const rest = n % size;
 
-			return [
-				...cardinal(Math.floor(n / size)),
-				name,
-				...(rest === 0 ? [] : cardinal(rest)),
-			];
+			if (rest !== 0) {
+				words.push(...cardinal(rest));
+			}
+
+			return words;
 		}
 	}
 
 	return [];
 };
 
-const ORDINAL_ENDINGS: Record<string, string> = {
-	one: "first",
-	two: "second",
-	three: "third",
-	five: "fifth",
-	eight: "eighth",
-	nine: "ninth",
-	twelve: "twelfth",
-};
+const ORDINAL_ENDINGS = new Map([
+	["one", "first"],
+	["two", "second"],
+	["three", "third"],
+	["five", "fifth"],
+	["eight", "eighth"],
+	["nine", "ninth"],
+	["twelve", "twelfth"],
+]);
 
 /** 21 as "twenty first". */
 export const ordinal = (n: number): Array<string> => {
@@ -98,7 +100,7 @@ export const ordinal = (n: number): Array<string> => {
 	const last = words.at(-1) ?? "";
 
 	const ending =
-		ORDINAL_ENDINGS[last] ??
+		ORDINAL_ENDINGS.get(last) ??
 		(last.endsWith("y") ? `${last.slice(0, -1)}ieth` : `${last}th`);
 
 	return [...words.slice(0, -1), ending];
@@ -112,127 +114,158 @@ export const year = (n: number): Array<string> => {
 
 	const high = Math.floor(n / 100);
 	const low = n % 100;
+	const words = [...cardinal(high)];
 
 	if (low === 0) {
-		return [...cardinal(high), "hundred"];
+		words.push("hundred");
+
+		return words;
 	}
 
-	return [...cardinal(high), ...(low < 10 ? ["oh"] : []), ...cardinal(low)];
+	if (low < 10) {
+		words.push("oh");
+	}
+
+	words.push(...cardinal(low));
+
+	return words;
 };
 
 /** Abbreviations a narrator expands, by their written form without the full stop, lower case. */
-const ABBREVIATIONS: Record<string, string> = {
-	mr: "mister",
-	mrs: "missus",
-	ms: "miz",
-	dr: "doctor",
-	prof: "professor",
-	st: "saint",
-	jr: "junior",
-	sr: "senior",
-	vs: "versus",
-	etc: "et cetera",
-	"e.g": "for example",
-	"i.e": "that is",
-	approx: "approximately",
-};
+const ABBREVIATIONS = new Map([
+	["mr", "mister"],
+	["mrs", "missus"],
+	["ms", "miz"],
+	["dr", "doctor"],
+	["prof", "professor"],
+	["st", "saint"],
+	["jr", "junior"],
+	["sr", "senior"],
+	["vs", "versus"],
+	["etc", "et cetera"],
+	["e.g", "for example"],
+	["i.e", "that is"],
+	["approx", "approximately"],
+]);
 
-const SYMBOLS: Record<string, string> = {
-	"&": " and ",
-	"%": " percent ",
-	"+": " plus ",
-	"=": " equals ",
-	"@": " at ",
-	"#": " number ",
-};
+const SYMBOLS = new Map([
+	["&", " and "],
+	["%", " percent "],
+	["+", " plus "],
+	["=", " equals "],
+	["@", " at "],
+	["#", " number "],
+]);
 
-/** One written token as spoken words. */
-const say = (token: string): Array<string> => {
-	const bare = token.replaceAll(/^'+|'+$/gu, "");
+/** Digits said one by one: "007" is "zero zero seven". */
+const oneByOne = (digits: string): Array<string> => {
+	const words: Array<string> = [];
 
-	if (bare === "") {
-		return [];
+	for (const digit of digits) {
+		words.push(...cardinal(Number(digit)));
 	}
 
-	const abbreviation = ABBREVIATIONS[bare.replace(/\.$/u, "")];
+	return words;
+};
 
-	if (abbreviation !== undefined && token.endsWith(".")) {
-		return abbreviation.split(" ");
+/** 1980s as "nineteen eighties". */
+const decade = (digits: string): Array<string> => {
+	const words = year(Number(digits));
+	const last = words.at(-1) ?? "";
+
+	return [
+		...words.slice(0, -1),
+		last.endsWith("y") ? `${last.slice(0, -1)}ies` : `${last}s`,
+	];
+};
+
+/** 2:23 as "two twenty three", 2:05 as "two oh five", 2:00 as "two". */
+const clock = (hours: string, minutes: string): Array<string> => {
+	const words = [...cardinal(Number(hours))];
+	const past = Number(minutes);
+
+	if (past === 0) {
+		return words;
 	}
 
+	if (past < 10) {
+		words.push("oh");
+	}
+
+	words.push(...cardinal(past));
+
+	return words;
+};
+
+/** A plain run of digits: a year when it looks like one, read digit by digit when a number can't be. */
+const number = (digits: string): Array<string> => {
+	const n = Number(digits);
+
+	if (digits.length > 1 && digits.startsWith("0")) {
+		return oneByOne(digits);
+	}
+
+	if (digits.length === 4 && n >= 1100 && n < 2100) {
+		return year(n);
+	}
+
+	if (n < 1_000_000_000_000) {
+		return cardinal(n);
+	}
+
+	return oneByOne(digits);
+};
+
+/** A written number of any kind as spoken words, or `undefined` when the token is not one. */
+const sayNumber = (bare: string): Array<string> | undefined => {
 	// 1980s
-	const decade = /^(\d{4})'?s$/u.exec(bare);
+	const decadeMatch = /^(?<digits>\d{4})'?s$/u.exec(bare);
 
-	if (decade) {
-		const words = year(Number(decade[1]));
-		const last = words.at(-1) ?? "";
-
-		return [
-			...words.slice(0, -1),
-			last.endsWith("y") ? `${last.slice(0, -1)}ies` : `${last}s`,
-		];
+	if (decadeMatch) {
+		return decade(decadeMatch.groups?.digits ?? "");
 	}
 
 	// 21st, 2nd, 3rd, 4th
-	const nth = /^(\d+)(st|nd|rd|th)$/u.exec(bare);
+	const nth = /^(?<digits>\d+)(?:st|nd|rd|th)$/u.exec(bare);
 
 	if (nth) {
-		return ordinal(Number(nth[1]));
+		return ordinal(Number(nth.groups?.digits));
 	}
 
 	// 2:23
-	const clock = /^(\d{1,2}):(\d{2})$/u.exec(bare);
+	const time = /^(?<hours>\d{1,2}):(?<minutes>\d{2})$/u.exec(bare);
 
-	if (clock) {
-		const minutes = Number(clock[2]);
-
-		return [
-			...cardinal(Number(clock[1])),
-			...(minutes === 0
-				? []
-				: minutes < 10
-					? ["oh", ...cardinal(minutes)]
-					: cardinal(minutes)),
-		];
+	if (time) {
+		return clock(time.groups?.hours ?? "", time.groups?.minutes ?? "");
 	}
 
 	// 3.5
-	const decimal = /^(\d+)\.(\d+)$/u.exec(bare);
+	const decimal = /^(?<whole>\d+)\.(?<fraction>\d+)$/u.exec(bare);
 
 	if (decimal) {
 		return [
-			...cardinal(Number(decimal[1])),
+			...cardinal(Number(decimal.groups?.whole)),
 			"point",
-			...[...(decimal[2] ?? "")].flatMap((digit) => cardinal(Number(digit))),
+			...oneByOne(decimal.groups?.fraction ?? ""),
 		];
 	}
 
 	// 1,234,567
-	if (/^\d{1,3}(,\d{3})+$/u.test(bare)) {
+	if (/^\d{1,3}(?:,\d{3})+$/u.test(bare)) {
 		return cardinal(Number(bare.replaceAll(",", "")));
 	}
 
 	if (/^\d+$/u.test(bare)) {
-		const n = Number(bare);
-
-		if (bare.length > 1 && bare.startsWith("0")) {
-			return [...bare].flatMap((digit) => cardinal(Number(digit)));
-		}
-
-		if (bare.length === 4 && n >= 1100 && n < 2100) {
-			return year(n);
-		}
-
-		if (n < 1_000_000_000_000) {
-			return cardinal(n);
-		}
-
-		return [...bare].flatMap((digit) => cardinal(Number(digit)));
+		return number(bare);
 	}
 
-	// Letters and digits mixed (a code, a model number): letters as words, digits one by one.
-	return bare
-		.split(/(\d+)/u)
+	return undefined;
+};
+
+/** Letters and digits mixed (a code, a model number): letters as words, digits one by one. */
+const sayMixed = (bare: string): Array<string> =>
+	bare
+		.split(/(?<digits>\d+)/u)
 		.flatMap((part) =>
 			/^\d+$/u.test(part)
 				? cardinal(Number(part))
@@ -242,6 +275,35 @@ const say = (token: string): Array<string> => {
 						.map((word) => word.replaceAll(/^'+|'+$/gu, ""))
 		)
 		.filter((word) => /[a-z]/u.test(word));
+
+/** One written token as spoken words. */
+const say = (token: string): Array<string> => {
+	const bare = token.replaceAll(/^'+|'+$/gu, "");
+
+	if (bare === "") {
+		return [];
+	}
+
+	const abbreviation = ABBREVIATIONS.get(bare.replace(/\.$/u, ""));
+
+	if (abbreviation !== undefined && token.endsWith(".")) {
+		return abbreviation.split(" ");
+	}
+
+	return sayNumber(bare) ?? sayMixed(bare);
+};
+
+/** What a currency's sign is said as, after the amount. */
+const currency = (sign: string): string => {
+	if (sign === "$") {
+		return "dollars";
+	}
+
+	if (sign === "£") {
+		return "pounds";
+	}
+
+	return "euros";
 };
 
 /** A sentence's spoken words. */
@@ -254,15 +316,14 @@ export const spoken = (text: string): Array<string> => {
 		// Dashes and slashes join words without being said.
 		.replaceAll(/[-‐‑‒–—―/\\_]/gu, " ");
 
-	for (const [symbol, word] of Object.entries(SYMBOLS)) {
+	for (const [symbol, word] of SYMBOLS) {
 		plain = plain.replaceAll(symbol, word);
 	}
 
 	// $5 is "five dollars".
 	plain = plain.replaceAll(
-		/[$£€](\d[\d,.]*)/gu,
-		(_, amount: string, offset: number, all: string) =>
-			`${amount} ${all[offset] === "$" ? "dollars" : all[offset] === "£" ? "pounds" : "euros"}`
+		/(?<sign>[$£€])(?<amount>\d[\d,.]*)/gu,
+		(_, sign: string, amount: string) => `${amount} ${currency(sign)}`
 	);
 
 	return plain
@@ -272,8 +333,7 @@ export const spoken = (text: string): Array<string> => {
 		)
 		.map((token) =>
 			// A full stop ends a word unless it belongs to an abbreviation or a number.
-			ABBREVIATIONS[token.replace(/\.$/u, "")] !== undefined ||
-			/^\d+\.\d+$/u.test(token)
+			ABBREVIATIONS.has(token.replace(/\.$/u, "")) || /^\d+\.\d+$/u.test(token)
 				? token
 				: token.replace(/\.+$/u, "")
 		)

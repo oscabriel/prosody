@@ -1,7 +1,15 @@
 import { Aligner } from "@prosody/aligner/Aligner";
 import type { AlignFailed } from "@prosody/aligner/Aligner";
 import type { AlignRequest } from "@prosody/domain/Narration/Aligner.external";
-import { Context, Effect, FileSystem, Layer, Path, Schema } from "effect";
+import {
+	Context,
+	Effect,
+	FileSystem,
+	Layer,
+	Match,
+	Path,
+	Schema,
+} from "effect";
 
 /** Where the press's container sees the library (read-only) and the reading copies (on the host's own disk). */
 export const LIBRARY = "/library";
@@ -22,34 +30,18 @@ export interface Aligned {
 }
 
 /** What went wrong, in words for the shelf. */
-const reasonOf = (error: AlignFailed): string => {
-	switch (error._tag) {
-		case "UndecodableAudio": {
-			return `its audio is ${error.format}, which ffmpeg can't decode whole`;
-		}
-
-		case "UnreadableEpub": {
-			return `its text could not be read: ${error.reason}`;
-		}
-
-		case "NothingAligned": {
-			return "no sentence was found in the audio";
-		}
-
-		case "CopyFailed": {
-			return `the reading copy could not be written: ${error.reason}`;
-		}
-
-		case "ListenFailed":
-		case "CheckFailed": {
-			return error.reason;
-		}
-
-		default: {
-			return error.message;
-		}
-	}
-};
+const reasonOf = (error: AlignFailed): string =>
+	Match.valueTags(error, {
+		UndecodableAudio: (failed) =>
+			`its audio is ${failed.format}, which ffmpeg can't decode whole`,
+		UnreadableEpub: (failed) => `its text could not be read: ${failed.reason}`,
+		NothingAligned: () => "no sentence was found in the audio",
+		CopyFailed: (failed) =>
+			`the reading copy could not be written: ${failed.reason}`,
+		ListenFailed: (failed) => failed.reason,
+		CheckFailed: (failed) => failed.reason,
+		PlatformError: (failed) => failed.message,
+	});
 
 /**
  * Makes reading copies on the host's own disk, one pair at a time: both files are copied out of the library, and the

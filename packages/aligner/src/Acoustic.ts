@@ -4,10 +4,18 @@ import {
 	AutoModelForCTC,
 	AutoProcessor,
 	AutoTokenizer,
+	Tensor,
 	env,
 } from "@huggingface/transformers";
-import type { Tensor } from "@huggingface/transformers";
-import { Config, Context, Effect, Layer, Schema, Stream } from "effect";
+import {
+	Config,
+	Context,
+	Effect,
+	Layer,
+	Predicate,
+	Schema,
+	Stream,
+} from "effect";
 import type { PlatformError } from "effect";
 
 import { Audio, SAMPLE_RATE } from "./Audio.ts";
@@ -128,15 +136,23 @@ export class Acoustic extends Context.Service<
 			Effect.flatMap(load, (loaded) =>
 				Effect.tryPromise({
 					try: async () => {
-						const inputs = await loaded.processor(samples);
+						const inputs: unknown = await loaded.processor(samples);
+						const output: unknown = await loaded.model(inputs);
 
-						const { logits } = (await loaded.model(inputs)) as {
-							logits: Tensor;
-						};
+						const logits = Predicate.hasProperty(output, "logits")
+							? output.logits
+							: undefined;
+
+						if (
+							!(logits instanceof Tensor) ||
+							!(logits.data instanceof Float32Array)
+						) {
+							throw new TypeError("the speech model returned no float logits");
+						}
 
 						const [, frames = 0, classes = 0] = logits.dims;
 
-						return { data: logits.data as Float32Array, frames, classes };
+						return { data: logits.data, frames, classes };
 					},
 					catch: (error) =>
 						new ListenFailed({
@@ -151,8 +167,8 @@ export class Acoustic extends Context.Service<
 			const { vocabulary, blankId } = yield* load;
 			const ids: Array<Uint16Array> = [];
 			const scores: Array<Float32Array> = [];
-			const blank = new Growing(1 << 20);
-			const loudness = new Growing(1 << 22);
+			const blank = new Growing(2 ** 20);
+			const loudness = new Growing(2 ** 22);
 			const tracks: Array<number> = [];
 
 			// Samples not yet heard, starting at sample `bufferStart` of the whole book.
@@ -188,24 +204,24 @@ export class Acoustic extends Context.Service<
 				const best = new Float32Array(KEPT);
 				const bestIds = new Uint16Array(KEPT);
 
-				for (let index = 0; index < count; index++) {
+				for (let index = 0; index < count; index += 1) {
 					const row = (from + index - firstFrame) * heard.classes;
 					let max = -Infinity;
 
-					for (let c = 0; c < heard.classes; c++) {
+					for (let c = 0; c < heard.classes; c += 1) {
 						max = Math.max(max, heard.data[row + c] ?? -Infinity);
 					}
 
 					let sum = 0;
 
-					for (let c = 0; c < heard.classes; c++) {
+					for (let c = 0; c < heard.classes; c += 1) {
 						sum += Math.exp((heard.data[row + c] ?? -Infinity) - max);
 					}
 
 					const norm = max + Math.log(sum);
 					best.fill(-Infinity);
 
-					for (let c = 0; c < heard.classes; c++) {
+					for (let c = 0; c < heard.classes; c += 1) {
 						if (c === blankId) {
 							continue;
 						}
@@ -239,10 +255,10 @@ export class Acoustic extends Context.Service<
 
 			/** Hear every window that has all its samples, or, at the end, every window left. */
 			const drain = Effect.fnUntraced(function* (ended: boolean) {
-				while (
-					windowStart < total &&
-					(ended || total >= windowStart + WINDOW + CONTEXT)
-				) {
+				// A window waits for its samples and the context after them, until the audio has ended.
+				const wanted = ended ? 0 : WINDOW + CONTEXT;
+
+				while (windowStart < total && total >= windowStart + wanted) {
 					const inputStart = Math.max(0, windowStart - CONTEXT);
 					const inputEnd = Math.min(total, windowStart + WINDOW + CONTEXT);
 					const end = Math.min(total, windowStart + WINDOW);
@@ -339,24 +355,27 @@ export class Acoustic extends Context.Service<
 
 		const pieces = new Map<string, ReadonlyArray<number>>();
 
-		const tokensOf = (words: ReadonlyArray<string>) =>
-			Effect.map(load, ({ tokenizer }) =>
-				words.map((word) => {
-					const known = pieces.get(word);
+		const tokensOf = Effect.fn("Acoustic.tokensOf")(function* (
+			words: ReadonlyArray<string>
+		) {
+			const { tokenizer } = yield* load;
 
-					if (known !== undefined) {
-						return known;
-					}
+			return words.map((word) => {
+				const known = pieces.get(word);
 
-					const encoded = tokenizer.encode(` ${word}`, {
-						add_special_tokens: false,
-					});
+				if (known !== undefined) {
+					return known;
+				}
 
-					pieces.set(word, encoded);
+				const encoded = tokenizer.encode(` ${word}`, {
+					add_special_tokens: false,
+				});
 
-					return encoded;
-				})
-			);
+				pieces.set(word, encoded);
+
+				return encoded;
+			});
+		});
 
 		return { listen, tokensOf };
 	}),

@@ -106,7 +106,7 @@ export class SpotCheck extends Context.Service<
 		const whisper = yield* Effect.cached(
 			Effect.tryPromise({
 				try: async () =>
-					pipeline("automatic-speech-recognition", CHECK_MODEL, {
+					await pipeline("automatic-speech-recognition", CHECK_MODEL, {
 						dtype: "fp32",
 						session_options: { intraOpNumThreads: 4 },
 					}),
@@ -126,7 +126,7 @@ export class SpotCheck extends Context.Service<
 			);
 
 			const asr = yield* whisper;
-			const transcribe = async (samples: Float32Array) => asr(samples);
+			const transcribe = async (samples: Float32Array) => await asr(samples);
 			let heard = 0;
 
 			for (const sighting of chosen) {
@@ -137,16 +137,15 @@ export class SpotCheck extends Context.Service<
 				);
 
 				const result = yield* Effect.tryPromise({
-					try: async () => transcribe(samples),
+					try: async () => await transcribe(samples),
 					catch: (error) => new CheckFailed({ reason: String(error) }),
 				});
 
-				const text = Array.isArray(result)
-					? (result[0]?.text ?? "")
-					: result.text;
-
+				// One clip in, one transcript out: the pipeline returns a list only for a list.
 				heard +=
-					likeness(wordsOf(sighting.text), wordsOf(text)) >= ALIKE ? 1 : 0;
+					likeness(wordsOf(sighting.text), wordsOf(result.text)) >= ALIKE
+						? 1
+						: 0;
 			}
 
 			return { checked: chosen.length, heard } satisfies Heard;

@@ -7,19 +7,25 @@ import { BunRuntime, BunServices } from "@effect/platform-bun";
 import { Console, Effect, Layer } from "effect";
 
 import { Aligner } from "../src/Aligner.ts";
+import type { Pair } from "../src/Aligner.ts";
 
 const [out, epub, emissions, ...audio] = process.argv.slice(2);
 
 const program = Effect.gen(function* () {
 	const aligner = yield* Aligner;
 	const started = performance.now();
-	const result = yield* aligner.align({
+
+	const files: Pair = {
 		audio,
 		epub: epub ?? "",
 		copy: `${out}/copy.epub`,
 		timeline: `${out}/timeline.json`,
-		emissions,
-	});
+	};
+
+	const result = yield* aligner.align(
+		emissions === undefined ? files : { ...files, emissions }
+	);
+
 	yield* Console.log(
 		`${result.sentences} sentences, ${result.aligned} aligned; spot check heard ${result.heard} of ${result.checked}; ${((performance.now() - started) / 1000).toFixed(1)} s`
 	);

@@ -81,16 +81,13 @@ export const clipsOf = (
 
 	edge = total;
 
-	for (let index = rough.length - 1; index >= 0; index--) {
+	for (let index = rough.length - 1; index >= 0; index -= 1) {
 		startAfter[index] = edge;
 		edge = rough[index]?.start ?? edge;
 	}
 
-	return rough.map((clip, index) => {
-		if (!clip) {
-			return;
-		}
-
+	/** Move a clip's edges out through sound, to quiet, within its reach and its neighbours. */
+	const settle = (clip: Clip, index: number): Clip => {
 		const floor = Math.max(
 			endBefore[index] ?? 0,
 			clip.start - tuning.reachBack
@@ -113,5 +110,7 @@ export const clipsOf = (
 		}
 
 		return { start, end: Math.max(end, start + step) };
-	});
+	};
+
+	return rough.map((clip, index) => (clip ? settle(clip, index) : undefined));
 };

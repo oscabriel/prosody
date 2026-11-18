@@ -1,3 +1,5 @@
+import { Schema } from "effect";
+
 /**
  * What the speech model heard, frame by frame: for every 80 ms of audio, how likely each token was.
  *
@@ -36,7 +38,7 @@ export const scoreOf = (
 ): number => {
 	const from = frame * emissions.kept;
 
-	for (let index = from; index < from + emissions.kept; index++) {
+	for (let index = from; index < from + emissions.kept; index += 1) {
 		if (emissions.ids[index] === token) {
 			return emissions.scores[index] ?? -Infinity;
 		}
@@ -73,7 +75,7 @@ export const transcriptOf = (emissions: Emissions): Array<Heard> => {
 	let to = 0;
 	let previous = -1;
 
-	for (let frame = 0; frame < emissions.frames; frame++) {
+	for (let frame = 0; frame < emissions.frames; frame += 1) {
 		const token = bestOf(emissions, frame);
 
 		if (token !== -1 && token !== previous) {
@@ -104,6 +106,19 @@ export const transcriptOf = (emissions: Emissions): Array<Heard> => {
 };
 
 const MAGIC = "PRSE";
+
+/** The JSON header `encode` writes ahead of the arrays. */
+const Header = Schema.Struct({
+	frames: Schema.Finite,
+	secondsPerFrame: Schema.Finite,
+	kept: Schema.Finite,
+	loudness: Schema.Finite,
+	secondsPerLoudness: Schema.Finite,
+	tracks: Schema.Array(Schema.Finite),
+	vocabulary: Schema.Array(Schema.String),
+});
+
+const decodeHeader = Schema.decodeUnknownSync(Schema.fromJsonString(Header));
 
 /** Emissions as one file: a magic word, a JSON header's length and the header, then the arrays. */
 export const encode = (emissions: Emissions): Uint8Array => {
@@ -171,17 +186,9 @@ export const decode = (bytes: Uint8Array): Emissions => {
 	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 	const length = view.getUint32(4, true);
 
-	const header = JSON.parse(
+	const header = decodeHeader(
 		new TextDecoder().decode(bytes.subarray(8, 8 + length))
-	) as {
-		frames: number;
-		secondsPerFrame: number;
-		kept: number;
-		loudness: number;
-		secondsPerLoudness: number;
-		tracks: Array<number>;
-		vocabulary: Array<string>;
-	};
+	);
 
 	// A copy, so the arrays start at offsets this function controls.
 	const copy = new Uint8Array(bytes);

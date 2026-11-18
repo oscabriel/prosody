@@ -1,4 +1,4 @@
-import render from "dom-serializer";
+import { render } from "dom-serializer";
 import { Element, Text, isTag, isText } from "domhandler";
 import type { AnyNode, ChildNode, ParentNode } from "domhandler";
 import { decodeHTML } from "entities";
@@ -141,24 +141,38 @@ const hasLink = (node: Element): boolean =>
 	);
 
 /** The text a narrator reads from a node: its text without note markers. */
-const saidOf = (node: AnyNode): string =>
-	isTag(node) && isNoteReference(node)
-		? " "
-		: isTag(node)
-			? node.name === "br"
-				? " "
-				: SKIP.has(node.name)
-					? ""
-					: node.children.map(saidOf).join("")
-			: textOf(node);
+const saidOf = (node: AnyNode): string => {
+	if (!isTag(node)) {
+		return textOf(node);
+	}
+
+	if (isNoteReference(node) || node.name === "br") {
+		return " ";
+	}
+
+	if (SKIP.has(node.name)) {
+		return "";
+	}
+
+	return node.children.map(saidOf).join("");
+};
 
 /** A node's text with note markers turned to spaces, keeping every offset. */
-const blankedOf = (node: AnyNode): string =>
-	isTag(node) && isNoteReference(node)
-		? " ".repeat(textOf(node).length)
-		: isTag(node) && !SKIP.has(node.name) && node.name !== "br"
-			? node.children.map(blankedOf).join("")
-			: textOf(node);
+const blankedOf = (node: AnyNode): string => {
+	if (!isTag(node)) {
+		return textOf(node);
+	}
+
+	if (isNoteReference(node)) {
+		return " ".repeat(textOf(node).length);
+	}
+
+	if (SKIP.has(node.name) || node.name === "br") {
+		return textOf(node);
+	}
+
+	return node.children.map(blankedOf).join("");
+};
 
 const hasText = (nodes: ReadonlyArray<AnyNode>) =>
 	nodes.some((node) => textOf(node).trim() !== "");
@@ -291,7 +305,7 @@ const markRun = (
 		}
 	}
 
-	const first = run[0];
+	const [first] = run;
 	const index = first ? parent.children.indexOf(first) : -1;
 
 	if (index === -1) {
@@ -325,7 +339,9 @@ const markIn = (
 	};
 
 	// A copy, since marking a run replaces it in the children.
-	for (const child of [...node.children]) {
+	const children = [...node.children];
+
+	for (const child of children) {
 		if (isInline(child)) {
 			run.push(child);
 			continue;
