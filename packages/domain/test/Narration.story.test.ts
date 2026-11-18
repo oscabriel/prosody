@@ -3,8 +3,13 @@ import { describe, it } from "@effect/vitest";
 
 import { SHELF, Shelf } from "../src/Library/Shelf.view.ts";
 import { Shelfmark } from "../src/Library/Shelfmark.ts";
+import { WorkId } from "../src/Library/Work.id.ts";
+import { Aligner } from "../src/Narration/Aligner.external.ts";
 import { ExpireAlignment } from "../src/Narration/ExpireAlignment.command.ts";
-import { Narration } from "../src/Narration/Narration.aggregate.ts";
+import {
+	ALIGNMENT_WINDOW,
+	Narration,
+} from "../src/Narration/Narration.aggregate.ts";
 import {
 	AlignmentStarted,
 	EditionsPaired,
@@ -25,9 +30,12 @@ import {
 } from "../src/Narration/RecordAlignmentFailed.command.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
 
-const { given, rejected, then, view, when } = Story;
+const { advance, call, given, rejected, succeed, then, view, when } = Story;
 
-const story = Story.make(Prosody, { layer: ProsodyHandlers });
+const story = Story.make(Prosody, {
+	layer: ProsodyHandlers,
+	stub: [Aligner],
+});
 
 const carl = Narration.ref("w-carl");
 
@@ -37,6 +45,13 @@ const pair = {
 	audio: "Matt Dinniman - Dungeon Crawler Carl.m4b",
 };
 
+/** What the press is asked for the given try. */
+const asked = (attempt: number) => ({
+	work: WorkId.make("w-carl"),
+	attempt,
+	...pair,
+});
+
 const aligned = {
 	sentences: 13_390,
 	matched: 13_048,
@@ -45,7 +60,7 @@ const aligned = {
 };
 
 describe("the narration", () => {
-	it.effect("a pair starts its first try", () =>
+	it.effect("a pair starts its first try, and the press is asked", () =>
 		story(
 			when(carl, new PairEditions(pair)),
 			then(
@@ -53,6 +68,8 @@ describe("the narration", () => {
 				new EditionsPaired(pair),
 				new AlignmentStarted({ attempt: 1 })
 			),
+			call(Aligner.align, asked(1)),
+			succeed(Aligner.align, undefined),
 			view(Shelf, SHELF, {
 				syncs: { "w-carl": { state: "syncing", note: "aligning" } },
 			})
@@ -140,6 +157,8 @@ describe("the narration", () => {
 			),
 			when(carl, new RealignNarration()),
 			then(carl, new AlignmentStarted({ attempt: 2 })),
+			call(Aligner.align, asked(2)),
+			succeed(Aligner.align, undefined),
 			view(Shelf, SHELF, {
 				syncs: { "w-carl": { state: "syncing", note: "aligning, try 2" } },
 			})
@@ -160,5 +179,28 @@ describe("the narration", () => {
 
 	it.effect("a work with no pair can't be aligned", () =>
 		story(when(carl, new RealignNarration()), rejected(new NotPaired()))
+	);
+
+	it.effect("a press that never answers runs out of time", () =>
+		story(
+			when(carl, new PairEditions(pair)),
+			then(
+				carl,
+				new EditionsPaired(pair),
+				new AlignmentStarted({ attempt: 1 })
+			),
+			call(Aligner.align, asked(1)),
+			succeed(Aligner.align, undefined),
+			advance(ALIGNMENT_WINDOW),
+			then(
+				carl,
+				new AlignmentFailed({
+					reason: `the press did not answer within ${ALIGNMENT_WINDOW}`,
+				})
+			),
+			// The press's answer now comes too late, and changes nothing.
+			when(carl, new RecordAlignment({ attempt: 1, ...aligned })),
+			then(carl)
+		)
 	);
 });

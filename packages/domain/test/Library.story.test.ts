@@ -15,11 +15,15 @@ import {
 	ShelveEdition,
 } from "../src/Library/ShelveEdition.command.ts";
 import { Work } from "../src/Library/Work.aggregate.ts";
+import { Aligner } from "../src/Narration/Aligner.external.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
 
 const { given, rejected, then, view, when } = Story;
 
-const story = Story.make(Prosody, { layer: ProsodyHandlers });
+const story = Story.make(Prosody, {
+	layer: ProsodyHandlers,
+	stub: [Aligner],
+});
 
 const carl = Work.ref("w-carl");
 

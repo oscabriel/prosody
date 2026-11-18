@@ -11,3 +11,6 @@ export const Front = Docker.Network("Front", {
 
 /** The Api's name on the Front network. */
 export const API_ALIAS = "prosody-api";
+
+/** The press's name on the cluster's network, where the runner asks it to align a pair. */
+export const PRESS_ALIAS = "prosody-press";
