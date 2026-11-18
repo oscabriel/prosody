@@ -3,10 +3,11 @@ import { Layer } from "effect";
 
 import { Shelf } from "./Library/Shelf.view.ts";
 import { Work } from "./Library/Work.aggregate.ts";
+import { Narration } from "./Narration/Narration.aggregate.ts";
 
-/** Everything Prosody knows and decides. Step 1 begins with the library. */
+/** Everything Prosody knows and decides: the library, and each pair's narration. */
 export class Prosody extends Domain.Model("Prosody", {
-	aggregates: [Work],
+	aggregates: [Work, Narration],
 	views: [Shelf],
 }) {}
 
