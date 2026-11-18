@@ -2,8 +2,8 @@ import { steadyTies, tiesOf } from "./Anchors.ts";
 import type { Tie } from "./Anchors.ts";
 import type { Emissions, Heard } from "./Emissions.ts";
 import { transcriptOf } from "./Emissions.ts";
-import { forceAlign } from "./ForcedAlign.ts";
-import type { Placed, Unit } from "./ForcedAlign.ts";
+import { COSTS, forceAlign } from "./ForcedAlign.ts";
+import type { Costs, Placed, Unit } from "./ForcedAlign.ts";
 
 /** A sentence as the alignment sees it: its spoken words, and each word's tokens. */
 export interface Said {
@@ -78,7 +78,8 @@ const cutsOf = (
  */
 export const align = (
 	emissions: Emissions,
-	sentences: ReadonlyArray<Said>
+	sentences: ReadonlyArray<Said>,
+	costs: Costs = COSTS
 ): Array<Placed | undefined> => {
 	const words: Array<string> = [];
 	const sentenceOf: Array<number> = [];
@@ -168,7 +169,7 @@ export const align = (
 			return;
 		}
 
-		const result = forceAlign(emissions, fromFrame, toFrame, units);
+		const result = forceAlign(emissions, fromFrame, toFrame, units, costs);
 
 		for (const [index, unit] of units.entries()) {
 			const here = result[index];

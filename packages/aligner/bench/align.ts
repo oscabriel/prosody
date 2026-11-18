@@ -15,6 +15,7 @@ import { align } from "../src/Align.ts";
 import { TUNING, clipsOf } from "../src/Boundaries.ts";
 import { decode } from "../src/Emissions.ts";
 import { open } from "../src/Epub.ts";
+import { COSTS } from "../src/ForcedAlign.ts";
 import { writeReadingCopy } from "../src/Overlay.ts";
 import type { Entry } from "../src/Overlay.ts";
 import { mark } from "../src/Sentences.ts";
@@ -71,7 +72,18 @@ const said = sentences.map((sentence) => {
 
 const marked = performance.now();
 
-const placed = align(emissions, said);
+// COSTS='{"skip":-8}' tries other costs without editing the defaults.
+const Costly = Schema.Struct({
+	skip: Schema.optionalKey(Schema.Finite),
+	garbage: Schema.optionalKey(Schema.Finite),
+});
+
+const placed = align(emissions, said, {
+	...COSTS,
+	...Schema.decodeSync(Schema.fromJsonString(Costly))(
+		process.env.COSTS ?? "{}"
+	),
+});
 
 const aligned = performance.now();
 
@@ -95,6 +107,7 @@ const timeline = sentences.map((sentence, index) => ({
 	id: sentence.id,
 	text: sentence.text,
 	words: said[index]?.words.length ?? 0,
+	said: said[index]?.words.join(" ") ?? "",
 	score: placed[index]?.score,
 	start: clips[index]?.start,
 	end: clips[index]?.end,

@@ -14,11 +14,18 @@ export interface Placed {
 	readonly score: number;
 }
 
-/** What it costs to leave a unit out: less than forcing text that is not there, more than noise. */
-export const SKIP = -10;
+/** What the path pays for text nobody read and for audio the book lacks. */
+export interface Costs {
+	/** Leaving a unit out: less than forcing text that is not there, more than noise. */
+	readonly skip: number;
+	/** A frame of audio that matches no text, over the frame's best guess. */
+	readonly garbage: number;
+}
 
-/** What a frame of audio that matches no text costs, over the frame's best guess. */
-export const GARBAGE = -3;
+export const COSTS: Costs = {
+	skip: -10,
+	garbage: -3,
+};
 
 const NONE = -Infinity;
 
@@ -85,13 +92,14 @@ const tableOf = (
 const garbageOf = (
 	emissions: Emissions,
 	from: number,
-	blank: Float32Array
+	blank: Float32Array,
+	cost: number
 ): Float32Array => {
 	const garbage = new Float32Array(blank.length);
 
 	for (let t = 0; t < blank.length; t += 1) {
 		const best = emissions.scores[(from + t) * emissions.kept] ?? NONE;
-		garbage[t] = Math.max(best, blank[t] ?? NONE) + GARBAGE;
+		garbage[t] = Math.max(best, blank[t] ?? NONE) + cost;
 	}
 
 	return garbage;
@@ -190,14 +198,15 @@ const skipForward = (
 	states: States,
 	back: Uint8Array,
 	scores: Float32Array,
-	t: number
+	t: number,
+	skip: number
 ) => {
 	const { garbageAt, count } = states;
 
 	for (let g = 1; g < garbageAt.length; g += 1) {
 		const here = garbageAt[g] ?? 0;
 		const before = garbageAt[g - 1] ?? 0;
-		const skipped = (scores[before] ?? NONE) + SKIP;
+		const skipped = (scores[before] ?? NONE) + skip;
 
 		if (skipped > (scores[here] ?? NONE)) {
 			scores[here] = skipped;
@@ -210,7 +219,12 @@ const skipForward = (
  * Run the Viterbi over every frame. Returns the backpointers, a byte per state per frame, and the
  * scores of the states in the last frame.
  */
-const viterbi = (lattice: Lattice, states: States, frames: number) => {
+const viterbi = (
+	lattice: Lattice,
+	states: States,
+	frames: number,
+	skip: number
+) => {
 	const { count, reach } = states;
 	const first = states.unitStart[0] ?? 1;
 	let previous = new Float32Array(count).fill(NONE);
@@ -220,7 +234,7 @@ const viterbi = (lattice: Lattice, states: States, frames: number) => {
 	previous[0] = emit(lattice, 0, 0);
 	previous[first] = emit(lattice, first, 0);
 	previous[first + 1] = emit(lattice, first + 1, 0);
-	skipForward(states, back, previous, 0);
+	skipForward(states, back, previous, 0, skip);
 
 	for (let t = 1; t < frames; t += 1) {
 		current.fill(NONE);
@@ -245,7 +259,7 @@ const viterbi = (lattice: Lattice, states: States, frames: number) => {
 			}
 		}
 
-		skipForward(states, back, current, t);
+		skipForward(states, back, current, t, skip);
 		[previous, current] = [current, previous];
 	}
 
@@ -323,7 +337,8 @@ export const forceAlign = (
 	emissions: Emissions,
 	from: number,
 	to: number,
-	units: ReadonlyArray<Unit>
+	units: ReadonlyArray<Unit>,
+	costs: Costs = COSTS
 ): Array<Placed | undefined> => {
 	const frames = to - from;
 	const result = Array.from<Placed | undefined>({ length: units.length });
@@ -341,10 +356,10 @@ export const forceAlign = (
 		table: tableOf(emissions, from, frames, columns),
 		width: columns.size,
 		blank,
-		garbage: garbageOf(emissions, from, blank),
+		garbage: garbageOf(emissions, from, blank, costs.garbage),
 	};
 
-	const { back, last } = viterbi(lattice, states, frames);
+	const { back, last } = viterbi(lattice, states, frames, costs.skip);
 
 	const { firstFrame, lastFrame, total, entered } = traceBack(
 		lattice,
@@ -355,11 +370,13 @@ export const forceAlign = (
 	);
 
 	for (let k = 0; k < units.length; k += 1) {
+		const score = (total[k] ?? 0) / Math.max(1, entered[k] ?? 0);
+
 		if ((firstFrame[k] ?? -1) !== -1) {
 			result[k] = {
 				from: from + (firstFrame[k] ?? 0),
 				to: from + (lastFrame[k] ?? 0),
-				score: (total[k] ?? 0) / Math.max(1, entered[k] ?? 0),
+				score,
 			};
 		}
 	}
