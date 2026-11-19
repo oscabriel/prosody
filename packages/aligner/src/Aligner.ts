@@ -1,4 +1,12 @@
-import { Context, Effect, FileSystem, Layer, Option, Schema } from "effect";
+import {
+	Context,
+	Effect,
+	FileSystem,
+	Layer,
+	Option,
+	Path,
+	Schema,
+} from "effect";
 import type { PlatformError } from "effect";
 import { strFromU8 } from "fflate";
 
@@ -12,6 +20,7 @@ import { decode, encode } from "./Emissions.ts";
 import { open } from "./Epub.ts";
 import type { Entry } from "./Overlay.ts";
 import { writeReadingCopy } from "./Overlay.ts";
+import { headingOf } from "./Sections.ts";
 import { mark } from "./Sentences.ts";
 import { phraseStarts, phrases } from "./Spoken.ts";
 import { SpotCheck } from "./SpotCheck.ts";
@@ -28,6 +37,17 @@ export interface Pair {
 	readonly timeline: string;
 	/** Where to keep what the speech model heard, so a retry need not listen again. */
 	readonly emissions?: string;
+	/**
+	 * A folder to also write the copy's text into, unpacked: every file of the EPUB with its pages
+	 * marked, so a reader can fetch one page at a time.
+	 */
+	readonly text?: string;
+}
+
+/** A page a narrator reads, and what a reader would call it. */
+export interface Contents {
+	readonly path: string;
+	readonly title: string;
 }
 
 /** A finished alignment: how many sentences the book has, and every one's place. */
@@ -35,6 +55,8 @@ export interface Aligned {
 	readonly sentences: number;
 	readonly aligned: number;
 	readonly entries: ReadonlyArray<Entry>;
+	/** The pages that hold sentences, in reading order. */
+	readonly pages: ReadonlyArray<Contents>;
 	/** How many aligned sentences the spot check listened to, and how many it heard right. */
 	readonly checked: number;
 	readonly heard: number;
@@ -111,6 +133,7 @@ export class Aligner extends Context.Service<
 >()("@prosody/aligner/Aligner", {
 	make: Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
 		const audio = yield* Audio;
 		const acoustic = yield* Acoustic;
 		const spotCheck = yield* SpotCheck;
@@ -158,6 +181,30 @@ export class Aligner extends Context.Service<
 			return heard;
 		});
 
+		/** Every file of the book under `folder`, its pages marked. A path that leaves the folder is skipped. */
+		const writeText = Effect.fnUntraced(function* (
+			files: ReadonlyMap<string, Uint8Array>,
+			markups: ReadonlyMap<string, string>,
+			folder: string
+		) {
+			for (const [name, data] of files) {
+				const target = path.join(folder, name);
+
+				// An archive lists its folders too, as names ending in a slash; they are made as needed.
+				if (name.endsWith("/") || !target.startsWith(`${folder}${path.sep}`)) {
+					continue;
+				}
+
+				yield* fs.makeDirectory(path.dirname(target), { recursive: true });
+
+				const marked = markups.get(name);
+
+				yield* marked === undefined
+					? fs.writeFile(target, data)
+					: fs.writeFileString(target, marked);
+			}
+		});
+
 		const alignPair = Effect.fn("Aligner.align")(function* (pair: Pair) {
 			const stated: Array<number> = [];
 
@@ -182,6 +229,7 @@ export class Aligner extends Context.Service<
 			});
 
 			const markups = new Map<string, string>();
+			const pages: Array<Contents> = [];
 
 			const sentences = book.pages
 				.filter((page) => page.narrated)
@@ -192,6 +240,10 @@ export class Aligner extends Context.Service<
 					);
 
 					markups.set(page.path, marked.markup);
+
+					if (marked.sentences.length > 0) {
+						pages.push({ path: page.path, title: headingOf(marked.markup) });
+					}
 
 					return marked.sentences.map((sentence) => ({
 						key: `${page.path}#${sentence.id}`,
@@ -252,6 +304,10 @@ export class Aligner extends Context.Service<
 
 			yield* fs.writeFileString(pair.timeline, JSON.stringify(entries));
 
+			if (pair.text !== undefined) {
+				yield* writeText(book.files, markups, pair.text);
+			}
+
 			// The aligner finishes cleanly even when it is wrong, so listen before believing it.
 			const offsets: Array<number> = [];
 			let offset = 0;
@@ -281,7 +337,14 @@ export class Aligner extends Context.Service<
 
 			const { checked, heard } = yield* spotCheck.listen(sightings);
 
-			return { sentences: entries.length, aligned, entries, checked, heard };
+			return {
+				sentences: entries.length,
+				aligned,
+				entries,
+				pages,
+				checked,
+				heard,
+			};
 		});
 
 		return { align: alignPair };

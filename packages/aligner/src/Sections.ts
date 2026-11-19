@@ -1,3 +1,5 @@
+import { decodeHTML } from "entities";
+
 /**
  * Which pages of a book a narrator reads. A cover, a title page, the contents, an index, a glossary,
  * a bibliography, the copyright page or the notes are never narrated; marking them would only count
@@ -73,6 +75,29 @@ const typesOf = (xhtml: string): Array<string> => {
 /** A page's title, from its `<title>`. */
 const titleOf = (xhtml: string): string =>
 	/<title>(?<title>[^<]*)<\/title>/iu.exec(xhtml)?.groups?.title ?? "";
+
+/** Markup as plain text. A picture says what it is in its alt text, as a heading set in one does. */
+const plain = (markup: string): string =>
+	decodeHTML(
+		markup
+			.replaceAll(/<img\b[^>]*\balt="(?<alt>[^"]*)"[^>]*>/giu, " $<alt> ")
+			.replaceAll(/<[^>]*>/gu, " ")
+	)
+		.replaceAll(/\s+/gu, " ")
+		.trim();
+
+/**
+ * What a reader would call a page: its first heading, or its `<title>` when that says nothing, as
+ * plain text. Empty when it has neither.
+ */
+export const headingOf = (xhtml: string): string => {
+	const heading = /<h[1-3]\b[^>]*>(?<heading>[\s\S]*?)<\/h[1-3]>/iu.exec(xhtml)
+		?.groups?.heading;
+
+	const text = plain(heading ?? "");
+
+	return text === "" ? plain(titleOf(xhtml)) : text;
+};
 
 /**
  * Whether a narrator reads the page at `index` of `count` spine pages. `guideType` is what the EPUB 2

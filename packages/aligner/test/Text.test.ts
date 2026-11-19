@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 
-import { isNarrated } from "../src/Sections.ts";
+import { headingOf, isNarrated } from "../src/Sections.ts";
 import { mark, sentenceRanges } from "../src/Sentences.ts";
 import {
 	cardinal,
@@ -228,5 +228,21 @@ describe("what is narrated", () => {
 				undefined
 			)
 		).toBeTruthy();
+	});
+
+	it("names a page by its first heading, or else its title", () => {
+		expect(
+			headingOf(
+				page(
+					'<h2 class="ch">Chapter 1<br/><em>Loomings</em></h2><p>Call me Ishmael.</p>'
+				)
+			)
+		).toBe("Chapter 1 Loomings");
+		expect(headingOf(page("<p>No heading here.</p>"))).toBe("T");
+		expect(
+			headingOf(
+				page('<h1><img alt="Chapter 1" src="c1.jpg"/></h1><p>Two plus two?</p>')
+			)
+		).toBe("Chapter 1");
 	});
 });

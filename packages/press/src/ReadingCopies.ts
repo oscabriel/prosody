@@ -1,6 +1,7 @@
 import { Aligner } from "@prosody/aligner/Aligner";
 import type { AlignFailed } from "@prosody/aligner/Aligner";
 import type { AlignRequest } from "@prosody/domain/Narration/Aligner.external";
+import { Contents } from "@prosody/domain/Reading/Copy";
 import {
 	Context,
 	Effect,
@@ -55,6 +56,9 @@ const reasonOf = (error: AlignFailed): string =>
  *   /copies/<work>/<work>.epub          the reading copy: marked text, its overlays, and the audio
  *   /copies/<work>/audio/               the audio, kept to play from
  *   /copies/<work>/timeline.json        every sentence's place in the audio, or none
+ *   /copies/<work>/text/                the copy's pages, unpacked, for the reading room
+ *   /copies/<work>/contents.json        the audio to play and the pages to read; written last, so a
+ *                                       copy that has one is complete
  *   /copies/<work>/heard-<size>.emissions
  *                                       what the speech model heard, kept so a retry need not
  *                                       listen again; named by the audio's size, so new audio is
@@ -114,6 +118,7 @@ export class ReadingCopies extends Context.Service<
 						copy: path.join(folder, `${request.work}.epub`),
 						timeline: path.join(folder, "timeline.json"),
 						emissions: path.join(folder, heard),
+						text: path.join(folder, "text"),
 					})
 					.pipe(
 						Effect.mapError(
@@ -132,6 +137,13 @@ export class ReadingCopies extends Context.Service<
 								: `the spot check heard the right words in only ${aligned.heard} of ${aligned.checked} sentences`,
 					});
 				}
+
+				yield* fs.writeFileString(
+					path.join(folder, "contents.json"),
+					JSON.stringify(
+						Contents.make({ audio: request.audio, pages: aligned.pages })
+					)
+				);
 
 				return {
 					sentences: aligned.sentences,
