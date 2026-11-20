@@ -676,6 +676,34 @@ a.inline {
 	overflow-wrap: anywhere;
 }
 
+.offer button {
+	margin-top: 0.25rem;
+	color: var(--ink);
+	font-size: 0.9375rem;
+	font-weight: 500;
+}
+
+/* A grab: a want's shape, with its release in the note under it. */
+
+.desk h2.label {
+	margin: 2rem 0 0;
+	font-weight: 400;
+}
+
+.grab .title {
+	font-size: 1.125rem;
+}
+
+.grab .note {
+	overflow-wrap: anywhere;
+}
+
+.want-form button.quiet {
+	border-color: transparent;
+	background: none;
+	color: var(--ink);
+}
+
 /* ON A PHONE the leaf stands above the page, and the contents fold away. */
 
 @media (width < 48rem) {

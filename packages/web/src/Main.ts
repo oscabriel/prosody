@@ -10,6 +10,7 @@ import type { Url } from "foldkit/url";
 import { toString as urlToString } from "foldkit/url";
 
 import { lostConnection, networkChanges } from "./Connection.ts";
+import { startCorrecting, submitCorrection } from "./Correcting.ts";
 import { deskView } from "./Desk.ts";
 import {
 	changeCopying,
@@ -19,6 +20,7 @@ import {
 	startCopy,
 	withoutCopy,
 } from "./DeviceCopies.ts";
+import { sendGrab, sendGrabMove } from "./Grabs.ts";
 import { announced } from "./LockScreen.ts";
 import { Book, Message, Model, Page } from "./Model.ts";
 import type { Flags } from "./Model.ts";
@@ -122,7 +124,12 @@ export const init = (flags: Flags, url: Url): Return =>
 				nightstand: Option.none(),
 				room: Option.none(),
 				wanted: Option.none(),
-				desk: { title: "", author: "", problem: Option.none() },
+				desk: {
+					title: "",
+					author: "",
+					correcting: Option.none(),
+					problem: Option.none(),
+				},
 			}),
 			urlToAppRoute(url)
 		),
@@ -446,6 +453,34 @@ const handle = (model: Model, message: Message): Return =>
 			sendWant(model, work, title, author),
 		ClickedSearchAgain: ({ work }) => sendAbout(model, work, "searchAgain"),
 		ClickedWithdraw: ({ work }) => sendAbout(model, work, "withdraw"),
+		ClickedCorrect: ({ work }) => startCorrecting(model, work),
+		ChangedCorrectTitle: ({ value }) => ({
+			model: changeDesk(model, (desk) => ({
+				...desk,
+				correcting: Option.map(desk.correcting, (c) => ({
+					...c,
+					title: value,
+				})),
+			})),
+		}),
+		ChangedCorrectAuthor: ({ value }) => ({
+			model: changeDesk(model, (desk) => ({
+				...desk,
+				correcting: Option.map(desk.correcting, (c) => ({
+					...c,
+					author: value,
+				})),
+			})),
+		}),
+		SubmittedCorrection: () => submitCorrection(model),
+		ClickedCancelCorrection: () => ({
+			model: changeDesk(model, (desk) => ({
+				...desk,
+				correcting: Option.none(),
+			})),
+		}),
+		ClickedGrab: ({ work, release }) => sendGrab(model, work, release),
+		ClickedGrabMove: ({ grab, move }) => sendGrabMove(model, grab, move),
 	});
 
 // SUBSCRIPTION

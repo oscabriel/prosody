@@ -82,14 +82,32 @@ export const NightstandState = Nightstand.definition.state ?? Schema.Never;
 /** The books you want as the model keeps them, by work id, with what the catalogues say of each. */
 export const WantedState = Wanted.definition.state ?? Schema.Never;
 
-/** The desk's form for a book you want, and why the last thing asked of it was not done. */
+/** A wanted work's title and author, being corrected. */
+export const Correction = Schema.Struct({
+	work: Schema.String,
+	title: Schema.String,
+	author: Schema.String,
+});
+
+export type Correction = typeof Correction.Type;
+
+/**
+ * The desk's form for a book you want, the title being corrected, if one is, and why the last thing
+ * asked of the desk was not done.
+ */
 export const Desk = Schema.Struct({
 	title: Schema.String,
 	author: Schema.String,
+	correcting: Schema.Option(Correction),
 	problem: Schema.Option(Schema.String),
 });
 
 export type Desk = typeof Desk.Type;
+
+/** What you can do with a grab at the desk. */
+export const GrabMove = Schema.Literals(["resume", "abandon", "release"]);
+
+export type GrabMove = typeof GrabMove.Type;
 
 /** What you can do with a work on the nightstand. */
 export const Move = Schema.Literals(["open", "finish", "setAside"]);
@@ -249,6 +267,13 @@ export const Message = defineMessageUnion({
 	},
 	ClickedSearchAgain: { work: Schema.String },
 	ClickedWithdraw: { work: Schema.String },
+	ClickedCorrect: { work: Schema.String },
+	ChangedCorrectTitle: { value: Schema.String },
+	ChangedCorrectAuthor: { value: Schema.String },
+	SubmittedCorrection: {},
+	ClickedCancelCorrection: {},
+	ClickedGrab: { work: Schema.String, release: Schema.String },
+	ClickedGrabMove: { grab: Schema.String, move: GrabMove },
 });
 
 export type Message = typeof Message.Type;

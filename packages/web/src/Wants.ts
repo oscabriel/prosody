@@ -71,7 +71,8 @@ export const submitWant = (model: Model): Return => {
 	}
 
 	return {
-		model: changeDesk(model, () => ({
+		model: changeDesk(model, (desk) => ({
+			...desk,
 			title: "",
 			author: "",
 			problem: Option.none(),

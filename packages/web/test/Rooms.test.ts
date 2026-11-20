@@ -30,7 +30,12 @@ const inCarl = Model.make({
 		}),
 	}),
 	wanted: Option.none(),
-	desk: { title: "", author: "", problem: Option.none() },
+	desk: {
+		title: "",
+		author: "",
+		correcting: Option.none(),
+		problem: Option.none(),
+	},
 });
 
 const names = (commands: ReadonlyArray<{ readonly name: string }>) =>

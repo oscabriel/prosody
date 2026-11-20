@@ -7,14 +7,16 @@ import type { Recording } from "@prosody/domain/Library/Metadata.external";
 import { Option } from "effect";
 import type { Document, Html, HtmlBuilder } from "foldkit/html";
 
+import { correctionView, correctView } from "./Correcting.ts";
+import { grabsView } from "./Grabbed.ts";
 import { Message } from "./Model.ts";
-import type { Model } from "./Model.ts";
+import type { Correction, Model } from "./Model.ts";
 import { dayOf } from "./Nightstand.ts";
 import { sizeIn } from "./OnDevice.ts";
 import { shelfRouter } from "./Route.ts";
 
-// The desk: the books you want, and what the trackers offer of each. A tool, so it gets the plain
-// treatment: the same tokens, a sans face, no leaf.
+// The desk: the books you want, what the trackers offer of each, and the releases you grabbed. A
+// tool, so it gets the plain treatment: the same tokens, a sans face, no leaf.
 
 /** A length of audio as a listener says it: 16 h 10 min. */
 const lengthOf = (minutes: number): string =>
@@ -112,7 +114,34 @@ const recordingView = (
 		}
 	);
 
-const offerView = (release: Release, h: HtmlBuilder<Message>): Html =>
+/** Grab an offer, or see that it was grabbed, or that it was offered before grabbing was. */
+const grabView = (
+	work: string,
+	release: Release,
+	book: WantedBook,
+	h: HtmlBuilder<Message>
+): Html => {
+	if (book.grabbed.includes(release.id)) {
+		return h.span([h.Class("label")], ["grabbed"]);
+	}
+
+	return release.link === null
+		? h.span([h.Class("label")], ["search again to grab it"])
+		: h.button(
+				[
+					h.Type("button"),
+					h.OnClick(Message.ClickedGrab({ work, release: release.id })),
+				],
+				["Grab"]
+			);
+};
+
+const offerView = (
+	work: string,
+	release: Release,
+	book: WantedBook,
+	h: HtmlBuilder<Message>
+): Html =>
 	h.keyed("li")(
 		release.id,
 		[h.Class("offer")],
@@ -140,6 +169,7 @@ const offerView = (release: Release, h: HtmlBuilder<Message>): Html =>
 					].join(" · "),
 				]
 			),
+			grabView(work, release, book, h),
 		]
 	);
 
@@ -156,16 +186,16 @@ const stateOf = (book: WantedBook): string => {
 	return book.offers.length === 1 ? "1 offer" : `${book.offers.length} offers`;
 };
 
-const wantView = (
-	work: string,
+/** A book's title and the state of its search, or the form correcting its title. */
+const headingView = (
 	book: WantedBook,
 	catalogued: Option.Option<Catalogued>,
+	correcting: Option.Option<Correction>,
 	h: HtmlBuilder<Message>
-): Html =>
-	h.keyed("li")(
-		work,
-		[h.Class("want")],
-		[
+): ReadonlyArray<Html> =>
+	Option.match(correcting, {
+		onSome: (correction) => [correctionView(correction, h)],
+		onNone: () => [
 			h.div(
 				[h.Class("line")],
 				[
@@ -182,6 +212,26 @@ const wantView = (
 				]
 			),
 			bylineView(book, catalogued, h),
+		],
+	});
+
+const wantView = (
+	work: string,
+	book: WantedBook,
+	catalogued: Option.Option<Catalogued>,
+	model: Model,
+	h: HtmlBuilder<Message>
+): Html => {
+	const correcting = Option.filter(
+		model.desk.correcting,
+		(correction) => correction.work === work
+	);
+
+	return h.keyed("li")(
+		work,
+		[h.Class("want")],
+		[
+			...headingView(book, catalogued, correcting, h),
 			...recordingView(catalogued, h),
 			...failureView(book, h),
 			h.p(
@@ -192,6 +242,11 @@ const wantView = (
 						[h.Type("button"), h.OnClick(Message.ClickedSearchAgain({ work }))],
 						["Search again"]
 					),
+					...correctView(
+						work,
+						isShelved(model, work) || Option.isSome(correcting),
+						h
+					),
 					h.button(
 						[h.Type("button"), h.OnClick(Message.ClickedWithdraw({ work }))],
 						["Withdraw"]
@@ -200,9 +255,18 @@ const wantView = (
 			),
 			h.ol(
 				[h.Class("offers")],
-				book.offers.map((release) => offerView(release, h))
+				book.offers.map((release) => offerView(work, release, book, h))
 			),
 		]
+	);
+};
+
+/** Whether any of a work's grabs is on the shelf, which names its folder. */
+const isShelved = (model: Model, work: string): boolean =>
+	Option.exists(model.wanted, ({ grabs }) =>
+		Object.values(grabs).some(
+			(grabbed) => grabbed.work === work && grabbed.shelf !== null
+		)
 	);
 
 const formView = (model: Model, h: HtmlBuilder<Message>): Html =>
@@ -262,7 +326,13 @@ export const deskView = (model: Model, h: HtmlBuilder<Message>): Document => {
 			Object.entries(wanted)
 				.toSorted(([, a], [, b]) => b.at - a.at)
 				.map(([work, book]) =>
-					wantView(work, book, Option.fromUndefinedOr(catalogue[work]), h)
+					wantView(
+						work,
+						book,
+						Option.fromUndefinedOr(catalogue[work]),
+						model,
+						h
+					)
 				),
 	});
 
@@ -285,13 +355,17 @@ export const deskView = (model: Model, h: HtmlBuilder<Message>): Document => {
 						h.p(
 							[h.Class("intro")],
 							[
-								"Books you want, and the releases Prowlarr finds of each, the most seeded first.",
+								"Books you want, the releases Prowlarr finds of each, the most seeded first, and the ones you grab, from their download to the shelf.",
 							]
 						),
 						formView(model, h),
 						...Option.match(model.desk.problem, {
 							onNone: () => [],
 							onSome: (problem) => [h.p([h.Class("note problem")], [problem])],
+						}),
+						...Option.match(model.wanted, {
+							onNone: () => [],
+							onSome: ({ grabs }) => grabsView(grabs, h),
 						}),
 						h.p([h.Class("label status")], [statusOf(model, wants.length)]),
 						h.ol([h.Class("wants")], wants),

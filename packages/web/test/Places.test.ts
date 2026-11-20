@@ -34,7 +34,12 @@ const withPlaces = (places: Places) =>
 		nightstand: Option.none(),
 		room: Option.none(),
 		wanted: Option.none(),
-		desk: { title: "", author: "", problem: Option.none() },
+		desk: {
+			title: "",
+			author: "",
+			correcting: Option.none(),
+			problem: Option.none(),
+		},
 	});
 
 const names = (commands: ReadonlyArray<{ readonly name: string }>) =>
