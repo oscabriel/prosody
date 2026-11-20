@@ -1,17 +1,27 @@
 import { Story } from "@alchemy.run/domain/Story";
-import { describe, it } from "@effect/vitest";
+import { describe, expect, it } from "@effect/vitest";
+import { Schema } from "effect";
 
 import { Device } from "../src/Device.context.ts";
+import { SHELF } from "../src/Library/Shelf.view.ts";
 import { Aligner } from "../src/Narration/Aligner.external.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
+import { BookFinished, FinishBook } from "../src/Reading/FinishBook.command.ts";
 import {
 	KeepPlace,
 	PlaceKept,
 	StalePlace,
 } from "../src/Reading/KeepPlace.command.ts";
+import { Nightstand } from "../src/Reading/Nightstand.view.ts";
+import { BookOpened, OpenBook } from "../src/Reading/OpenBook.command.ts";
 import { Place } from "../src/Reading/Place.view.ts";
 import { Reading } from "../src/Reading/Reading.aggregate.ts";
 import { Sentence } from "../src/Reading/Sentence.ts";
+import {
+	BookSetAside,
+	NotReading,
+	SetAside,
+} from "../src/Reading/SetAside.command.ts";
 
 const { given, provide, rejected, then, view, when } = Story;
 
@@ -78,4 +88,113 @@ describe("your place in a work", () => {
 			then(carl)
 		)
 	);
+});
+
+const odyssey = Reading.ref("w-odyssey");
+
+describe("the nightstand", () => {
+	it.effect("takes a work when it is first opened", () =>
+		story(
+			fromPhone,
+			when(carl, new OpenBook({ at: 1000 })),
+			then(carl, new BookOpened({ at: 1000, device: "iphone" })),
+			view(Nightstand, SHELF, {
+				works: { "w-carl": { stage: "reading", at: 1000, device: "iphone" } },
+			})
+		)
+	);
+
+	it.effect("records nothing when a work on it is opened again", () =>
+		story(
+			given(carl, new BookOpened({ at: 1000, device: "iphone" })),
+			fromLaptop,
+			when(carl, new OpenBook({ at: 2000 })),
+			then(carl)
+		)
+	);
+
+	it.effect("moves a work up as you read on, on any device", () =>
+		story(
+			given(carl, new BookOpened({ at: 1000, device: "iphone" })),
+			given(odyssey, new BookOpened({ at: 1500, device: "iphone" })),
+			fromLaptop,
+			when(carl, new KeepPlace(place("ps-12", 2000))),
+			then(carl, new PlaceKept(kept("ps-12", 2000, "laptop"))),
+			view(Nightstand, SHELF, {
+				works: {
+					"w-carl": { stage: "reading", at: 2000, device: "laptop" },
+					"w-odyssey": { stage: "reading", at: 1500, device: "iphone" },
+				},
+			})
+		)
+	);
+
+	it.effect("takes a work read before it existed when it is next opened", () =>
+		story(
+			given(carl, new PlaceKept(kept("ps-12", 1000, "iphone"))),
+			fromPhone,
+			when(carl, new OpenBook({ at: 2000 })),
+			then(carl, new BookOpened({ at: 2000, device: "iphone" })),
+			view(Nightstand, SHELF, {
+				works: { "w-carl": { stage: "reading", at: 2000, device: "iphone" } },
+			})
+		)
+	);
+
+	it.effect("lets a work go when you finish it", () =>
+		story(
+			given(carl, new BookOpened({ at: 1000, device: "iphone" })),
+			fromLaptop,
+			when(carl, new FinishBook({ at: 2000 })),
+			then(carl, new BookFinished({ at: 2000, device: "laptop" })),
+			view(Nightstand, SHELF, {
+				works: { "w-carl": { stage: "finished", at: 2000, device: "laptop" } },
+			})
+		)
+	);
+
+	it.effect("keeps a finished work finished while the audio plays on", () =>
+		story(
+			given(carl, new BookFinished({ at: 2000, device: "laptop" })),
+			fromPhone,
+			when(carl, new KeepPlace(place("ps-40", 3000))),
+			then(carl, new PlaceKept(kept("ps-40", 3000, "iphone"))),
+			view(Nightstand, SHELF, {
+				works: { "w-carl": { stage: "finished", at: 2000, device: "laptop" } },
+			})
+		)
+	);
+
+	it.effect("puts a work set aside back on it when it is opened", () =>
+		story(
+			given(carl, new BookOpened({ at: 1000, device: "iphone" })),
+			fromPhone,
+			when(carl, new SetAside({ at: 2000 })),
+			then(carl, new BookSetAside({ at: 2000, device: "iphone" })),
+			when(carl, new OpenBook({ at: 3000 })),
+			then(carl, new BookOpened({ at: 3000, device: "iphone" })),
+			view(Nightstand, SHELF, {
+				works: { "w-carl": { stage: "reading", at: 3000, device: "iphone" } },
+			})
+		)
+	);
+
+	it.effect("cannot set aside a work that is not on it", () =>
+		story(
+			given(carl, new BookFinished({ at: 2000, device: "laptop" })),
+			fromPhone,
+			when(carl, new SetAside({ at: 3000 })),
+			rejected(new NotReading({ stage: "finished" }))
+		)
+	);
+});
+
+describe("a reading kept before the nightstand", () => {
+	it("is a work not yet opened", () => {
+		const state = Schema.decodeSync(Reading.definition.state)({
+			place: kept("ps-12", 1000, "iphone"),
+		});
+
+		expect(state.stage).toBe("unopened");
+	});
 });
