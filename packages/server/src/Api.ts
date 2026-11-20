@@ -3,7 +3,7 @@ import * as Cluster from "@alchemy.run/effect-cluster";
 import { BunFileSystem, BunHttpPlatform } from "@effect/platform-bun";
 import { PressApi } from "@prosody/domain/PressApi.api";
 import { ReaderApi } from "@prosody/domain/ReaderApi.api";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 
 import { COPIES, COPIES_ON_HOST, serveCopy } from "./Copies.ts";
@@ -11,7 +11,7 @@ import { API_ALIAS, Front } from "./Front.ts";
 import { plainFetch } from "./Http.ts";
 import { isPage, PageImage, servePage } from "./Page.ts";
 import ProsodyLive, { Database } from "./ProsodyLive.ts";
-import { authFetch } from "./Session.ts";
+import { authFetch, deviceOf, SessionLive, signedOut } from "./Session.ts";
 import { sourceFingerprint } from "./Source.ts";
 import { TAILSCALE, Tailscale } from "./Tailscale.ts";
 
@@ -22,7 +22,7 @@ import { TAILSCALE, Tailscale } from "./Tailscale.ts";
  *   /auth   Caddy's question before every request: is this one of your devices?
  *   /api    the reader's Api, for the web app (typed calls, and a WebSocket per live read)
  *   /press  the press's Api, closed to anything that arrives through the relay
- *   /copies the reading copies, read-only, for the reading room
+ *   /copies the reading copies, read-only, for the reading room, once you are signed in
  *   /, /read/<work>, /assets/
  *           the web app
  *   /...    the reader's Api again as plain HTTP, for curl
@@ -82,7 +82,9 @@ export default class Api extends Docker.Service<Api>()(
 				}
 
 				if (path.startsWith("/copies/")) {
-					return yield* serveCopy;
+					return Option.isSome(deviceOf(request.headers))
+						? yield* serveCopy
+						: signedOut;
 				}
 
 				if (["GET", "HEAD"].includes(request.method) && isPage(path)) {
@@ -105,5 +107,5 @@ export default class Api extends Docker.Service<Api>()(
 				Effect.provide([BunHttpPlatform.layer, BunFileSystem.layer])
 			),
 		};
-	}).pipe(Effect.provide([ProsodyLive, Tailscale.layer]))
+	}).pipe(Effect.provide([ProsodyLive, Tailscale.layer, SessionLive]))
 ) {}

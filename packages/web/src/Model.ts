@@ -1,7 +1,7 @@
 import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
 import { Shelf } from "@prosody/domain/Library/Shelf.view";
 import { Contents, Timeline } from "@prosody/domain/Reading/Copy";
-import { Bookmark, Sentence } from "@prosody/domain/Reading/Sentence";
+import { Bookmark, Position, Sentence } from "@prosody/domain/Reading/Sentence";
 import { Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
 import { UrlRequest } from "foldkit/navigation";
@@ -13,11 +13,8 @@ import { AppRoute } from "./Route.ts";
 
 // FLAGS
 
-/** What the page brings with it: which device this is, and a fresh session for command ids. */
-export const Flags = Schema.Struct({
-	device: Schema.String,
-	session: Schema.String,
-});
+/** What the page brings with it: a fresh session for command ids. */
+export const Flags = Schema.Struct({ session: Schema.String });
 
 export type Flags = typeof Flags.Type;
 
@@ -52,7 +49,7 @@ export type Page = typeof Page.Type;
 /** A place on its way to the model, under the command id it is sent with until it is answered. */
 export const Keeping = Schema.Struct({
 	commandId: Schema.String,
-	place: Bookmark,
+	place: Position,
 });
 
 export type Keeping = typeof Keeping.Type;
@@ -74,10 +71,10 @@ export const Room = Schema.Struct({
 	time: Schema.Finite,
 	isPlaying: Schema.Boolean,
 	rate: Schema.Finite,
-	/** The last place this device kept, and one still waiting for an answer. */
-	kept: Schema.Option(Bookmark),
+	/** The last place this page kept, and one still waiting for an answer. */
+	kept: Schema.Option(Position),
 	keeping: Schema.Option(Keeping),
-	/** A newer place another device kept, offered rather than taken while you are here. */
+	/** A newer place kept elsewhere, offered rather than taken while you are here. */
 	elsewhere: Schema.Option(Bookmark),
 });
 
@@ -85,7 +82,6 @@ export type Room = typeof Room.Type;
 
 export const Model = Schema.Struct({
 	route: AppRoute,
-	device: Schema.String,
 	commandIds: DomainFoldkit.CommandIds,
 	/** None until the model first answers. */
 	shelf: Schema.Option(ShelfState),

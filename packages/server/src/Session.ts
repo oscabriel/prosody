@@ -1,6 +1,7 @@
-import { Effect } from "effect";
-import type { Headers } from "effect/http";
-import { HttpServerRequest, HttpServerResponse } from "effect/http";
+import { Device } from "@prosody/domain/Device.context";
+import { Session, SignedOut } from "@prosody/domain/Session.middleware";
+import { Effect, Layer, Option } from "effect";
+import { Headers, HttpServerRequest, HttpServerResponse } from "effect/http";
 
 import { Tailscale } from "./Tailscale.ts";
 
@@ -84,3 +85,24 @@ export const authFetch = Effect.map(Effect.service(Tailscale), (tailscale) =>
 		);
 	})
 );
+
+/**
+ * The device Caddy named on a request, after asking `/auth` about it. Only Caddy reaches the relay
+ * from outside the host, and it replaces any name a browser sends with its own.
+ */
+export const deviceOf = (headers: Headers.Headers): Option.Option<string> =>
+	Headers.get(headers, DEVICE_HEADER);
+
+/** The Session on the reader's Api: the device Caddy named, or SignedOut. */
+export const SessionLive = Layer.succeed(Session, (effect, { headers }) =>
+	Option.match(deviceOf(headers), {
+		onNone: () => Effect.fail(new SignedOut()),
+		onSome: (device) => Effect.provideService(effect, Device, device),
+	})
+);
+
+/** A request that did not come through Caddy. */
+export const signedOut = HttpServerResponse.text("Signed out", {
+	status: 401,
+	headers: noStore,
+});

@@ -1,6 +1,7 @@
 import * as Domain from "@alchemy.run/domain";
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 
+import { Device } from "../Device.context.ts";
 import { WorkId } from "../Library/Work.id.ts";
 import { KeepPlace, PlaceKept, StalePlace } from "./KeepPlace.command.ts";
 import { Bookmark } from "./Sentence.ts";
@@ -19,11 +20,11 @@ export class Reading extends Domain.Aggregate("Reading", {
 	initial: { place: null },
 	commands: [KeepPlace],
 	decide: {
-		KeepPlace: (reading, cmd) => {
+		KeepPlace: Effect.fn(function* (reading, cmd) {
 			const { place } = reading;
 
 			if (place !== null && place.at > cmd.at) {
-				return new StalePlace({ keptAt: place.at });
+				return yield* new StalePlace({ keptAt: place.at });
 			}
 
 			if (
@@ -38,10 +39,10 @@ export class Reading extends Domain.Aggregate("Reading", {
 				new PlaceKept({
 					sentence: cmd.sentence,
 					at: cmd.at,
-					device: cmd.device,
+					device: yield* Device,
 				}),
 			];
-		},
+		}),
 	},
 	evolve: {
 		PlaceKept: (_reading, e) => ({

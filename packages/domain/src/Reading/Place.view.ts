@@ -1,6 +1,7 @@
 import * as Domain from "@alchemy.run/domain";
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 
+import { Session } from "../Session.middleware.ts";
 import { Reading } from "./Reading.aggregate.ts";
 import { Bookmark } from "./Sentence.ts";
 
@@ -8,6 +9,7 @@ import { Bookmark } from "./Sentence.ts";
 export class Place extends Domain.View("Place", {
 	from: [Reading],
 	key: Reading,
+	middleware: [Session],
 	state: Schema.Struct({ place: Schema.NullOr(Bookmark) }),
 	initial: { place: null },
 	evolve: {
@@ -16,3 +18,6 @@ export class Place extends Domain.View("Place", {
 		}),
 	},
 }) {}
+
+/** Any of your devices may read your place; the Session lets in no one else. */
+export const PlaceLive = Place.toLayer(Effect.succeed(() => Effect.void));

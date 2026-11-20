@@ -31,6 +31,7 @@
 					"effect/http",
 					"effect/http-api",
 					"effect/process",
+					"effect/rpc",
 					"effect/socket"
 				]
 			}

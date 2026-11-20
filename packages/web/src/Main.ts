@@ -1,7 +1,11 @@
 import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
 import { SHELF } from "@prosody/domain/Library/Shelf.view";
 import { WorkId } from "@prosody/domain/Library/Work.id";
-import type { Bookmark, Sentence } from "@prosody/domain/Reading/Sentence";
+import type {
+	Bookmark,
+	Position,
+	Sentence,
+} from "@prosody/domain/Reading/Sentence";
 import { Duration, Effect, Match, Option, Schema } from "effect";
 import type { HttpClient } from "effect/http";
 import { Command, Subscription } from "foldkit";
@@ -214,7 +218,7 @@ const keep = (
 	at: number
 ): readonly [Model, Room, Commands] => {
 	const allocation = DomainFoldkit.next(model.commandIds);
-	const place: Bookmark = { sentence, at, device: model.device };
+	const place: Position = { sentence, at };
 
 	return [
 		modifyFields(model, { commandIds: () => allocation.commandIds }),
@@ -227,7 +231,8 @@ const keep = (
 	];
 };
 
-const send = (work: string, commandId: string, place: Bookmark) =>
+/** Send a place to the model. Which device sent it, the Session says. */
+const send = (work: string, commandId: string, place: Position) =>
 	Command.mapMessage(
 		Prosody.KeepPlace({ target: WorkId.make(work), input: place, commandId }),
 		(result) => Message.ReceivedResult({ result })
@@ -258,9 +263,11 @@ const keepIn = (
 		}
 	);
 
-/** A place another device kept that is newer than anything this one has. */
-const isElsewhere = (model: Model, room: Room, place: Bookmark): boolean =>
-	place.device !== model.device &&
+/**
+ * A place kept elsewhere that is newer than anything this page has. A place this page kept is never
+ * newer than the last one it kept.
+ */
+const isElsewhere = (room: Room, place: Bookmark): boolean =>
 	Option.match(room.kept, {
 		onNone: () => true,
 		onSome: (kept) => place.at > kept.at,
@@ -394,7 +401,6 @@ export const init = (flags: Flags, url: Url): Return =>
 	route(
 		Model.make({
 			route: AppRoute.Shelf(),
-			device: flags.device,
 			commandIds: DomainFoldkit.CommandIds.make({
 				session: flags.session,
 				sent: 0,
@@ -454,7 +460,7 @@ export const update = (model: Model, message: Message): Return =>
 				return [
 					{
 						...heard,
-						elsewhere: Option.filter(place, (p) => isElsewhere(model, room, p)),
+						elsewhere: Option.filter(place, (p) => isElsewhere(room, p)),
 					},
 					[],
 				];

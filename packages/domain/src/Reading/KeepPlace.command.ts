@@ -2,7 +2,8 @@ import * as Domain from "@alchemy.run/domain";
 import { Schema } from "effect";
 
 import { WorkId } from "../Library/Work.id.ts";
-import { Bookmark } from "./Sentence.ts";
+import { Session } from "../Session.middleware.ts";
+import { Bookmark, Position } from "./Sentence.ts";
 
 /** A reader's place in a work moved. */
 export class PlaceKept extends Domain.Event("PlaceKept", Bookmark.fields) {}
@@ -16,11 +17,13 @@ export class StalePlace extends Domain.Rejection(
 
 /**
  * Keep the reader's place in a work. A device sends it as you read or listen, and again until it
- * hears back, so sending the same place twice records it once.
+ * hears back, so sending the same place twice records it once. Which device sent it is the
+ * Session's to say.
  */
 export class KeepPlace extends Domain.Command("KeepPlace", {
 	target: WorkId,
-	input: Bookmark.fields,
+	middleware: [Session],
+	input: Position.fields,
 	events: [PlaceKept],
 	rejects: [StalePlace],
 }) {}

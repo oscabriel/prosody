@@ -1,7 +1,8 @@
 import * as Domain from "@alchemy.run/domain";
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 
 import { Narration } from "../Narration/Narration.aggregate.ts";
+import { Session } from "../Session.middleware.ts";
 import { Shelfmark } from "./Shelfmark.ts";
 import { Work } from "./Work.aggregate.ts";
 
@@ -43,6 +44,7 @@ const percent = (part: number, whole: number) =>
 export class Shelf extends Domain.View("Shelf", {
 	from: [Work, Narration],
 	key: ShelfName,
+	middleware: [Session],
 	keyOf: { Work: () => SHELF, Narration: () => SHELF },
 	state: Schema.Struct({
 		works: Schema.Record(Schema.String, ShelfEntry),
@@ -106,3 +108,6 @@ export class Shelf extends Domain.View("Shelf", {
 		}),
 	},
 }) {}
+
+/** Any of your devices may read the shelf; the Session lets in no one else. */
+export const ShelfLive = Shelf.toLayer(Effect.succeed(() => Effect.void));

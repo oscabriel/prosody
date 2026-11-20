@@ -1,6 +1,7 @@
 import { Story } from "@alchemy.run/domain/Story";
 import { describe, it } from "@effect/vitest";
 
+import { Device } from "../src/Device.context.ts";
 import { SHELF, Shelf } from "../src/Library/Shelf.view.ts";
 import { Shelfmark } from "../src/Library/Shelfmark.ts";
 import { WorkId } from "../src/Library/Work.id.ts";
@@ -30,7 +31,8 @@ import {
 } from "../src/Narration/RecordAlignmentFailed.command.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
 
-const { advance, call, given, rejected, succeed, then, view, when } = Story;
+const { advance, call, given, provide, rejected, succeed, then, view, when } =
+	Story;
 
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
@@ -38,6 +40,9 @@ const story = Story.make(Prosody, {
 });
 
 const carl = Narration.ref("w-carl");
+
+/** A realign comes from one of your devices, as everything a reader sends does. */
+const fromLaptop = provide(Device, "laptop");
 
 const pair = {
 	shelfmark: Shelfmark.make("Matt Dinniman/Dungeon Crawler Carl"),
@@ -155,6 +160,7 @@ describe("the narration", () => {
 				new AlignmentStarted({ attempt: 1 }),
 				new AlignmentFailed({ reason: "the share dropped out" })
 			),
+			fromLaptop,
 			when(carl, new RealignNarration()),
 			then(carl, new AlignmentStarted({ attempt: 2 })),
 			call(Aligner.align, asked(2)),
@@ -172,13 +178,18 @@ describe("the narration", () => {
 				new EditionsPaired(pair),
 				new AlignmentStarted({ attempt: 1 })
 			),
+			fromLaptop,
 			when(carl, new RealignNarration()),
 			rejected(new AlreadyAligning())
 		)
 	);
 
 	it.effect("a work with no pair can't be aligned", () =>
-		story(when(carl, new RealignNarration()), rejected(new NotPaired()))
+		story(
+			fromLaptop,
+			when(carl, new RealignNarration()),
+			rejected(new NotPaired())
+		)
 	);
 
 	it.effect("a press that never answers runs out of time", () =>

@@ -19,56 +19,11 @@ const Connection = ReaderApi.layerClient.pipe(
 	Layer.provideMerge(FetchHttpClient.layer)
 );
 
-/** What a device calls itself, from its browser: enough to say "on your iPhone". */
-const deviceName = (): string => {
-	const agent = navigator.userAgent;
-
-	for (const [pattern, name] of [
-		[/iPhone/u, "iPhone"],
-		[/iPad/u, "iPad"],
-		[/Android/u, "Android"],
-		[/Macintosh/u, "Mac"],
-		[/Windows/u, "Windows"],
-		[/Linux/u, "Linux"],
-	] as const) {
-		if (pattern.test(agent)) {
-			return name;
-		}
-	}
-
-	return "another device";
-};
-
-/**
- * This browser's name for itself, kept between visits, so a place it kept is known as its own.
- * A browser that keeps nothing gets a new name each visit, which only means it is offered its own
- * places back.
- */
-const keptName = (fresh: string): string => {
-	try {
-		const kept = localStorage.getItem("prosody-device");
-
-		if (kept !== null) {
-			return kept;
-		}
-
-		localStorage.setItem("prosody-device", fresh);
-	} catch {
-		// Storage is off: the fresh name will do for this visit.
-	}
-
-	return fresh;
-};
-
-/** This device's name, and a new session for this page. */
+/** A fresh session for this page, for its command ids. */
 const flags = Effect.gen(function* () {
 	const random = yield* SecureRandom.SecureRandom;
-	const fresh = `${deviceName()} (${(yield* random.uuidV4()).slice(0, 4)})`;
 
-	return {
-		device: yield* Effect.sync(() => keptName(fresh)),
-		session: yield* random.uuidV4(),
-	};
+	return { session: yield* random.uuidV4() };
 }).pipe(Effect.provide(SecureRandom.layerWebCrypto));
 
 Runtime.run(
