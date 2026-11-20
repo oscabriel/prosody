@@ -4,7 +4,7 @@ One self-hosted app for the whole route a book travels: wanting it, fetching it,
 
 ## State
 
-Pairing and alignment are built: each book with both editions is paired, aligned by the press with our own aligner (`packages/aligner`), spot-checked by ear, and kept as a reading copy in the copies folder. `pnpm check` must pass before a commit. The next work is the reading room.
+The reading room is built: each book with both editions is paired, aligned by the press with our own aligner (`packages/aligner`), spot-checked by ear, kept as a reading copy in the copies folder, and opens at `/read/<work>`, where the audio follows the text and one place per book is kept across devices. `pnpm check` must pass before a commit. The next work is serving the built page from the Api and signing in by Tailscale, then retiring Storyteller.
 
 - `pnpm check` formats, lints, typechecks and tests. `pnpm run deploy` deploys; `pnpm deploy` is a different, built-in pnpm command.
 - `packages/domain` imports only `effect` and `@alchemy.run/domain`. The linter enforces it.
@@ -16,6 +16,7 @@ Pairing and alignment are built: each book with both editions is paired, aligned
 - Policies act only on new events, never on history. A rule that must also cover what is already recorded needs another trigger: the press reports pairs on every walk for this reason.
 - Bump a view's `version` whenever what it computes changes, so it is rebuilt from the history.
 - `.pending` in the copies folder is the press's queue. A request stays there until its answer is sent.
+- The Api serves the reading copies read-only at `/copies/<work>/`: `contents.json`, `timeline.json`, `text/` and `audio/`. A copy without `contents.json` is unfinished or was made before the reading room; `RealignNarration` makes it again.
 - The aligner runs NVIDIA's Parakeet CTC 0.6B (int8 ONNX) through `@huggingface/transformers`, and Whisper base.en for the spot check. The press image downloads both at pinned revisions into `/models` and runs offline; the bundle leaves `@huggingface/transformers` external, installed in the image's `/app`. Changing either model means a new image tag.
 - What the model heard is kept beside each reading copy as `heard-<size>.emissions`, so a realign never listens again. Change the emissions format and those files must be ignored or rebuilt.
 - `packages/aligner/bench` runs the aligner on saved emissions, outside the press: `run.ts` end to end, `align.ts` to try costs, `reorder.ts` and `unread.ts` for audio out of order or text not read.
