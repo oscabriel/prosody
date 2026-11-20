@@ -9,6 +9,7 @@ import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import { COPIES, COPIES_ON_HOST, serveCopy } from "./Copies.ts";
 import { API_ALIAS, Front } from "./Front.ts";
 import { plainFetch } from "./Http.ts";
+import { isPage, PageImage, servePage } from "./Page.ts";
 import ProsodyLive, { Database } from "./ProsodyLive.ts";
 import { sourceFingerprint } from "./Source.ts";
 
@@ -19,6 +20,8 @@ import { sourceFingerprint } from "./Source.ts";
  *   /api    the reader's Api, for the web app (typed calls, and a WebSocket per live read)
  *   /press  the press's Api, closed to anything that arrives through the relay
  *   /copies the reading copies, read-only, for the reading room
+ *   /, /read/<work>, /assets/
+ *           the web app
  *   /...    the reader's Api again as plain HTTP, for curl
  */
 export default class Api extends Docker.Service<Api>()(
@@ -26,6 +29,7 @@ export default class Api extends Docker.Service<Api>()(
 	Effect.gen(function* () {
 		const database = yield* Cluster.Database.Database;
 		const front = yield* Front;
+		const page = yield* PageImage;
 
 		// The cluster's own network, when the database has one, and the Front network.
 		const clusterNetworks =
@@ -35,6 +39,7 @@ export default class Api extends Docker.Service<Api>()(
 
 		return {
 			main: import.meta.url,
+			image: page.imageRef,
 			port: 3000,
 			environment: { PROSODY_SOURCE: yield* sourceFingerprint },
 			volumes: [
@@ -64,6 +69,10 @@ export default class Api extends Docker.Service<Api>()(
 					return yield* serveCopy;
 				}
 
+				if (["GET", "HEAD"].includes(request.method) && isPage(path)) {
+					return yield* servePage;
+				}
+
 				if (path.startsWith("/press")) {
 					// The relay is a reverse proxy, and a reverse proxy always adds this header. The press
 					// calls the Api directly, so its requests never carry it.
@@ -76,7 +85,7 @@ export default class Api extends Docker.Service<Api>()(
 
 				return yield* plain;
 			}).pipe(
-				// A copy is served from Bun's file system, through its HTTP platform.
+				// A copy or the page is served from Bun's file system, through its HTTP platform.
 				Effect.provide([BunHttpPlatform.layer, BunFileSystem.layer])
 			),
 		};
