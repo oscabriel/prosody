@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 
 import { EditionKind } from "../Library/ShelveEdition.command.ts";
 
@@ -16,6 +16,13 @@ export const Release = Schema.Struct({
 	published: Schema.String,
 	/** Its page on the tracker, to look at before choosing it. */
 	page: Schema.NullOr(Schema.String),
+	/**
+	 * Where the Indexer fetches its torrent, holding no key: a grab gives it back. A release offered
+	 * before grabs has none.
+	 */
+	link: Schema.NullOr(Schema.String).pipe(
+		Schema.withDecodingDefaultKey(Effect.succeed(null))
+	),
 });
 
 export type Release = typeof Release.Type;

@@ -17,6 +17,7 @@ const found = (
 	seeders,
 	publishDate: "2021-05-04T00:00:00Z",
 	infoUrl: `https://tracker.example/t/${title}`,
+	downloadUrl: `http://prowlarr:9696/4/download?apikey=secret&link=${title}&file=${title}`,
 	categories: categories.map((id) => ({ id })),
 });
 
@@ -40,6 +41,15 @@ describe("Prowlarr's results", () => {
 		const [release] = releasesOf([found("ebook", [7020], 3)]);
 
 		expect(release?.id).toBe("4_https://tracker.example/t/ebook");
+	});
+
+	it("are fetched by a link that holds no API key, or not offered", () => {
+		const [release] = releasesOf([
+			found("ebook", [7020], 3),
+			{ ...found("unfetchable", [7020], 9), downloadUrl: null },
+		]);
+
+		expect(release?.link).toBe("/4/download?link=ebook&file=ebook");
 	});
 
 	it("count no seeders as none, and offer ten of each kind at most", () => {

@@ -3,6 +3,7 @@ import { Story } from "@alchemy.run/domain/Story";
 import { describe, expect, it } from "@effect/vitest";
 import { Schema } from "effect";
 
+import { Downloads } from "../src/Acquisition/Downloads.external.ts";
 import { Indexer } from "../src/Acquisition/Indexer.external.ts";
 import {
 	CatalogueWork,
@@ -26,7 +27,7 @@ const { given, rejected, then, view, when } = Story;
 
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Indexer, Metadata, Aligner, Copier],
+	stub: [Indexer, Downloads, Metadata, Aligner, Copier],
 });
 
 const carl = Work.ref("w-carl");

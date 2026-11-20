@@ -1,6 +1,7 @@
 import { Story } from "@alchemy.run/domain/Story";
 import { assert, describe, it } from "@effect/vitest";
 
+import { Downloads } from "../src/Acquisition/Downloads.external.ts";
 import { Indexer, IndexerFailed } from "../src/Acquisition/Indexer.external.ts";
 import {
 	OfferReleases,
@@ -38,7 +39,7 @@ const { call, fail, given, provide, rejected, succeed, then, view, when } =
 
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Indexer, Metadata, Aligner, Copier],
+	stub: [Indexer, Downloads, Metadata, Aligner, Copier],
 });
 
 const hailMary = Want.ref("w-hailmary");
@@ -78,6 +79,7 @@ const audiobook: Release = {
 	seeders: 41,
 	published: "2021-05-04T00:00:00Z",
 	page: "https://tracker.example/t/1",
+	link: "/1/download?link=b25l&file=Project+Hail+Mary",
 };
 
 /** When a story commits its events: its clock stands at the start of 2026. */
@@ -104,6 +106,7 @@ describe("a book you want", () => {
 						state: "offered",
 						note: "",
 						offers: [audiobook],
+						grabbed: [],
 					},
 				},
 				catalogue: { "w-hailmary": { ...book, description } },
@@ -134,6 +137,7 @@ describe("a book you want", () => {
 						state: "failed",
 						note: "Prowlarr refused the API key",
 						offers: [],
+						grabbed: [],
 					},
 				},
 			})

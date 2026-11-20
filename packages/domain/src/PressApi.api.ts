@@ -3,8 +3,8 @@ import * as Domain from "@alchemy.run/domain";
 import { Prosody } from "./Prosody.model.ts";
 
 /**
- * What the press may report: the works and editions it finds, their pairs and editions alone, and how
- * aligning and copying went.
+ * What the press may report: the works and editions it finds, their pairs and editions alone, how
+ * aligning and copying went, and how each grab's download goes.
  */
 export class PressApi extends Domain.Api("PressApi", {
 	model: Prosody,
@@ -17,6 +17,10 @@ export class PressApi extends Domain.Api("PressApi", {
 		"CopyEdition",
 		"RecordCopy",
 		"RecordCopyFailed",
+		"RecordProgress",
+		"RecordStall",
+		"RecordPayloadArrived",
+		"RecordSeeding",
 	],
 	views: [],
 }) {}

@@ -121,7 +121,7 @@ describe("the desk", () => {
 		);
 
 		expect(model.wanted).toStrictEqual(
-			Option.some({ wants: {}, catalogue: {} })
+			Option.some({ wants: {}, catalogue: {}, grabs: {} })
 		);
 	});
 });

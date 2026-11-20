@@ -379,6 +379,14 @@ const handle = (model: Model, message: Message): Return =>
 				FailedSearchAgain: ({ failure }) => deskFailed(model, failure),
 				SucceededWithdrawWant: () => ({ model }),
 				FailedWithdrawWant: ({ failure }) => deskFailed(model, failure),
+				SucceededGrabRelease: () => ({ model }),
+				FailedGrabRelease: ({ failure }) => deskFailed(model, failure),
+				SucceededResumeGrab: () => ({ model }),
+				FailedResumeGrab: ({ failure }) => deskFailed(model, failure),
+				SucceededAbandonGrab: () => ({ model }),
+				FailedAbandonGrab: ({ failure }) => deskFailed(model, failure),
+				SucceededReleasePayload: () => ({ model }),
+				FailedReleasePayload: ({ failure }) => deskFailed(model, failure),
 				SucceededRealignNarration: () => answeredRemake(model, "aligning"),
 				SucceededRemakeCopy: () => answeredRemake(model, "aligning"),
 				FailedRealignNarration: () => answeredRemake(model, "idle"),
@@ -417,7 +425,11 @@ const handle = (model: Model, message: Message): Return =>
 		ReceivedWanted: ({ state }) => ({
 			model: modifyFields(model, {
 				wanted: () =>
-					Option.orElseSome(state, () => ({ wants: {}, catalogue: {} })),
+					Option.orElseSome(state, () => ({
+						wants: {},
+						catalogue: {},
+						grabs: {},
+					})),
 			}),
 		}),
 		FailedWatchWanted: () => lostConnection(model),

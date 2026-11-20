@@ -1,4 +1,8 @@
 import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
+import type { AbandonGrab } from "@prosody/domain/Acquisition/AbandonGrab.command";
+import type { GrabRelease } from "@prosody/domain/Acquisition/GrabRelease.command";
+import type { ReleasePayload } from "@prosody/domain/Acquisition/ReleasePayload.command";
+import type { ResumeGrab } from "@prosody/domain/Acquisition/ResumeGrab.command";
 import type { SearchAgain } from "@prosody/domain/Acquisition/SearchAgain.command";
 import type { WantBook } from "@prosody/domain/Acquisition/WantBook.command";
 import type { WithdrawWant } from "@prosody/domain/Acquisition/WithdrawWant.command";
@@ -126,10 +130,36 @@ export const sendAbout = (
 	};
 };
 
-/** A want, a search or a withdrawal, as the model may refuse it or the connection lose it. */
+/** Anything the desk asks, as the model may refuse it or the connection lose it. */
 type DeskFailure = DomainFoldkit.Failure<
-	typeof WantBook | typeof SearchAgain | typeof WithdrawWant
+	| typeof WantBook
+	| typeof SearchAgain
+	| typeof WithdrawWant
+	| typeof GrabRelease
+	| typeof ResumeGrab
+	| typeof AbandonGrab
+	| typeof ReleasePayload
 >;
+
+/** Why the model refused something asked at the desk. */
+type Refusal = Extract<
+	DeskFailure,
+	{ readonly rejection: unknown }
+>["rejection"];
+
+/** What the desk says of a refusal. Most need no words: the desk already shows why. */
+const refusalOf = (rejection: Refusal): Option.Option<string> =>
+	Match.value(rejection).pipe(
+		Match.tag("ReleaseNotOffered", () =>
+			Option.some(
+				"That offer is gone. Search again, and grab one of the new offers."
+			)
+		),
+		Match.tag("StillObligated", ({ hours }) =>
+			Option.some(`Not released: it owes ${hours} more hours of seeding.`)
+		),
+		Match.orElse(() => Option.none())
+	);
 
 /** The desk, saying the last thing asked of it was not sent. */
 const notSent = (model: Model): Model =>
@@ -139,13 +169,18 @@ const notSent = (model: Model): Model =>
 	}));
 
 /**
- * A want, search or withdrawal not done. Refused, it changed nothing the desk shows. Lost, it is not
- * sent again: the desk says so, and you ask again once the model can be reached.
+ * Something asked at the desk not done. Refused, the desk says why when it does not show it already.
+ * Lost, it is not sent again: the desk says so, and you ask again once the model can be reached.
  */
 export const deskFailed = (model: Model, failure: DeskFailure): Return =>
 	Match.value(failure).pipe(
 		Match.tagsExhaustive({
-			Rejected: () => ({ model }),
+			Rejected: ({ rejection }) => ({
+				model: changeDesk(model, (desk) => ({
+					...desk,
+					problem: refusalOf(rejection),
+				})),
+			}),
 			Denied: () => ({ model: notSent(model) }),
 			Unknown: () => lostConnection(notSent(model)),
 		})

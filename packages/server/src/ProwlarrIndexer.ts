@@ -27,6 +27,8 @@ export const Found = Schema.Struct({
 	seeders: Schema.optionalKey(Schema.NullOr(Schema.Int)),
 	publishDate: Schema.String,
 	infoUrl: Schema.optionalKey(Schema.NullOr(Schema.String)),
+	/** Where Prowlarr fetches its torrent, with Prowlarr's API key in the query. */
+	downloadUrl: Schema.optionalKey(Schema.NullOr(Schema.String)),
 	categories: Schema.Array(Schema.Struct({ id: Schema.Int })),
 });
 
@@ -48,17 +50,31 @@ const kindOf = (found: Found): Release["kind"] | undefined => {
 
 const failed = (reason: string) => new IndexerFailed({ reason });
 
+/** Where Prowlarr fetches a release's torrent: a path on Prowlarr, with the API key taken out. */
+const linkOf = (found: Found): string | undefined => {
+	if (found.downloadUrl === undefined || found.downloadUrl === null) {
+		return undefined;
+	}
+
+	const link = new URL(found.downloadUrl);
+
+	link.searchParams.delete("apikey");
+
+	return `${link.pathname}${link.search}`;
+};
+
 /**
  * Prowlarr's results as releases of a book, the most seeded first, ten of each kind at most so
  * neither crowds out the other. A release's id is the name Prowlarr grabs it by, its
- * indexer's number and its guid.
+ * indexer's number and its guid. One with no torrent to fetch can't be grabbed, and is left out.
  */
 export const releasesOf = (results: ReadonlyArray<Found>): Array<Release> => {
 	const releases = results
 		.flatMap((found) => {
 			const kind = kindOf(found);
+			const link = linkOf(found);
 
-			return kind === undefined
+			return kind === undefined || link === undefined
 				? []
 				: [
 						{
@@ -70,6 +86,7 @@ export const releasesOf = (results: ReadonlyArray<Found>): Array<Release> => {
 							seeders: found.seeders ?? 0,
 							published: found.publishDate,
 							page: found.infoUrl ?? null,
+							link,
 						},
 					];
 		})
@@ -92,6 +109,36 @@ export const releasesOf = (results: ReadonlyArray<Found>): Array<Release> => {
 export const ProwlarrSettings = Config.all({
 	url: Config.String("INDEXER_URL"),
 	key: Config.Redacted("INDEXER_API_KEY"),
+});
+
+/**
+ * A release's torrent file, fetched through Prowlarr by its link, with the key the link leaves out.
+ * Prowlarr fetches it from the tracker, which counts it as a grab.
+ */
+export const torrentOf = Effect.fn("Prowlarr.torrent")(function* (
+	link: string
+) {
+	const { url, key } = yield* Effect.orDie(ProwlarrSettings);
+	const client = yield* HttpClient.HttpClient;
+
+	const response = yield* client
+		.get(`${url}${link}`, { headers: { "X-Api-Key": Redacted.value(key) } })
+		.pipe(
+			Effect.timeout(SEARCH_TIME),
+			Effect.mapError(() => failed("Prowlarr did not answer"))
+		);
+
+	if (response.status !== 200) {
+		return yield* failed(
+			`Prowlarr could not fetch its torrent: it answered ${response.status}`
+		);
+	}
+
+	const bytes = yield* response.arrayBuffer.pipe(
+		Effect.mapError(() => failed("Prowlarr's torrent could not be read"))
+	);
+
+	return new Uint8Array(bytes);
 });
 
 /**
