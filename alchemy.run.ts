@@ -7,8 +7,8 @@ import * as Alchemy from "alchemy";
 import { Effect, Layer } from "effect";
 
 /**
- * Loopback only. Caddy sends read.example.com here, and prosody.example.com's dev server calls it, each
- * after asking `/auth` whether the request is from one of your devices.
+ * Loopback only. Caddy sends prosody.example.com here, after asking `/auth` whether the request is
+ * from one of your devices; the dev server calls it the same way.
  */
 const RELAY = "127.0.0.1:3023";
 
