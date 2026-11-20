@@ -15,6 +15,7 @@ export const ReaderHttp = DomainHttp.toHttpApi(ReaderApi, {
 		"Place.get",
 		"Nightstand.get",
 		"RealignNarration",
+		"RemakeCopy",
 		"KeepPlace",
 		"OpenBook",
 		"FinishBook",

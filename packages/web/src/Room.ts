@@ -1,20 +1,21 @@
-import type { Contents, Timeline } from "@prosody/domain/Reading/Copy";
+import type { Contents } from "@prosody/domain/Reading/Copy";
 import { Option } from "effect";
 import type { Document, Html, HtmlBuilder } from "foldkit/html";
 
-import { copyUrl } from "./Copy.ts";
+import { copyUrl, kindOf } from "./Copy.ts";
 import { bookView, offlineView } from "./Layout.ts";
+import { listeningView, playerView } from "./Listening.ts";
 import { Book, Message, Page } from "./Model.ts";
 import type { Model, Room } from "./Model.ts";
 import { bedsideView, copyView } from "./Moves.ts";
-import { Listen, PLAYER } from "./Player.ts";
-import { chapterOf, entryOf, titleOf } from "./Steps.ts";
+import { copyFailureOf, isAlone } from "./Rooms.ts";
+import { chapterOf, chaptersIn, entryOf, titleOf } from "./Steps.ts";
 import { Read } from "./Text.ts";
-import { heardOf, leftOnPage, pageOf, spanOf } from "./Timeline.ts";
+import { pageOf, spanOf } from "./Timeline.ts";
 
 /**
  * The contents, on the leaf: a manicule at the chapter you are in, and the chapters before it
- * dimmed. Each turns the page to it.
+ * dimmed. Each turns the page to it, or in audio alone, plays from it.
  */
 const chaptersView = (
 	room: Room,
@@ -22,18 +23,19 @@ const chaptersView = (
 	h: HtmlBuilder<Message>
 ): Html => {
 	const current = chapterOf(room, contents);
+	const shown = kindOf(contents) === "audio" ? current : room.shown;
 
 	return h.ol(
 		[h.Class("chapters")],
-		contents.pages.map((page, index) =>
+		chaptersIn(contents).map((_chapter, index) =>
 			h.keyed("li")(
-				page.path,
+				String(index),
 				[
 					h.Class(
 						[
 							index < current ? "done" : "",
 							index === current ? "current" : "",
-							index === room.shown ? "shown" : "",
+							index === shown ? "shown" : "",
 						].join(" ")
 					),
 				],
@@ -52,6 +54,25 @@ const chaptersView = (
 	);
 };
 
+/** A text's cover, above its title on the leaf. Audio alone shows its cover on the page. */
+const leafCoverView = (
+	room: Room,
+	contents: Contents,
+	h: HtmlBuilder<Message>
+): ReadonlyArray<Html> => {
+	if (contents.cover === null || kindOf(contents) === "audio") {
+		return [];
+	}
+
+	return [
+		h.img([
+			h.Class("leaf-cover"),
+			h.Src(copyUrl(room.work, contents.cover)),
+			h.Alt(""),
+		]),
+	];
+};
+
 /** The leaf: the book's title and author, then its contents, folded away on a phone. */
 const leafView = (model: Model, room: Room, h: HtmlBuilder<Message>) => {
 	const entry = Option.getOrUndefined(entryOf(model, room.work));
@@ -65,8 +86,10 @@ const leafView = (model: Model, room: Room, h: HtmlBuilder<Message>) => {
 	];
 
 	return Book.match(room.book, {
-		// Two copies of the contents: always open beside the page, folded above it on a phone.
+		// Two copies of the contents: always open beside the page, folded above it on a phone. A text
+		// shows its cover above its title; audio alone shows it on the page.
 		Open: ({ contents }) => [
+			...leafCoverView(room, contents, h),
 			...heading,
 			h.nav(
 				[h.Class("toc wide"), h.AriaLabel("Contents")],
@@ -107,82 +130,20 @@ const markView = (room: Room, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
 		},
 	});
 
-/** Minutes, said the way a reader would. */
-const minutes = (seconds: number): string => {
-	const whole = Math.round(seconds / 60);
-
-	if (whole < 1) {
-		return "under a minute";
-	}
-
-	return whole === 1 ? "1 minute" : `${whole} minutes`;
-};
-
-/** The player at the foot of the page: play or pause, the speed, and the time left in the chapter. */
-const playerView = (
-	room: Room,
-	contents: Contents,
-	timeline: Timeline,
-	h: HtmlBuilder<Message>
-): Html => {
-	const chapter = contents.pages[chapterOf(room, contents)]?.path ?? "";
-	const left = leftOnPage(heardOf(timeline), chapter, room.time) / room.rate;
-
-	return h.div(
-		[h.Class("player")],
-		[
-			h.audio(
-				[
-					h.Id(PLAYER),
-					h.Src(
-						copyUrl(
-							room.work,
-							`audio/${encodeURIComponent(contents.audio)}${room.isKeptHere ? "?kept" : ""}`
-						)
-					),
-					h.Preload("metadata"),
-					h.OnMount(Listen()),
-				],
-				[]
-			),
-			h.button(
-				[
-					h.Type("button"),
-					h.Class("play"),
-					h.OnClick(
-						room.isPlaying ? Message.ClickedPause() : Message.ClickedPlay()
-					),
-				],
-				[room.isPlaying ? "Pause" : "Listen"]
-			),
-			h.button(
-				[
-					h.Type("button"),
-					h.Class("rate"),
-					h.AriaLabel("Speed"),
-					h.OnClick(Message.ClickedRate()),
-				],
-				[`${room.rate}×`]
-			),
-			h.span(
-				[h.Class("left")],
-				[left > 0 ? `${minutes(left)} left in the chapter` : ""]
-			),
-		]
-	);
-};
-
-/** "Turn to" the next chapter and "turn back to" the one before, at the foot of the page. */
+/**
+ * "Turn to" the chapter after `current` and "turn back to" the one before, at the foot of the
+ * page.
+ */
 const turnsView = (
-	room: Room,
+	current: number,
 	contents: Contents,
 	h: HtmlBuilder<Message>
 ): Html => {
 	const turns: Array<Html> = [];
-	const next = room.shown + 1;
-	const previous = room.shown - 1;
+	const next = current + 1;
+	const previous = current - 1;
 
-	if (next < contents.pages.length) {
+	if (next < chaptersIn(contents).length) {
 		turns.push(
 			h.button(
 				[
@@ -272,40 +233,52 @@ const elsewhereView = (
 		],
 	});
 
+/** What a room says while its copy is not there, for an edition alone or for a pair. */
+const unmadeWords = (alone: boolean, failure: Option.Option<string>) =>
+	alone
+		? {
+				idle: Option.match(failure, {
+					onNone: () => "The press has not made this book's reading copy.",
+					onSome: (reason) =>
+						`The press could not make this book's reading copy: ${reason}.`,
+				}),
+				button: "Make it now →",
+				asked: "Asked the press to make it.",
+				aligning:
+					"The press is making its reading copy. The book opens here when it is done.",
+			}
+		: {
+				idle: "This reading copy was made before the reading room, so it has no pages to show yet. Aligning it again makes them, and takes a minute or two for a book the press has heard before.",
+				button: "Align it again →",
+				asked: "Asked the press to align it again.",
+				aligning:
+					"The press is aligning it. The book opens here when it is done.",
+			};
+
 /** Why a book will not open, and what can be done. */
 const unmadeView = (
 	phase: "idle" | "asked" | "aligning",
+	alone: boolean,
+	failure: Option.Option<string>,
 	h: HtmlBuilder<Message>
 ): ReadonlyArray<Html> => {
+	const words = unmadeWords(alone, failure);
+
 	if (phase === "idle") {
 		return [
-			h.p(
-				[],
-				[
-					"This reading copy was made before the reading room, so it has no pages to show yet. Aligning it again makes them, and takes a minute or two for a book the press has heard before.",
-				]
-			),
+			h.p([], [words.idle]),
 			h.button(
 				[
 					h.Type("button"),
 					h.Class("turn"),
 					h.OnClick(Message.ClickedRealign()),
 				],
-				["Align it again →"]
+				[words.button]
 			),
 		];
 	}
 
-	return [
-		h.p(
-			[h.Class("status")],
-			[
-				phase === "asked"
-					? "Asked the press to align it again."
-					: "The press is aligning it. The book opens here when it is done.",
-			]
-		),
-	];
+	return [h.p([h.Class("status")], [words[phase]])];
 };
 
 export const roomView = (
@@ -330,15 +303,34 @@ export const roomView = (
 				]
 			),
 		],
-		Unmade: ({ phase }) => unmadeView(phase, h),
-		Open: ({ contents, timeline }) => [
-			...elsewhereView(room, h),
-			h.p([h.Class("label chapter")], [titleOf(contents, room.shown)]),
-			textView(room, contents, h),
-			turnsView(room, contents, h),
-			playerView(room, contents, timeline, h),
-			...markView(room, h),
-		],
+		Unmade: ({ phase }) =>
+			unmadeView(
+				phase,
+				isAlone(model, room.work),
+				copyFailureOf(model, room.work),
+				h
+			),
+		Open: ({ contents, timeline }) => {
+			const player = playerView(room, contents, timeline, h);
+
+			if (kindOf(contents) === "audio") {
+				return [
+					...elsewhereView(room, h),
+					...listeningView(room, contents, h),
+					turnsView(chapterOf(room, contents), contents, h),
+					...player,
+				];
+			}
+
+			return [
+				...elsewhereView(room, h),
+				h.p([h.Class("label chapter")], [titleOf(contents, room.shown)]),
+				textView(room, contents, h),
+				turnsView(room.shown, contents, h),
+				...player,
+				...markView(room, h),
+			];
+		},
 	});
 
 	return {

@@ -2,7 +2,13 @@ import { describe, expect, it } from "@effect/vitest";
 import type { Timeline } from "@prosody/domain/Reading/Copy";
 import { Sentence } from "@prosody/domain/Reading/Sentence";
 
-import { heardOf, leftOnPage, sentenceAt, startOf } from "../src/Timeline.ts";
+import {
+	chapterAt,
+	heardOf,
+	leftOnPage,
+	sentenceAt,
+	startOf,
+} from "../src/Timeline.ts";
 
 const at = (span: string) => Sentence.make(`OEBPS/ch1.xhtml#${span}`);
 
@@ -31,5 +37,19 @@ describe("the timeline", () => {
 	it("knows how much audio a page has left", () => {
 		expect(leftOnPage(heardOf(timeline), "OEBPS/ch1.xhtml", 14)).toBe(1.5);
 		expect(leftOnPage(heardOf(timeline), "OEBPS/ch2.xhtml", 14)).toBe(0);
+	});
+});
+
+describe("the chapters of audio alone", () => {
+	const chapters = [
+		{ title: "Down the Rabbit-Hole", start: 0, end: 640.6 },
+		{ title: "The Pool of Tears", start: 640.6, end: 1376.4 },
+	];
+
+	it("know the one playing, from its first moment", () => {
+		expect(chapterAt(chapters, 0)).toBe(0);
+		expect(chapterAt(chapters, 640.5)).toBe(0);
+		expect(chapterAt(chapters, 640.6)).toBe(1);
+		expect(chapterAt(chapters, 9999)).toBe(1);
 	});
 });

@@ -5,13 +5,28 @@ import { Command } from "foldkit";
 
 import { Message } from "./Model.ts";
 
+/**
+ * What a reading copy holds: the text and the audio joined, the text alone (no audio), or the audio
+ * alone (no pages, only chapters).
+ */
+export type Kind = "synced" | "text" | "audio";
+
+export const kindOf = (contents: Contents): Kind => {
+	if (contents.audio === null) {
+		return "text";
+	}
+
+	return contents.pages.length === 0 ? "audio" : "synced";
+};
+
 /** Where a work's reading copy is served from. */
 export const copyUrl = (work: string, file: string): string =>
 	`/copies/${work}/${file}`;
 
 /**
- * Open a work's reading copy: its contents and its timeline. A copy with no contents was made
- * before the reading room had pages to show.
+ * Open a work's reading copy: its contents, and the timeline that joins its text and audio when it
+ * has both. A copy with no contents is not made yet, or was made before the reading room had pages
+ * to show.
  */
 export const OpenCopy = Command.define("OpenCopy", {
 	args: { work: Schema.String },
@@ -29,12 +44,15 @@ export const OpenCopy = Command.define("OpenCopy", {
 				yield* HttpClientResponse.filterStatusOk(response)
 			);
 
-			const timeline = yield* client
-				.get(copyUrl(work, "timeline.json"))
-				.pipe(
-					Effect.flatMap(HttpClientResponse.filterStatusOk),
-					Effect.flatMap(HttpClientResponse.schemaBodyJson(Timeline))
-				);
+			const timeline: Timeline =
+				kindOf(contents) === "synced"
+					? yield* client
+							.get(copyUrl(work, "timeline.json"))
+							.pipe(
+								Effect.flatMap(HttpClientResponse.filterStatusOk),
+								Effect.flatMap(HttpClientResponse.schemaBodyJson(Timeline))
+							)
+					: [];
 
 			return Message.OpenedCopy({ work, contents, timeline });
 		}).pipe(

@@ -229,6 +229,18 @@ h1 {
 
 /* THE READING ROOM. The leaf holds the book's title and contents. */
 
+/* A text's cover stands above its title. */
+.leaf-cover {
+	display: block;
+	width: 7rem;
+	margin-top: 2.5rem;
+	border: 1px solid var(--rule);
+}
+
+.leaf-cover + .book-title {
+	margin-top: 1.25rem;
+}
+
 .book-title {
 	margin: 2.5rem 0 0;
 	font-size: 1.5rem;
@@ -419,6 +431,37 @@ h1 {
 	margin-bottom: 2rem;
 }
 
+/* AUDIO ALONE: where the text would be, the chapter playing, its cover, and how far into it you are. */
+.listening-title {
+	margin: 0 0 1.5rem;
+	font-size: 2.25rem;
+	font-weight: 500;
+	line-height: 1.25;
+	text-wrap: balance;
+}
+
+.listening-cover {
+	display: block;
+	width: min(100%, 20rem);
+	margin: 0 0 1.5rem;
+	border: 1px solid var(--rule);
+}
+
+.clock {
+	margin: 0;
+	font-size: 1.25rem;
+	font-variant-numeric: lining-nums tabular-nums;
+}
+
+.skips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem 1.5rem;
+	margin-top: 0.75rem;
+	color: var(--ink-soft);
+	font-size: 1.125rem;
+}
+
 /* The player stands at the foot of the page, on the paper, under a hairline. */
 .player {
 	position: fixed;
@@ -470,6 +513,18 @@ h1 {
 
 	.book-title {
 		margin-top: 1.5rem;
+	}
+
+	.leaf-cover {
+		display: none;
+	}
+
+	.listening-title {
+		font-size: 1.875rem;
+	}
+
+	.listening-cover {
+		width: min(100%, 15rem);
 	}
 
 	.toc {

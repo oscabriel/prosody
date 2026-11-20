@@ -1,6 +1,6 @@
 import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
 import { WorkId } from "@prosody/domain/Library/Work.id";
-import type { Position, Sentence } from "@prosody/domain/Reading/Sentence";
+import type { Position } from "@prosody/domain/Reading/Sentence";
 import { Duration, Effect, Option, Schema } from "effect";
 import { Command } from "foldkit";
 import { modifyFields } from "foldkit/struct";
@@ -8,7 +8,7 @@ import { modifyFields } from "foldkit/struct";
 import { Message, Places } from "./Model.ts";
 import type { DevicePlace, Model, Room } from "./Model.ts";
 import { Prosody } from "./Prosody.ts";
-import type { Commands, Return } from "./Steps.ts";
+import type { Commands, Return, Spot } from "./Steps.ts";
 
 /** How often a place is kept while the audio plays. A pause keeps it at once. */
 const KEEP_EVERY = 15_000;
@@ -89,11 +89,11 @@ const withPlaces = (
 const keep = (
 	model: Model,
 	room: Room,
-	sentence: Sentence,
+	spot: Spot,
 	at: number
 ): readonly [Model, Room, Commands] => {
 	const allocation = DomainFoldkit.next(model.commandIds);
-	const place: Position = { sentence, time: null, at };
+	const place: Position = { ...spot, at };
 
 	const [saved, saves] = withPlaces(
 		modifyFields(model, { commandIds: () => allocation.commandIds }),
@@ -113,7 +113,7 @@ const keep = (
 };
 
 /** What an update of the room does when it also keeps your place. */
-export type Kept = readonly [Room, Sentence, number, Commands];
+export type Kept = readonly [Room, Spot, number, Commands];
 
 /** Change the open room and keep the place it ends on, at the time given. */
 export const keepIn = (
@@ -122,8 +122,8 @@ export const keepIn = (
 ): Return =>
 	Option.match(
 		Option.flatMap(model.room, (room) =>
-			Option.map(change(room), ([next, sentence, at, commands]) => {
-				const [kept, room2, sends] = keep(model, next, sentence, at);
+			Option.map(change(room), ([next, spot, at, commands]) => {
+				const [kept, room2, sends] = keep(model, next, spot, at);
 
 				return { kept, room: room2, commands: [...sends, ...commands] };
 			})

@@ -1,7 +1,7 @@
 import { Option } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 
-import { Message } from "./Model.ts";
+import { Book, Message } from "./Model.ts";
 import type { Model, Room } from "./Model.ts";
 import { bedsideOf, dayOf } from "./Nightstand.ts";
 import { sizeIn } from "./OnDevice.ts";
@@ -77,9 +77,11 @@ export const copyView = (
 		]);
 	}
 
-	const keep = model.isOnline
-		? [moveButton(h, Message.ClickedKeepCopy(), "Keep on this device")]
-		: [];
+	// Only a copy that opened can be kept.
+	const keep =
+		model.isOnline && Book.guards.Open(room.book)
+			? [moveButton(h, Message.ClickedKeepCopy(), "Keep on this device")]
+			: [];
 
 	return Option.match(model.copying, {
 		onNone: () => (keep.length === 0 ? [] : line("Not on this device", keep)),

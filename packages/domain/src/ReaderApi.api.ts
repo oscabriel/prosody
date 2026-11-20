@@ -4,12 +4,13 @@ import { Prosody } from "./Prosody.model.ts";
 
 /**
  * What a reader's app may reach: the shelf, your place in each work, the nightstand, and a second
- * try at aligning a book.
+ * try at aligning a book or copying one.
  */
 export class ReaderApi extends Domain.Api("ReaderApi", {
 	model: Prosody,
 	commands: [
 		"RealignNarration",
+		"RemakeCopy",
 		"KeepPlace",
 		"OpenBook",
 		"FinishBook",

@@ -27,10 +27,13 @@ const player = (): HTMLAudioElement | undefined => {
 	return element instanceof HTMLAudioElement ? element : undefined;
 };
 
-/** How far the lock screen's skip buttons go, in seconds, when they do not say. */
-const SKIP_BACK = 15;
+/**
+ * How far a skip goes, in seconds: a little way back, or a little further on. The listening page's
+ * buttons go this far, and so do the lock screen's when they do not say.
+ */
+export const SKIP_BACK = 15;
 
-const SKIP_AHEAD = 30;
+export const SKIP_AHEAD = 30;
 
 /**
  * Answer the lock screen's buttons by moving the audio element itself: what it does then comes

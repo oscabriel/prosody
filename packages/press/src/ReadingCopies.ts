@@ -143,7 +143,12 @@ export class ReadingCopies extends Context.Service<
 				yield* fs.writeFileString(
 					path.join(folder, "contents.json"),
 					yield* encodeContents(
-						Contents.make({ audio: request.audio, pages: aligned.pages })
+						Contents.make({
+							audio: request.audio,
+							pages: aligned.pages,
+							chapters: [],
+							cover: null,
+						})
 					)
 				);
 

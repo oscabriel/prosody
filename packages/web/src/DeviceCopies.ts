@@ -3,7 +3,7 @@ import { Effect, Option, Schema, Stream } from "effect";
 import { Command } from "foldkit";
 import { modifyFields } from "foldkit/struct";
 
-import { bodyOf, copyUrl, filesOf } from "./Copy.ts";
+import { bodyOf, copyUrl, filesOf, kindOf } from "./Copy.ts";
 import { DeviceCopy, Message } from "./Model.ts";
 import type { Copying, DeviceCopies, Model } from "./Model.ts";
 import { cacheOf, PIECE, pieceOf, recordOf, workOfCache } from "./OnDevice.ts";
@@ -61,15 +61,15 @@ export const savedCopies = Effect.gen(function* () {
 }).pipe(Effect.orElseSucceed((): DeviceCopies => ({})));
 
 /**
- * Keep a work's text on the device: its contents and timeline, every page, and the pictures the
- * pages show. Its contents come back.
+ * Keep all of a work's copy on the device but its audio: its contents, its timeline when it has one,
+ * its cover, every page, and the pictures the pages show. Its contents come back.
  */
 const keepText = (cache: Cache, work: string) =>
 	Effect.gen(function* () {
 		const contentsUrl = copyUrl(work, "contents.json");
 
 		yield* attempt(async () => {
-			await cache.addAll([contentsUrl, copyUrl(work, "timeline.json")]);
+			await cache.add(contentsUrl);
 		});
 
 		const json = yield* attempt(async () => {
@@ -86,12 +86,21 @@ const keepText = (cache: Cache, work: string) =>
 			});
 		}
 
-		const pages = contents.value.pages.map((page) =>
+		const { cover, pages: contentsPages } = contents.value;
+
+		const timeline =
+			kindOf(contents.value) === "synced"
+				? [copyUrl(work, "timeline.json")]
+				: [];
+
+		const covers = cover === null ? [] : [copyUrl(work, cover)];
+
+		const pages = contentsPages.map((page) =>
 			copyUrl(work, `text/${page.path}`)
 		);
 
 		yield* attempt(async () => {
-			await cache.addAll(pages);
+			await cache.addAll([...timeline, ...covers, ...pages]);
 		});
 
 		const shown = yield* Effect.forEach(
@@ -117,6 +126,21 @@ const keepText = (cache: Cache, work: string) =>
 		});
 
 		return contents.value;
+	});
+
+/**
+ * How much a copy kept on the device takes, measured from what is kept: a response that came
+ * compressed says no length.
+ */
+const keptSize = (cache: Cache) =>
+	attempt(async () => {
+		const responses = await cache.matchAll();
+
+		const blobs = await Promise.all(
+			responses.map(async (response) => await response.blob())
+		);
+
+		return blobs.reduce((sum, blob) => sum + blob.size, 0);
 	});
 
 /** The audio's size in bytes, from the Api's answer to a range of one byte. */
@@ -165,7 +189,8 @@ const keepPiece = (cache: Cache, audio: string, index: number, size: number) =>
 
 /**
  * Keep a work's whole reading copy on this device, so it reads and plays with no network: the text
- * first, then the audio a piece at a time, saying how much has come, and its record last.
+ * first, then the audio a piece at a time, saying how much has come, and its record last. A copy
+ * with audio is as big as its audio; a text alone, as all its files.
  */
 export const keepCopy = (
 	work: string,
@@ -183,13 +208,24 @@ export const keepCopy = (
 
 			const contents = yield* keepText(cache, work);
 
+			const record = (bytes: number) => {
+				const copy = { title, author, bytes };
+
+				return attempt(async () => {
+					await cache.put(recordOf(work), Response.json(copy));
+				}).pipe(Effect.as(Message.KeptCopy({ work, copy })));
+			};
+
+			if (contents.audio === null) {
+				return Stream.fromEffect(record(yield* keptSize(cache)));
+			}
+
 			const audio = copyUrl(
 				work,
 				`audio/${encodeURIComponent(contents.audio)}`
 			);
 
 			const size = yield* audioSize(audio);
-			const copy = { title, author, bytes: size };
 
 			const pieces = Stream.range(0, Math.ceil(size / PIECE) - 1).pipe(
 				Stream.mapEffect((index) =>
@@ -205,11 +241,7 @@ export const keepCopy = (
 				)
 			);
 
-			const record = attempt(async () => {
-				await cache.put(recordOf(work), Response.json(copy));
-			}).pipe(Effect.as(Message.KeptCopy({ work, copy })));
-
-			return Stream.concat(pieces, Stream.fromEffect(record));
+			return Stream.concat(pieces, Stream.fromEffect(record(size)));
 		})
 	).pipe(
 		Stream.catchTag("CopyFailed", ({ reason }) =>

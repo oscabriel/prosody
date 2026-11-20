@@ -35,7 +35,19 @@ import { Pause, Play, Seek, SetRate } from "./Player.ts";
 import { Prosody } from "./Prosody.ts";
 import type { Reader } from "./Prosody.ts";
 import { roomView } from "./Room.ts";
-import { follow, hearOwn, realigned, reopen, route, stampIn } from "./Rooms.ts";
+import {
+	answeredRemake,
+	follow,
+	hearOwn,
+	realigned,
+	remake,
+	reopen,
+	route,
+	skip,
+	stampIn,
+	toChapter,
+	unmade,
+} from "./Rooms.ts";
 import { AppRoute, shelfRouter, urlToAppRoute } from "./Route.ts";
 import { shelfView } from "./Shelf.ts";
 import {
@@ -45,11 +57,12 @@ import {
 	inRoom,
 	isElsewhere,
 	settle,
+	spotOf,
 	turnTo,
 	withRoom,
 } from "./Steps.ts";
 import type { Return } from "./Steps.ts";
-import { Show, ToTop } from "./Text.ts";
+import { Show } from "./Text.ts";
 import { pageOf, sentenceOf, spanOf, startOf } from "./Timeline.ts";
 
 /** The speeds the rate button steps through. */
@@ -201,11 +214,7 @@ const handle = (model: Model, message: Message): Return =>
 			Option.exists(model.room, (room) => room.work === work)
 				? hearOwn(model)
 				: { model },
-		FoundUnmade: ({ work }) =>
-			withRoom(model, work, (room) => [
-				{ ...room, book: Book.Unmade({ phase: "idle" }) },
-				[],
-			]),
+		FoundUnmade: ({ work }) => unmade(model, work),
 		FailedOpenCopy: ({ work, reason }) =>
 			withRoom(model, work, (room) => [
 				{ ...room, book: Book.Failed({ reason }) },
@@ -229,12 +238,8 @@ const handle = (model: Model, message: Message): Return =>
 				[],
 			]),
 
-		ClickedChapter: ({ index }) =>
-			inRoom(model, (room) => {
-				const [turned, fetches] = turnTo(room, index);
-
-				return [turned, [...fetches, ToTop()]];
-			}),
+		ClickedChapter: ({ index }) => toChapter(model, index),
+		ClickedSkip: ({ seconds }) => skip(model, seconds),
 
 		PressedSentence: ({ id, at }) =>
 			keepIn(model, (room) =>
@@ -247,7 +252,12 @@ const handle = (model: Model, message: Message): Return =>
 
 						const [moved, commands] = goTo(room, sentence);
 
-						return Option.some([moved, sentence, at, commands] as const);
+						return Option.some([
+							moved,
+							{ sentence, time: null },
+							at,
+							commands,
+						] as const);
 					},
 					Opening: () => Option.none(),
 					Unmade: () => Option.none(),
@@ -274,7 +284,7 @@ const handle = (model: Model, message: Message): Return =>
 										sentence: Option.some(sentence),
 										time: start ?? room.time,
 									},
-									sentence,
+									{ sentence, time: null },
 									at,
 									start === undefined
 										? []
@@ -306,31 +316,7 @@ const handle = (model: Model, message: Message): Return =>
 						),
 				})
 			),
-		ClickedRealign: () =>
-			Option.match(model.room, {
-				onNone: () => ({ model }),
-				onSome: (room) => {
-					const allocation = DomainFoldkit.next(model.commandIds);
-
-					return {
-						model: modifyFields(model, {
-							commandIds: () => allocation.commandIds,
-							room: () =>
-								Option.some({ ...room, book: Book.Unmade({ phase: "asked" }) }),
-						}),
-						commands: [
-							Command.mapMessage(
-								Prosody.RealignNarration({
-									target: WorkId.make(room.work),
-									input: {},
-									commandId: allocation.commandId,
-								}),
-								(result) => Message.ReceivedResult({ result })
-							),
-						],
-					};
-				},
-			}),
+		ClickedRealign: () => remake(model),
 		ClickedFinish: () => stampIn(model, "finish"),
 		ClickedSetAside: () => stampIn(model, "setAside"),
 		// Finishing a book or setting it aside closes it, so neither a reload nor Back opens it again.
@@ -342,13 +328,14 @@ const handle = (model: Model, message: Message): Return =>
 
 		Played: () => inRoom(model, (room) => [{ ...room, isPlaying: true }, []]),
 		Paused: ({ time, at }) =>
-			keepIn(model, (room) =>
-				Option.map(
-					room.sentence,
-					(sentence) =>
-						[{ ...room, isPlaying: false, time }, sentence, at, []] as const
-				)
-			),
+			keepIn(model, (room) => {
+				const paused = { ...room, isPlaying: false, time };
+
+				return Option.map(
+					spotOf(paused),
+					(spot) => [paused, spot, at, []] as const
+				);
+			}),
 		Ticked: ({ time, at }) => follow(model, time, at),
 		CompletedPlayer: () => ({ model }),
 		CompletedShow: () => ({ model }),
@@ -375,12 +362,10 @@ const handle = (model: Model, message: Message): Return =>
 				FailedFinishBook: () => ({ model }),
 				SucceededSetAside: () => ({ model }),
 				FailedSetAside: () => ({ model }),
-				SucceededRealignNarration: () => ({ model }),
-				FailedRealignNarration: () =>
-					inRoom(model, (room) => [
-						{ ...room, book: Book.Unmade({ phase: "idle" }) },
-						[],
-					]),
+				SucceededRealignNarration: () => answeredRemake(model, "aligning"),
+				SucceededRemakeCopy: () => answeredRemake(model, "aligning"),
+				FailedRealignNarration: () => answeredRemake(model, "idle"),
+				FailedRemakeCopy: () => answeredRemake(model, "idle"),
 			}),
 		SavedPlaces: () => ({ model }),
 

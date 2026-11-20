@@ -9,13 +9,14 @@ import type { HttpClient } from "effect/http";
 import type { Command, Update } from "foldkit";
 import { modifyFields } from "foldkit/struct";
 
-import { FetchPage } from "./Copy.ts";
+import { FetchPage, kindOf } from "./Copy.ts";
 import { Book, Page, Room } from "./Model.ts";
 import type { Message, Model } from "./Model.ts";
 import { Seek } from "./Player.ts";
 import type { Reader } from "./Prosody.ts";
 import { Show } from "./Text.ts";
 import {
+	chapterAt,
 	firstOn,
 	heardOf,
 	indexOf,
@@ -36,6 +37,9 @@ export type Commands = ReadonlyArray<
 
 /** A change to the room, and what it sets off. */
 export type Step = readonly [Room, Commands];
+
+/** Where you are in a work, as a place keeps it: the sentence, or in audio alone, the time. */
+export type Spot = Pick<Position, "sentence" | "time">;
 
 /**
  * A work's reading room as it opens, before the book or your place has arrived. Its audio plays
@@ -154,13 +158,23 @@ export const goTo = (room: Room, sentence: Sentence): Step =>
 		Failed: () => [room, []],
 	});
 
+/** Move the audio to `time`, in seconds, playing on if it was playing. */
+export const listenFrom = (room: Room, time: number): Step => [
+	{ ...room, time },
+	[Seek({ time, play: room.isPlaying })],
+];
+
 /**
  * Go to a place kept on a device: its sentence, or, for a place kept while the work had its audio
- * alone, the sentence read at its time.
+ * alone, the sentence read at its time. In audio alone, its time.
  */
 export const goToPlace = (room: Room, place: Position): Step =>
 	Book.match<Step>(room.book, {
-		Open: ({ timeline }) => {
+		Open: ({ contents, timeline }) => {
+			if (kindOf(contents) === "audio") {
+				return place.time === null ? [room, []] : listenFrom(room, place.time);
+			}
+
 			const sentence =
 				place.sentence ??
 				(place.time === null
@@ -226,16 +240,48 @@ export const entryOf = (
 		() => Option.fromUndefinedOr(model.copies[work])
 	);
 
-/** The chapter your place is in, or the page on show when you have no place yet. */
-export const chapterOf = (room: Room, contents: Contents): number =>
-	Option.match(room.sentence, {
+/** Where you are in a work, as a place to keep, once you are anywhere. */
+export const spotOf = (room: Room): Option.Option<Spot> =>
+	Book.match(room.book, {
+		Open: ({ contents }) =>
+			kindOf(contents) === "audio"
+				? Option.some({ sentence: null, time: room.time })
+				: Option.map(room.sentence, (sentence) => ({ sentence, time: null })),
+		Opening: () => Option.none(),
+		Unmade: () => Option.none(),
+		Failed: () => Option.none(),
+	});
+
+/** What the contents list: the pages of a text, or the chapters of audio alone. */
+export const chaptersIn = (
+	contents: Contents
+): ReadonlyArray<{ readonly title: string }> =>
+	kindOf(contents) === "audio" ? contents.chapters : contents.pages;
+
+/**
+ * The chapter you are in: the one your place is in, or the page on show when you have no place
+ * yet. In audio alone, the one playing.
+ */
+export const chapterOf = (room: Room, contents: Contents): number => {
+	if (kindOf(contents) === "audio") {
+		return chapterAt(contents.chapters, room.time);
+	}
+
+	return Option.match(room.sentence, {
 		onNone: () => room.shown,
 		onSome: (sentence) => indexOf(contents, pageOf(sentence)),
 	});
+};
 
-/** A page's name in the contents, or its number when it has none. */
+/** A chapter's name in the contents, or its number when it has none. */
 export const titleOf = (contents: Contents, index: number): string => {
-	const title = contents.pages[index]?.title ?? "";
+	const title = chaptersIn(contents)[index]?.title ?? "";
 
-	return title === "" ? `Section ${index + 1}` : title;
+	if (title !== "") {
+		return title;
+	}
+
+	return kindOf(contents) === "audio"
+		? `Chapter ${index + 1}`
+		: `Section ${index + 1}`;
 };

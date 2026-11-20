@@ -1,4 +1,9 @@
-import type { Contents, Entry, Timeline } from "@prosody/domain/Reading/Copy";
+import type {
+	Chapter,
+	Contents,
+	Entry,
+	Timeline,
+} from "@prosody/domain/Reading/Copy";
 import { Sentence } from "@prosody/domain/Reading/Sentence";
 
 /** A sentence the audio holds: its place, start and end in seconds. */
@@ -101,6 +106,16 @@ export const firstOn = (
 	path: string
 ): Sentence | undefined =>
 	timeline.find((entry) => pageOf(entry.sentence) === path)?.sentence;
+
+/** The chapter of the audio playing at `time`: the last to start at or before it. */
+export const chapterAt = (
+	chapters: ReadonlyArray<Chapter>,
+	time: number
+): number =>
+	Math.max(
+		0,
+		chapters.findLastIndex((chapter) => chapter.start <= time)
+	);
 
 /** `ps-12` on `path`, as a place. */
 export const sentenceOf = (path: string, span: string): Sentence =>

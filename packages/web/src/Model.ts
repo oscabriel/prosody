@@ -88,8 +88,9 @@ export const Book = defineTaggedUnion({
 	Opening: {},
 	Open: { contents: Contents, timeline: Timeline },
 	/**
-	 * The copy was made before the reading room, so it has no pages to show. Realigning makes it
-	 * again: `asked` until the shelf shows the press at work, then `aligning` until it is done.
+	 * The copy is not there to open: made before the reading room, not made yet, or failed. Asking
+	 * the press makes it again: `asked` until the model takes the request, then `aligning` until the
+	 * shelf says the press is done.
 	 */
 	Unmade: { phase: Schema.Literals(["idle", "asked", "aligning"]) },
 	Failed: { reason: Schema.String },
@@ -190,6 +191,7 @@ export const Message = defineMessageUnion({
 		reason: Schema.String,
 	},
 	ClickedChapter: { index: Schema.Int },
+	ClickedSkip: { seconds: Schema.Finite },
 	PressedSentence: { id: Schema.String, at: Schema.Int },
 	ReadTo: { id: Schema.String, at: Schema.Int },
 	ClickedPlay: {},
