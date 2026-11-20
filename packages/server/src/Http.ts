@@ -10,7 +10,7 @@ import { HttpApiBuilder } from "effect/http-api";
  * command is a `POST`, and `/openapi.json` describes every route.
  */
 export const ReaderHttp = DomainHttp.toHttpApi(ReaderApi, {
-	expose: ["Shelf.get", "RealignNarration"],
+	expose: ["Shelf.get", "Place.get", "RealignNarration", "KeepPlace"],
 });
 
 export const plainFetch = HttpRouter.toHttpEffect(

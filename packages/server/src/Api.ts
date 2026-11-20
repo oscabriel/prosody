@@ -1,10 +1,12 @@
 import * as Docker from "@alchemy.run/docker";
 import * as Cluster from "@alchemy.run/effect-cluster";
+import { BunFileSystem, BunHttpPlatform } from "@effect/platform-bun";
 import { PressApi } from "@prosody/domain/PressApi.api";
 import { ReaderApi } from "@prosody/domain/ReaderApi.api";
 import { Effect } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 
+import { COPIES, COPIES_ON_HOST, serveCopy } from "./Copies.ts";
 import { API_ALIAS, Front } from "./Front.ts";
 import { plainFetch } from "./Http.ts";
 import ProsodyLive, { Database } from "./ProsodyLive.ts";
@@ -16,6 +18,7 @@ import { sourceFingerprint } from "./Source.ts";
  *
  *   /api    the reader's Api, for the web app (typed calls, and a WebSocket per live read)
  *   /press  the press's Api, closed to anything that arrives through the relay
+ *   /copies the reading copies, read-only, for the reading room
  *   /...    the reader's Api again as plain HTTP, for curl
  */
 export default class Api extends Docker.Service<Api>()(
@@ -34,6 +37,9 @@ export default class Api extends Docker.Service<Api>()(
 			main: import.meta.url,
 			port: 3000,
 			environment: { PROSODY_SOURCE: yield* sourceFingerprint },
+			volumes: [
+				{ hostPath: COPIES_ON_HOST, containerPath: COPIES, readOnly: true },
+			],
 			networks: [
 				...clusterNetworks,
 				{ name: front.name, aliases: [API_ALIAS] },
@@ -54,6 +60,10 @@ export default class Api extends Docker.Service<Api>()(
 					return yield* reader.fetch;
 				}
 
+				if (path.startsWith("/copies/")) {
+					return yield* serveCopy;
+				}
+
 				if (path.startsWith("/press")) {
 					// The relay is a reverse proxy, and a reverse proxy always adds this header. The press
 					// calls the Api directly, so its requests never carry it.
@@ -65,7 +75,10 @@ export default class Api extends Docker.Service<Api>()(
 				}
 
 				return yield* plain;
-			}),
+			}).pipe(
+				// A copy is served from Bun's file system, through its HTTP platform.
+				Effect.provide([BunHttpPlatform.layer, BunFileSystem.layer])
+			),
 		};
 	}).pipe(Effect.provide(ProsodyLive))
 ) {}

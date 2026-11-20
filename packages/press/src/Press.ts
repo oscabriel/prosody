@@ -4,6 +4,7 @@ import { Shelfmark } from "@prosody/domain/Library/Shelfmark";
 import { WorkId } from "@prosody/domain/Library/Work.id";
 import { AlignRequest } from "@prosody/domain/Narration/Aligner.external";
 import { PressApi } from "@prosody/domain/PressApi.api";
+import { COPIES_ON_HOST } from "@prosody/server/Copies";
 import { API_ALIAS, Front, PRESS_ALIAS } from "@prosody/server/Front";
 import { Database } from "@prosody/server/ProsodyLive";
 import { sourceFingerprint } from "@prosody/server/Source";
@@ -31,9 +32,6 @@ import { Stacks } from "./Stacks.ts";
 
 /** The library, as the host mounts it. Mounted into the press read-only. */
 const LIBRARY_ON_HOST = "/mnt/media/books";
-
-/** The reading copies, on the host's own disk. Make it once: `sudo install -d -o $USER /srv/prosody`. */
-const COPIES_ON_HOST = "/srv/prosody/copies";
 
 /**
  * The press's base image: Bun, ffmpeg, the speech models and the library that runs them. Bump the

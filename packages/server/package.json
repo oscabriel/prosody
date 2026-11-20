@@ -12,9 +12,13 @@
 		"@alchemy.run/docker": "catalog:",
 		"@alchemy.run/domain": "catalog:",
 		"@alchemy.run/effect-cluster": "catalog:",
+		"@effect/platform-bun": "catalog:",
 		"@effect/sql-pg": "catalog:",
 		"@prosody/domain": "workspace:*",
 		"alchemy": "catalog:",
 		"effect": "catalog:"
+	},
+	"devDependencies": {
+		"@effect/vitest": "catalog:"
 	}
 }
