@@ -17,6 +17,7 @@ export class Place extends Domain.View("Place", {
 			place: {
 				sentence: e.sentence,
 				time: e.time,
+				page: e.page,
 				at: e.at,
 				device: e.device,
 			},

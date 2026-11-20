@@ -62,7 +62,8 @@ export const savedCopies = Effect.gen(function* () {
 
 /**
  * Keep all of a work's copy on the device but its audio: its contents, its timeline when it has one,
- * its cover, every page, and the pictures the pages show. Its contents come back.
+ * its cover, every page, and the pictures the pages show, or in a book of pages, the picture of
+ * each page. Its contents come back.
  */
 const keepText = (cache: Cache, work: string) =>
 	Effect.gen(function* () {
@@ -86,7 +87,7 @@ const keepText = (cache: Cache, work: string) =>
 			});
 		}
 
-		const { cover, pages: contentsPages } = contents.value;
+		const { cover, pages: contentsPages, pictures } = contents.value;
 
 		const timeline =
 			kindOf(contents.value) === "synced"
@@ -99,9 +100,26 @@ const keepText = (cache: Cache, work: string) =>
 			copyUrl(work, `text/${page.path}`)
 		);
 
+		const printed = pictures.map((picture) =>
+			copyUrl(work, `pictures/${picture}`)
+		);
+
 		yield* attempt(async () => {
 			await cache.addAll([...timeline, ...covers, ...pages]);
 		});
+
+		// A book of pages is many pictures: each is kept as it comes, so a try that stopped part way
+		// is taken up where it stopped.
+		yield* Effect.forEach(
+			printed,
+			(picture) =>
+				attempt(async () => {
+					if ((await cache.match(picture)) === undefined) {
+						await cache.add(picture);
+					}
+				}),
+			{ concurrency: 6 }
+		);
 
 		const shown = yield* Effect.forEach(
 			pages,

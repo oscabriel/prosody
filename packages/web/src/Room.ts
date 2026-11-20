@@ -8,6 +8,7 @@ import { listeningView, playerView } from "./Listening.ts";
 import { Book, Message, Page } from "./Model.ts";
 import type { Model, Room } from "./Model.ts";
 import { bedsideView, copyView } from "./Moves.ts";
+import { pagesView } from "./Pages.ts";
 import { copyFailureOf, isAlone } from "./Rooms.ts";
 import { chapterOf, chaptersIn, entryOf, titleOf } from "./Steps.ts";
 import { Read } from "./Text.ts";
@@ -23,7 +24,11 @@ const chaptersView = (
 	h: HtmlBuilder<Message>
 ): Html => {
 	const current = chapterOf(room, contents);
-	const shown = kindOf(contents) === "audio" ? current : room.shown;
+
+	// A text shows one chapter at a time; in audio alone or a book of pages, you are in it.
+	const shown = ["audio", "pages"].includes(kindOf(contents))
+		? current
+		: room.shown;
 
 	return h.ol(
 		[h.Class("chapters")],
@@ -312,6 +317,10 @@ export const roomView = (
 			),
 		Open: ({ contents, timeline }) => {
 			const player = playerView(room, contents, timeline, h);
+
+			if (kindOf(contents) === "pages") {
+				return [...elsewhereView(room, h), ...pagesView(room, contents, h)];
+			}
 
 			if (kindOf(contents) === "audio") {
 				return [

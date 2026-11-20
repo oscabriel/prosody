@@ -6,12 +6,16 @@ import { Command } from "foldkit";
 import { Message } from "./Model.ts";
 
 /**
- * What a reading copy holds: the text and the audio joined, the text alone (no audio), or the audio
- * alone (no pages, only chapters).
+ * What a reading copy holds: the text and the audio joined, the text alone (no audio), the audio
+ * alone (no pages, only chapters), or a book's pages (a picture of each).
  */
-export type Kind = "synced" | "text" | "audio";
+export type Kind = "synced" | "text" | "audio" | "pages";
 
 export const kindOf = (contents: Contents): Kind => {
+	if (contents.pictures.length > 0) {
+		return "pages";
+	}
+
 	if (contents.audio === null) {
 		return "text";
 	}

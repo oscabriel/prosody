@@ -3,7 +3,9 @@ import type {
 	ShelfEntry,
 	Sync,
 } from "@prosody/domain/Library/Shelf.view";
+import type { EditionKind } from "@prosody/domain/Library/ShelveEdition.command";
 import { COVER } from "@prosody/domain/Reading/Copy";
+import { editionToCopy } from "@prosody/domain/Reading/CopyEdition.command";
 import { Option } from "effect";
 import type { Document, Html, HtmlBuilder } from "foldkit/html";
 
@@ -62,9 +64,16 @@ const pairOf = (sync: Option.Option<Sync>): Standing =>
 		onNone: () => ({ opens: false, label: "not paired", line: "" }),
 	});
 
+/** What a copy of each edition alone is called, and what it is for once it is made. */
+const ALONE = {
+	text: { kind: "Text alone", made: "to read" },
+	pages: { kind: "Printed pages", made: "to read" },
+	audio: { kind: "Audio alone", made: "to hear" },
+} as const;
+
 /** Whether a work's one edition has its copy, to read or to hear on its own. */
-const aloneOf = (entry: ShelfEntry, made: Option.Option<Made>): Standing => {
-	const kind = entry.text ? "Text alone" : "Audio alone";
+const aloneOf = (edition: EditionKind, made: Option.Option<Made>): Standing => {
+	const { kind } = ALONE[edition];
 
 	return Option.match(made, {
 		// A copy that failed opens on why, and the room offers to make it again.
@@ -72,7 +81,7 @@ const aloneOf = (entry: ShelfEntry, made: Option.Option<Made>): Standing => {
 			opens: state !== "copying",
 			label: {
 				copying: "copying",
-				made: entry.text ? "to read" : "to hear",
+				made: ALONE[edition].made,
 				failed: "not copied",
 			}[state],
 			line: state === "failed" ? note : `${kind}, ${note}`,
@@ -87,9 +96,11 @@ const standingOf = ({ entry, sync, made }: Listed): Standing => {
 		return pairOf(sync);
 	}
 
-	return entry.text || entry.audio
-		? aloneOf(entry, made)
-		: { opens: false, label: "no editions", line: "No editions" };
+	const alone = editionToCopy((kind) => entry[kind]);
+
+	return alone === undefined
+		? { opens: false, label: "no editions", line: "No editions" }
+		: aloneOf(alone, made);
 };
 
 /**
@@ -312,7 +323,7 @@ export const shelfView = (model: Model, h: HtmlBuilder<Message>): Document => {
 				h.p(
 					[h.Class("intro")],
 					[
-						"Your library. A book with its text and audio joined is synced; one with only its text is there to read, and one with only its audio to hear. Each opens where you left it, on whichever device you left it.",
+						"Your library. A book with its text and audio joined is synced; one with only its text is there to read, one with only its audio to hear, and one in printed pages to turn. Each opens where you left it, on whichever device you left it.",
 					]
 				),
 				...keptTotalView(model, h),

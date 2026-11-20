@@ -496,6 +496,44 @@ h1 {
 	font-size: 1.125rem;
 }
 
+/* A BOOK OF PAGES: one printed page at a time, as large as the window lets it be. A tap on its left
+   third turns back and anywhere else on, and so does a swipe across it; scrolling still scrolls, and
+   a page zoomed in by a pinch moves every way. */
+.printed {
+	width: fit-content;
+	margin: 0;
+	touch-action: manipulation;
+	cursor: pointer;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.printed img {
+	display: block;
+	max-width: 100%;
+	max-height: calc(100dvh - 11rem);
+	border: 1px solid var(--rule);
+	pointer-events: none;
+}
+
+/* The next page, fetched ahead and not shown. */
+.ahead {
+	display: none;
+}
+
+.leafing {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.5rem 1rem;
+	margin-top: 1rem;
+	font-size: 1.125rem;
+}
+
+.leafing .turn {
+	font-size: inherit;
+}
+
 /* The player stands at the foot of the page, on the paper, under a hairline. */
 .player {
 	position: fixed;

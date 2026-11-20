@@ -2,7 +2,7 @@ import { Effect, Option, Schema } from "effect";
 import { Command } from "foldkit";
 import type { Update } from "foldkit";
 
-import { copyUrl, kindOf } from "./Copy.ts";
+import { copyUrl } from "./Copy.ts";
 import { Book, Message } from "./Model.ts";
 import type { Model } from "./Model.ts";
 import { chapterOf, entryOf, titleOf } from "./Steps.ts";
@@ -22,12 +22,12 @@ export type NowPlaying = typeof NowPlaying.Type;
 
 const isSame = Schema.toEquivalence(Schema.Option(NowPlaying));
 
-/** What is playing in the room that is open, once its book is. A text alone plays nothing. */
+/** What is playing in the room that is open, once its book is. A book with no audio plays nothing. */
 const nowPlaying = (model: Model): Option.Option<NowPlaying> =>
 	Option.flatMap(model.room, (room) =>
 		Book.match(room.book, {
 			Open: ({ contents }) => {
-				if (kindOf(contents) === "text") {
+				if (contents.audio === null) {
 					return Option.none();
 				}
 

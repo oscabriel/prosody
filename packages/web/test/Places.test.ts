@@ -16,6 +16,7 @@ const at = (span: string) => Sentence.make(`OEBPS/ch1.xhtml#${span}`);
 const place = (span: string, when: number) => ({
 	sentence: at(span),
 	time: null,
+	page: null,
 	at: when,
 });
 

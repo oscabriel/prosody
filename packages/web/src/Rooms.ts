@@ -1,5 +1,6 @@
 import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
 import { WorkId } from "@prosody/domain/Library/Work.id";
+import { editionToCopy } from "@prosody/domain/Reading/CopyEdition.command";
 import { Option } from "effect";
 import { Command } from "foldkit";
 import { modifyFields } from "foldkit/struct";
@@ -8,6 +9,7 @@ import { kindOf, OpenCopy } from "./Copy.ts";
 import { Book, Message } from "./Model.ts";
 import type { Model, Move, Room } from "./Model.ts";
 import { Stamp } from "./Nightstand.ts";
+import { PRINTED } from "./Pages.ts";
 import { isDue, keepIn, placeOn } from "./Places.ts";
 import { Prosody } from "./Prosody.ts";
 import { AppRoute } from "./Route.ts";
@@ -96,13 +98,23 @@ export const follow = (model: Model, time: number, at: number): Return => {
 		: inRoom(model, step);
 };
 
-/** Go to a chapter in the contents: turn to its page, or in audio alone, play from its start. */
+/**
+ * Go to a chapter in the contents: turn to its page, or in audio alone, play from its start. In a
+ * book of pages, turn to the page it begins on, and bring the page into view.
+ */
 export const toChapter = (model: Model, index: number): Return =>
 	inRoom(model, (room) =>
 		Book.match<Step>(room.book, {
 			Open: ({ contents }) => {
 				if (kindOf(contents) === "audio") {
 					return listenFrom(room, contents.chapters[index]?.start ?? 0);
+				}
+
+				if (kindOf(contents) === "pages") {
+					const page = contents.headings[index]?.page ?? 1;
+					const [turned, fetches] = turnTo(room, page - 1);
+
+					return [turned, [...fetches, Show({ id: PRINTED })]];
 				}
 
 				const [turned, fetches] = turnTo(room, index);
@@ -114,6 +126,44 @@ export const toChapter = (model: Model, index: number): Return =>
 			Failed: () => [room, []],
 		})
 	);
+
+/** Turn to the page at `index` in a book of pages, when it has one there. */
+export const turnPage = (model: Model, index: number): Return =>
+	inRoom(model, (room) =>
+		Book.match<Step>(room.book, {
+			Open: ({ contents }) =>
+				kindOf(contents) === "pages" &&
+				index >= 0 &&
+				index < contents.pictures.length
+					? turnTo(room, index)
+					: [room, []],
+			Opening: () => [room, []],
+			Unmade: () => [room, []],
+			Failed: () => [room, []],
+		})
+	);
+
+/**
+ * A page of a book of pages is on show, which makes it your place: it is kept, unless it is the
+ * place you were at already, as when the book opens there, or on its first page with no place yet.
+ * Nothing is kept before your place is heard, or a page turned to meanwhile would replace it.
+ */
+export const showedPage = (model: Model, index: number, at: number): Return =>
+	keepIn(model, (room) => {
+		const was = Option.match(room.kept, {
+			onNone: () => 1,
+			onSome: (kept) => kept.page,
+		});
+
+		return Option.map(
+			Option.filter(
+				spotOf(room),
+				(spot) =>
+					room.hasHeardPlace && spot.page === index + 1 && spot.page !== was
+			),
+			(spot) => [room, spot, at, []] as const
+		);
+	});
 
 /** Move the audio back or on by `seconds`, within the book. */
 export const skip = (model: Model, seconds: number): Return =>
@@ -212,12 +262,17 @@ export const route = (model: Model, next: AppRoute): Return =>
 		}),
 	});
 
-/** Whether the shelf says a work has one edition, so its copy is of that edition alone. */
+/**
+ * Whether the shelf says a work has an edition but no pair, so its copy is of one edition alone:
+ * its text, its pages or its audio.
+ */
 export const isAlone = (model: Model, work: string): boolean =>
 	Option.exists(model.shelf, ({ works }) => {
 		const entry = works[work];
 
-		return entry !== undefined && entry.text !== entry.audio;
+		return (
+			entry !== undefined && editionToCopy((kind) => entry[kind]) !== undefined
+		);
 	});
 
 /** Why the press could not make the copy of a work's one edition, when it tried and failed. */

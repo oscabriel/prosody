@@ -81,7 +81,7 @@ const inAlice = Model.make({
 	room: Option.some({
 		...roomOf("w-alice", false),
 		time: 100,
-		kept: Option.some({ sentence: null, time: 100, at: 1000 }),
+		kept: Option.some({ sentence: null, time: 100, page: null, at: 1000 }),
 		book: Book.Open({
 			contents: {
 				audio: "alice.m4b",
@@ -121,6 +121,7 @@ describe("a room with its audio alone", () => {
 		expect(model.places["w-alice"]).toStrictEqual({
 			sentence: null,
 			time: 640.6,
+			page: null,
 			at: 2000,
 			commandId: "s:0",
 		});

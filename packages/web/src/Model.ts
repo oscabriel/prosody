@@ -144,7 +144,7 @@ export const Room = Schema.Struct({
 	book: Book,
 	/** The pages fetched so far, by path. */
 	pages: Schema.Record(Schema.String, Page),
-	/** The page on show, as an index into the contents. */
+	/** The page on show, as an index into the contents, or in a book made of pages, its pictures. */
 	shown: Schema.Int,
 	/** Your place here: the sentence underlined. None until the model has said where you were. */
 	sentence: Schema.Option(Sentence),
@@ -225,6 +225,8 @@ export const Message = defineMessageUnion({
 		reason: Schema.String,
 	},
 	ClickedChapter: { index: Schema.Int },
+	TurnedPage: { index: Schema.Int },
+	ShowedPage: { index: Schema.Int, at: Schema.Int },
 	ClickedSkip: { seconds: Schema.Finite },
 	PressedSentence: { id: Schema.String, at: Schema.Int },
 	ReadTo: { id: Schema.String, at: Schema.Int },

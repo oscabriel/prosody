@@ -40,7 +40,8 @@ export class Reading extends Domain.Aggregate("Reading", {
 				place !== null &&
 				place.at === cmd.at &&
 				place.sentence === cmd.sentence &&
-				place.time === cmd.time
+				place.time === cmd.time &&
+				place.page === cmd.page
 			) {
 				return [];
 			}
@@ -49,6 +50,7 @@ export class Reading extends Domain.Aggregate("Reading", {
 				new PlaceKept({
 					sentence: cmd.sentence,
 					time: cmd.time,
+					page: cmd.page,
 					at: cmd.at,
 					device: yield* Device,
 				}),
@@ -82,6 +84,7 @@ export class Reading extends Domain.Aggregate("Reading", {
 			place: {
 				sentence: e.sentence,
 				time: e.time,
+				page: e.page,
 				at: e.at,
 				device: e.device,
 			},

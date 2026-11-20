@@ -49,9 +49,10 @@ const SavePlaces = Command.define("SavePlaces", {
 });
 
 /** A place this device knows, as a device sends it. */
-const positionOf = ({ sentence, time, at }: DevicePlace): Position => ({
+const positionOf = ({ sentence, time, page, at }: DevicePlace): Position => ({
 	sentence,
 	time,
+	page,
 	at,
 });
 
@@ -200,6 +201,7 @@ export const heard = (
 		[work]: {
 			sentence: place.sentence,
 			time: place.time,
+			page: place.page,
 			at: place.at,
 			commandId: null,
 		},

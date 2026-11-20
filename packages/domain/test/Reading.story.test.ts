@@ -49,11 +49,28 @@ const sentence = (id: string) =>
 const place = (id: string, at: number) => ({
 	sentence: sentence(id),
 	time: null,
+	page: null,
 	at,
 });
 
 /** A place in a work with its audio alone: seconds into the audio, and when. */
-const heard = (time: number, at: number) => ({ sentence: null, time, at });
+const heard = (time: number, at: number) => ({
+	sentence: null,
+	time,
+	page: null,
+	at,
+});
+
+/** A work made of pages. */
+const evans = Reading.ref("w-evans");
+
+/** A place in a work made of pages: the page, and when. */
+const turned = (page: number, at: number) => ({
+	sentence: null,
+	time: null,
+	page,
+	at,
+});
 
 /** The same place as the model keeps it, with the device the Session said sent it. */
 const kept = (id: string, at: number, device: string) => ({
@@ -122,6 +139,20 @@ describe("your place in a work", () => {
 			fromPhone,
 			when(alice, new KeepPlace(heard(1376.4, 1000))),
 			then(alice)
+		)
+	);
+
+	it.effect("in a work made of pages, is a page", () =>
+		story(
+			given(evans, new PlaceKept({ ...turned(41, 1000), device: "iphone" })),
+			fromLaptop,
+			when(evans, new KeepPlace(turned(42, 2000))),
+			then(evans, new PlaceKept({ ...turned(42, 2000), device: "laptop" })),
+			view(Place, evans, {
+				place: { ...turned(42, 2000), device: "laptop" },
+			}),
+			when(evans, new KeepPlace(turned(42, 2000))),
+			then(evans)
 		)
 	);
 });
@@ -234,7 +265,7 @@ describe("a reading kept before", () => {
 		expect(state.stage).toBe("unopened");
 	});
 
-	it("there were times keeps its sentence, and no time", () => {
+	it("there were times or pages keeps its sentence, and neither", () => {
 		const state = Schema.decodeSync(Reading.definition.state)({
 			place: { sentence: sentence("ps-12"), at: 1000, device: "iphone" },
 		});

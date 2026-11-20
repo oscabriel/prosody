@@ -38,8 +38,11 @@ export type Commands = ReadonlyArray<
 /** A change to the room, and what it sets off. */
 export type Step = readonly [Room, Commands];
 
-/** Where you are in a work, as a place keeps it: the sentence, or in audio alone, the time. */
-export type Spot = Pick<Position, "sentence" | "time">;
+/**
+ * Where you are in a work, as a place keeps it: the sentence, or in audio alone, the time, or in a
+ * book made of pages, the page.
+ */
+export type Spot = Pick<Position, "sentence" | "time" | "page">;
 
 /**
  * A work's reading room as it opens, before the book or your place has arrived. Its audio plays
@@ -166,13 +169,19 @@ export const listenFrom = (room: Room, time: number): Step => [
 
 /**
  * Go to a place kept on a device: its sentence, or, for a place kept while the work had its audio
- * alone, the sentence read at its time. In audio alone, its time.
+ * alone, the sentence read at its time. In audio alone, its time; in a book made of pages, its page.
  */
 export const goToPlace = (room: Room, place: Position): Step =>
 	Book.match<Step>(room.book, {
 		Open: ({ contents, timeline }) => {
 			if (kindOf(contents) === "audio") {
 				return place.time === null ? [room, []] : listenFrom(room, place.time);
+			}
+
+			if (kindOf(contents) === "pages") {
+				return place.page === null
+					? [room, []]
+					: turnTo(room, Math.min(place.page, contents.pictures.length) - 1);
 			}
 
 			const sentence =
@@ -215,18 +224,21 @@ export const settle = (room: Room): Step => {
 };
 
 /**
- * A place kept elsewhere that is newer than anything this page has. A place this page kept is never
- * newer than the last one it kept.
+ * A place kept elsewhere that is newer than anything this page has, and not where you are. A place
+ * this page kept is never newer than the last one it kept.
  */
 export const isElsewhere = (room: Room, place: Bookmark): boolean =>
 	Option.match(room.kept, {
 		onNone: () => true,
 		onSome: (kept) => place.at > kept.at,
 	}) &&
-	Option.match(room.sentence, {
-		onNone: () => true,
-		onSome: (sentence) => sentence !== place.sentence,
-	});
+	!Option.exists(
+		spotOf(room),
+		(spot) =>
+			spot.sentence === place.sentence &&
+			spot.time === place.time &&
+			spot.page === place.page
+	);
 
 /** A work's title and author: the shelf's, or with no shelf to hand, its copy on this device's. */
 export const entryOf = (
@@ -243,28 +255,58 @@ export const entryOf = (
 /** Where you are in a work, as a place to keep, once you are anywhere. */
 export const spotOf = (room: Room): Option.Option<Spot> =>
 	Book.match(room.book, {
-		Open: ({ contents }) =>
-			kindOf(contents) === "audio"
-				? Option.some({ sentence: null, time: room.time })
-				: Option.map(room.sentence, (sentence) => ({ sentence, time: null })),
+		Open: ({ contents }) => {
+			if (kindOf(contents) === "audio") {
+				return Option.some({ sentence: null, time: room.time, page: null });
+			}
+
+			if (kindOf(contents) === "pages") {
+				return Option.some({
+					sentence: null,
+					time: null,
+					page: room.shown + 1,
+				});
+			}
+
+			return Option.map(room.sentence, (sentence) => ({
+				sentence,
+				time: null,
+				page: null,
+			}));
+		},
 		Opening: () => Option.none(),
 		Unmade: () => Option.none(),
 		Failed: () => Option.none(),
 	});
 
-/** What the contents list: the pages of a text, or the chapters of audio alone. */
+/**
+ * What the contents list: the pages of a text, the chapters of audio alone, or the chapters a book
+ * of pages names.
+ */
 export const chaptersIn = (
 	contents: Contents
-): ReadonlyArray<{ readonly title: string }> =>
-	kindOf(contents) === "audio" ? contents.chapters : contents.pages;
+): ReadonlyArray<{ readonly title: string }> => {
+	if (kindOf(contents) === "audio") {
+		return contents.chapters;
+	}
+
+	return kindOf(contents) === "pages" ? contents.headings : contents.pages;
+};
 
 /**
  * The chapter you are in: the one your place is in, or the page on show when you have no place
- * yet. In audio alone, the one playing.
+ * yet. In audio alone, the one playing; in a book of pages, the one the page on show is in.
  */
 export const chapterOf = (room: Room, contents: Contents): number => {
 	if (kindOf(contents) === "audio") {
 		return chapterAt(contents.chapters, room.time);
+	}
+
+	if (kindOf(contents) === "pages") {
+		return Math.max(
+			0,
+			contents.headings.findLastIndex(({ page }) => page <= room.shown + 1)
+		);
 	}
 
 	return Option.match(room.sentence, {

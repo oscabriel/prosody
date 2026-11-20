@@ -46,9 +46,11 @@ import {
 	remake,
 	reopen,
 	route,
+	showedPage,
 	skip,
 	stampIn,
 	toChapter,
+	turnPage,
 	unmade,
 } from "./Rooms.ts";
 import { AppRoute, shelfRouter, urlToAppRoute } from "./Route.ts";
@@ -256,6 +258,8 @@ const handle = (model: Model, message: Message): Return =>
 			]),
 
 		ClickedChapter: ({ index }) => toChapter(model, index),
+		TurnedPage: ({ index }) => turnPage(model, index),
+		ShowedPage: ({ index, at }) => showedPage(model, index, at),
 		ClickedSkip: ({ seconds }) => skip(model, seconds),
 
 		PressedSentence: ({ id, at }) =>
@@ -271,7 +275,7 @@ const handle = (model: Model, message: Message): Return =>
 
 						return Option.some([
 							moved,
-							{ sentence, time: null },
+							{ sentence, time: null, page: null },
 							at,
 							commands,
 						] as const);
@@ -301,7 +305,7 @@ const handle = (model: Model, message: Message): Return =>
 										sentence: Option.some(sentence),
 										time: start ?? room.time,
 									},
-									{ sentence, time: null },
+									{ sentence, time: null, page: null },
 									at,
 									start === undefined
 										? []

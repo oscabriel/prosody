@@ -10,12 +10,17 @@ export type Sentence = typeof Sentence.Type;
 
 /**
  * A place as a device sends it, and when. In a work with text it is a sentence. A work with its
- * audio alone has no sentences, so there it is a time in the audio instead.
+ * audio alone has no sentences, so there it is a time in the audio instead, and in a work made of
+ * pages it is a page.
  */
 export const Position = Schema.Struct({
 	sentence: Schema.NullOr(Sentence),
 	/** Seconds into the audio, in a work with its audio alone. A place kept before there were times has none. */
 	time: Schema.NullOr(Schema.Finite).pipe(
+		Schema.withDecodingDefaultKey(Effect.succeed(null))
+	),
+	/** The page, counted from 1, in a work made of pages. A place kept before there were pages has none. */
+	page: Schema.NullOr(Schema.Int).pipe(
 		Schema.withDecodingDefaultKey(Effect.succeed(null))
 	),
 	/** When the device kept it, in milliseconds since 1970. */
@@ -24,7 +29,7 @@ export const Position = Schema.Struct({
 
 export type Position = typeof Position.Type;
 
-/** A place as it is kept: the sentence or the time, when, and which device. */
+/** A place as it is kept: the sentence, the time or the page, when, and which device. */
 export const Bookmark = Schema.Struct({
 	...Position.fields,
 	device: Schema.String,
