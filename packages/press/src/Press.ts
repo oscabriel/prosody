@@ -4,6 +4,7 @@ import { Shelfmark } from "@prosody/domain/Library/Shelfmark";
 import { WorkId } from "@prosody/domain/Library/Work.id";
 import { AlignRequest } from "@prosody/domain/Narration/Aligner.external";
 import { PressApi } from "@prosody/domain/PressApi.api";
+import { CopyRequest } from "@prosody/domain/Reading/Copier.external";
 import { COPIES_ON_HOST } from "@prosody/server/Copies";
 import { API_ALIAS, Front, PRESS_ALIAS } from "@prosody/server/Front";
 import { Database } from "@prosody/server/ProsodyLive";
@@ -24,7 +25,11 @@ import {
 	Schema,
 } from "effect";
 import { Digest } from "effect/crypto";
-import { HttpServerRequest, HttpServerResponse } from "effect/http";
+import {
+	FetchHttpClient,
+	HttpServerRequest,
+	HttpServerResponse,
+} from "effect/http";
 
 import { COPIES, LIBRARY, ReadingCopies } from "./ReadingCopies.ts";
 import type { Book } from "./Stacks.ts";
@@ -42,12 +47,24 @@ const PressImage = Docker.Image("PressImage", {
 	build: { context: "packages/press/image" },
 });
 
-/** A request as the press keeps it on disk until it has answered. */
-const decodeRequest = Schema.decodeUnknownEffect(
-	Schema.fromJsonString(AlignRequest)
-);
+/** What the model asks of the press: to align a pair, or to copy an edition alone. */
+const Job = Schema.Union([AlignRequest, CopyRequest]);
 
-const encodeRequest = Schema.encodeEffect(Schema.fromJsonString(AlignRequest));
+type Job = typeof Job.Type;
+
+const isCopy = Schema.is(CopyRequest);
+
+/** A job as the press keeps it on disk until it has answered. */
+const decodeJob = Schema.decodeUnknownEffect(Schema.fromJsonString(Job));
+
+const encodeJob = Schema.encodeEffect(Schema.fromJsonString(Job));
+
+/**
+ * Send an answer to the model until it is heard, for five minutes: long enough for a deploy to
+ * replace the Api.
+ */
+const persistently = <A, E, R>(answer: Effect.Effect<A, E, R>) =>
+	Effect.retry(answer, { schedule: Schedule.spaced("10 seconds"), times: 30 });
 
 /** What the last walk did, for `docker service logs` and the press's own page. */
 interface Report {
@@ -63,9 +80,18 @@ const PressLive = Layer.mergeAll(Stacks.layer, ReadingCopies.layer).pipe(
 );
 
 /**
+ * A new connection for every call to the model. While a deploy replaces the Api, the Api's address
+ * reaches the press's own server, inside its own container; Bun would keep that connection open and
+ * send it every later call, long after the Api is back. `keepalive: false` stops Bun reusing it.
+ */
+const freshConnections = Effect.provideService(FetchHttpClient.RequestInit, {
+	keepalive: false,
+});
+
+/**
  * The press: the one service that touches book files. It walks the library and reports each work,
- * edition and pair to the model, which decides what that changes. When the model asks, it makes a
- * pair's reading copy, one at a time, and reports how that went.
+ * edition, pair and edition alone to the model, which decides what that changes. When the model
+ * asks, it makes a reading copy, one at a time, and reports how that went.
  */
 export default class Press extends Docker.Service<Press>()(
 	"Press",
@@ -105,15 +131,22 @@ export default class Press extends Docker.Service<Press>()(
 		const stacks = yield* Stacks;
 		const copies = yield* ReadingCopies;
 		const last = yield* Ref.make(Option.none<Report>());
-		const waiting = yield* Queue.unbounded<AlignRequest>();
+		const waiting = yield* Queue.unbounded<Job>();
 		const asked = yield* Ref.make(HashSet.empty<string>());
 
-		// Each request waits on disk as well, one file per work, until the press has answered it, so a
-		// restart (a deploy, a crash) picks up where it left off instead of waiting out the deadline.
+		// Each job waits on disk as well, until the press has answered it, so a restart (a deploy, a
+		// crash) picks up where it left off instead of waiting out a deadline. A pair waits as
+		// `<work>.json`; a copy as `<work>.<attempt>.copy.json`, since a remake can overtake a try
+		// still waiting, and each try's file is removed only when that try is answered.
 		const pending = path.join(COPIES, ".pending");
 
-		const pendingFile = (request: AlignRequest) =>
-			path.join(pending, `${request.work}.json`);
+		const pendingFile = (job: Job) =>
+			path.join(
+				pending,
+				isCopy(job)
+					? `${job.work}.${job.attempt}.copy.json`
+					: `${job.work}.json`
+			);
 
 		/** The model's door for the press. */
 		const model = PressApi.clientHttp(`http://${API_ALIAS}:3000/press`);
@@ -144,6 +177,17 @@ export default class Press extends Docker.Service<Press>()(
 					text: book.text.value.file,
 					audio: book.audio.value.file,
 				});
+
+				return;
+			}
+
+			// One edition alone is read or heard alone.
+			for (const kind of ["text", "audio"] as const) {
+				const found = book[kind];
+
+				if (Option.isSome(found)) {
+					yield* press.CopyEdition(id, { shelfmark, kind, ...found.value });
+				}
 			}
 		}, Effect.scoped);
 
@@ -206,11 +250,35 @@ export default class Press extends Docker.Service<Press>()(
 			yield* fs.remove(pendingFile(request), { force: true });
 		}, Effect.scoped);
 
-		/** Queue a pair, once: the Alignment policy may ask twice for the same try. */
-		const enqueue = Effect.fn("Press.enqueue")(function* (
-			request: AlignRequest
-		) {
-			const key = `${request.work}:${request.attempt}`;
+		/** Make the copy of an edition alone, and tell the model how it went. A copy has no deadline. */
+		const copy = Effect.fn("Press.copy")(function* (request: CopyRequest) {
+			const press = yield* model;
+			const { work, attempt } = request;
+			const about = { shelfmark: request.shelfmark, kind: request.kind };
+
+			yield* Effect.log("copying", { ...about, attempt });
+
+			yield* copies.copy(request).pipe(
+				Effect.matchEffect({
+					onSuccess: (copied) =>
+						Effect.tap(
+							persistently(press.RecordCopy(work, { attempt, ...copied })),
+							() => Effect.log("copied", { ...about, ...copied })
+						),
+					onFailure: ({ reason }) =>
+						Effect.tap(
+							persistently(press.RecordCopyFailed(work, { attempt, reason })),
+							() => Effect.logWarning("not copied", { ...about, reason })
+						),
+				})
+			);
+
+			yield* fs.remove(pendingFile(request), { force: true });
+		}, Effect.scoped);
+
+		/** Queue a job, once: a policy may ask twice for the same try. */
+		const enqueue = Effect.fn("Press.enqueue")(function* (job: Job) {
+			const key = `${isCopy(job) ? "copy" : "align"}:${job.work}:${job.attempt}`;
 
 			const isNew = yield* Ref.modify(asked, (seen) =>
 				HashSet.has(seen, key) ? [false, seen] : [true, HashSet.add(seen, key)]
@@ -218,23 +286,24 @@ export default class Press extends Docker.Service<Press>()(
 
 			if (isNew) {
 				yield* fs.makeDirectory(pending, { recursive: true });
-				yield* fs.writeFileString(
-					pendingFile(request),
-					yield* encodeRequest(request)
-				);
-				yield* Queue.offer(waiting, request);
+				yield* fs.writeFileString(pendingFile(job), yield* encodeJob(job));
+				yield* Queue.offer(waiting, job);
 			}
 		});
 
-		/** Put back what was waiting when the press last stopped. A file that won't decode is skipped. */
+		/**
+		 * Put back what was waiting when the press last stopped. A file that won't decode is skipped.
+		 * In name order, so a work's copy (`<work>.<attempt>.copy.json`) runs before its pair
+		 * (`<work>.json`), which was asked for later and replaces it.
+		 */
 		const resume = Effect.gen(function* () {
 			yield* fs.makeDirectory(pending, { recursive: true });
 
-			for (const name of yield* fs.readDirectory(pending)) {
+			for (const name of (yield* fs.readDirectory(pending)).toSorted()) {
 				yield* fs
 					.readFileString(path.join(pending, name))
 					.pipe(
-						Effect.flatMap(decodeRequest),
+						Effect.flatMap(decodeJob),
 						Effect.flatMap(enqueue),
 						Effect.catchCause(Effect.logWarning)
 					);
@@ -242,24 +311,32 @@ export default class Press extends Docker.Service<Press>()(
 		});
 
 		yield* host.run(
-			walk().pipe(Effect.repeat(Schedule.spaced("5 minutes")), Effect.asVoid)
+			walk().pipe(
+				Effect.repeat(Schedule.spaced("5 minutes")),
+				Effect.asVoid,
+				freshConnections
+			)
 		);
 
 		// Like the walk, the worker runs only in the container: Alchemy also runs this setup on your
 		// machine when it plans a deploy, where /copies doesn't exist. Without its folder the press can
 		// do nothing, so it stops there and says why. Then one reading copy at a time, since the aligner
-		// uses every core it is given. A failure to report is logged, and the deadline covers the try.
+		// uses every core it is given. A failure to report is logged: a pair's deadline covers its try,
+		// and a copy's answer has been sent again for five minutes by then.
 		yield* host.run(
 			resume.pipe(
 				Effect.orDie,
 				Effect.andThen(
 					Queue.take(waiting).pipe(
-						Effect.flatMap((request) =>
-							align(request).pipe(Effect.catchCause(Effect.logError))
+						Effect.flatMap((job) =>
+							(isCopy(job) ? copy(job) : align(job)).pipe(
+								Effect.catchCause(Effect.logError)
+							)
 						),
 						Effect.forever
 					)
-				)
+				),
+				freshConnections
 			)
 		);
 
@@ -270,6 +347,12 @@ export default class Press extends Docker.Service<Press>()(
 
 				if (request.method === "POST" && route === "/align") {
 					yield* enqueue(yield* HttpServerRequest.schemaBodyJson(AlignRequest));
+
+					return HttpServerResponse.empty({ status: 202 });
+				}
+
+				if (request.method === "POST" && route === "/copy") {
+					yield* enqueue(yield* HttpServerRequest.schemaBodyJson(CopyRequest));
 
 					return HttpServerResponse.empty({ status: 202 });
 				}
