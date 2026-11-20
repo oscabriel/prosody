@@ -4,6 +4,7 @@ import { Prosody, ProsodyHandlers } from "@prosody/domain/Prosody.model";
 import { Layer } from "effect";
 
 import { PressAligner } from "./PressAligner.ts";
+import { PressCopier } from "./PressCopier.ts";
 
 /** Postgres on the host's swarm: where the cluster keeps every event and every view. */
 export const Database = ClusterDocker.Database("Cluster");
@@ -16,10 +17,10 @@ export const Runners = ClusterDocker.SwarmPool("Runners", { replicas: 1 }).pipe(
 /**
  * The model on Effect Cluster. The runner loads this module's default export to host the model;
  * anything else that provides it, like the Api, reaches the model through the runner. Its policies
- * run on the runner, and reach the press through the PressAligner.
+ * run on the runner, and reach the press through the PressAligner and the PressCopier.
  */
 export default Prosody.layer(ProsodyHandlers).pipe(
-	Layer.provide(PressAligner),
+	Layer.provide(Layer.mergeAll(PressAligner, PressCopier)),
 	Layer.provide(
 		DomainCluster.layerEntities({
 			name: "Prosody",

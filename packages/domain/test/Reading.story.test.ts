@@ -6,6 +6,7 @@ import { Device } from "../src/Device.context.ts";
 import { SHELF } from "../src/Library/Shelf.view.ts";
 import { Aligner } from "../src/Narration/Aligner.external.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
+import { Copier } from "../src/Reading/Copier.external.ts";
 import { BookFinished, FinishBook } from "../src/Reading/FinishBook.command.ts";
 import {
 	KeepPlace,
@@ -25,10 +26,11 @@ import {
 
 const { given, provide, rejected, then, view, when } = Story;
 
-// The model's one policy calls the Aligner. Nothing here starts a try, so it is never called.
+// The model's policies call the Aligner and the Copier. Nothing here starts a try, so neither is
+// called.
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Aligner],
+	stub: [Aligner, Copier],
 });
 
 const carl = Reading.ref("w-carl");

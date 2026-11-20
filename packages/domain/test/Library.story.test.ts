@@ -17,12 +17,13 @@ import {
 import { Work } from "../src/Library/Work.aggregate.ts";
 import { Aligner } from "../src/Narration/Aligner.external.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
+import { Copier } from "../src/Reading/Copier.external.ts";
 
 const { given, rejected, then, view, when } = Story;
 
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Aligner],
+	stub: [Aligner, Copier],
 });
 
 const carl = Work.ref("w-carl");

@@ -30,13 +30,14 @@ import {
 	RecordAlignmentFailed,
 } from "../src/Narration/RecordAlignmentFailed.command.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
+import { Copier } from "../src/Reading/Copier.external.ts";
 
 const { advance, call, given, provide, rejected, succeed, then, view, when } =
 	Story;
 
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Aligner],
+	stub: [Aligner, Copier],
 });
 
 const carl = Narration.ref("w-carl");
