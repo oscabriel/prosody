@@ -63,12 +63,17 @@ const epub = {
 };
 
 /** The shelf holding only Carl, with these editions. */
-const shelfWith = (editions: { text: boolean; audio: boolean }) => ({
+const shelfWith = (
+	editions: Partial<Record<"text" | "audio" | "pages", boolean>>
+) => ({
 	works: {
 		"w-carl": {
 			title: "Dungeon Crawler Carl",
 			author: "Matt Dinniman",
 			shelfmark,
+			text: false,
+			audio: false,
+			pages: false,
 			...editions,
 		},
 	},
@@ -91,7 +96,7 @@ describe("the library", () => {
 				})
 			),
 			then(carl, catalogued),
-			view(Shelf, SHELF, shelfWith({ text: false, audio: false }))
+			view(Shelf, SHELF, shelfWith({}))
 		)
 	);
 
@@ -116,7 +121,30 @@ describe("the library", () => {
 			given(carl, catalogued),
 			when(carl, new ShelveEdition(epub)),
 			then(carl, new EditionShelved(epub)),
-			view(Shelf, SHELF, shelfWith({ text: true, audio: false }))
+			view(Shelf, SHELF, shelfWith({ text: true }))
+		)
+	);
+
+	it.effect("a PDF beside the text is shelved as the work's pages", () =>
+		story(
+			given(carl, catalogued, new EditionShelved(epub)),
+			when(
+				carl,
+				new ShelveEdition({
+					kind: "pages",
+					file: "Dungeon Crawler Carl - Matt Dinniman.pdf",
+					bytes: 4_000_000,
+				})
+			),
+			then(
+				carl,
+				new EditionShelved({
+					kind: "pages",
+					file: "Dungeon Crawler Carl - Matt Dinniman.pdf",
+					bytes: 4_000_000,
+				})
+			),
+			view(Shelf, SHELF, shelfWith({ text: true, pages: true }))
 		)
 	);
 
@@ -170,7 +198,7 @@ describe("a work you wanted", () => {
 					})
 				),
 				then(carl, catalogued),
-				view(Shelf, SHELF, shelfWith({ text: false, audio: false }))
+				view(Shelf, SHELF, shelfWith({}))
 			)
 	);
 

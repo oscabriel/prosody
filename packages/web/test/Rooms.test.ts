@@ -25,7 +25,14 @@ const inCarl = Model.make({
 	room: Option.some({
 		...roomOf("w-carl", false),
 		book: Book.Open({
-			contents: { audio: "audio.m4b", pages: [], chapters: [], cover: null },
+			contents: {
+				audio: "audio.m4b",
+				pages: [],
+				chapters: [],
+				cover: null,
+				pictures: [],
+				headings: [],
+			},
 			timeline: [],
 		}),
 	}),
@@ -84,6 +91,8 @@ const inAlice = Model.make({
 					{ title: "The Pool of Tears", start: 640.6, end: 1376.4 },
 				],
 				cover: null,
+				pictures: [],
+				headings: [],
 			},
 			timeline: [],
 		}),
@@ -146,6 +155,7 @@ const shelfWith = (
 					shelfmark: Shelfmark.make("Lewis Carroll/Alice in Wonderland"),
 					text: false,
 					audio: true,
+					pages: false,
 				},
 				"w-carl": {
 					title: "Dungeon Crawler Carl",
@@ -153,6 +163,7 @@ const shelfWith = (
 					shelfmark: Shelfmark.make("Matt Dinniman/Dungeon Crawler Carl"),
 					text: true,
 					audio: true,
+					pages: false,
 				},
 			},
 			syncs: { "w-carl": { state: carl, note: "" } },

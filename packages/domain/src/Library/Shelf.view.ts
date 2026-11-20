@@ -21,6 +21,10 @@ export const ShelfEntry = Schema.Struct({
 	shelfmark: Shelfmark,
 	text: Schema.Boolean,
 	audio: Schema.Boolean,
+	/** A shelf kept before there were pages has none. */
+	pages: Schema.Boolean.pipe(
+		Schema.withDecodingDefaultKey(Effect.succeed(false))
+	),
 });
 
 export type ShelfEntry = typeof ShelfEntry.Type;
@@ -64,8 +68,9 @@ export class Shelf extends Domain.View("Shelf", {
 		),
 	}),
 	initial: { works: {}, syncs: {}, copies: {} },
-	// 1: reads the Narration too, and keeps syncs. Copies came later with no new version: every copy
-	// event is newer than they are, and a new version would rebuild the shelf from no history at all.
+	// 1: reads the Narration too, and keeps syncs. Copies and pages came later with no new version:
+	// every event about them is newer than they are, and a new version would rebuild the shelf from no
+	// history at all.
 	version: 1,
 	evolve: {
 		// A work you want is on the shelf only once it is shelved.
@@ -82,6 +87,7 @@ export class Shelf extends Domain.View("Shelf", {
 								shelfmark: e.shelfmark,
 								text: false,
 								audio: false,
+								pages: false,
 							},
 						},
 					},

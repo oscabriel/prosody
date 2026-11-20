@@ -37,18 +37,16 @@ const library = Effect.gen(function* () {
 		20
 	);
 	yield* put("ebooks/Homer/The Odyssey/The Odyssey - Homer.epub", 5);
-	yield* fs.makeDirectory(
-		path.join(root, "ebooks/Eric Evans/Domain-Driven Design"),
-		{
-			recursive: true,
-		}
+	yield* put(
+		"ebooks/Eric Evans/Domain-Driven Design/Domain-Driven Design - Eric Evans.pdf",
+		30
 	);
 
 	return root;
 });
 
 layer(StacksTest)("the stacks", (it) => {
-	it.effect("pairs the two halves of the library by shelfmark", () =>
+	it.effect("finds each work's editions in both halves of the library", () =>
 		Effect.gen(function* () {
 			const stacks = yield* Stacks;
 			const root = yield* library;
@@ -69,6 +67,18 @@ layer(StacksTest)("the stacks", (it) => {
 						file: "Andy Weir - Project Hail Mary.m4b",
 						bytes: 20,
 					}),
+					pages: Option.none(),
+				},
+				{
+					shelfmark: "Eric Evans/Domain-Driven Design",
+					author: "Eric Evans",
+					title: "Domain-Driven Design",
+					text: Option.none(),
+					audio: Option.none(),
+					pages: Option.some({
+						file: "Domain-Driven Design - Eric Evans.pdf",
+						bytes: 30,
+					}),
 				},
 				{
 					shelfmark: "Homer/The Odyssey",
@@ -76,6 +86,7 @@ layer(StacksTest)("the stacks", (it) => {
 					title: "The Odyssey",
 					text: Option.some({ file: "The Odyssey - Homer.epub", bytes: 5 }),
 					audio: Option.none(),
+					pages: Option.none(),
 				},
 			]);
 		})

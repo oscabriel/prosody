@@ -1,7 +1,5 @@
 import { Effect, Schema } from "effect";
 
-import { EditionKind } from "../Library/ShelveEdition.command.ts";
-
 /** One release of a book on a tracker, as the Indexer offers it: enough to choose it by. */
 export const Release = Schema.Struct({
 	/** The indexer's own name for it, which a grab will give back. */
@@ -9,7 +7,8 @@ export const Release = Schema.Struct({
 	/** Which of the indexer's trackers has it. */
 	indexer: Schema.String,
 	title: Schema.String,
-	kind: EditionKind,
+	/** An ebook or an audiobook: what a tracker's categories say. */
+	kind: Schema.Literals(["text", "audio"]),
 	bytes: Schema.Finite,
 	seeders: Schema.Int,
 	/** When it was uploaded, as an ISO date. */

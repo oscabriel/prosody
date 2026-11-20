@@ -1,9 +1,10 @@
-# The press's base: Bun, ffmpeg, the aligner's speech models and the library that runs them.
+# The press's base: Bun, ffmpeg, poppler (to draw a PDF's pages), the aligner's speech models and
+# the library that runs them.
 # Alchemy builds the press on top of it. Bump the tag in Press.ts whenever this file changes.
 FROM debian:trixie-slim
 
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends ffmpeg ca-certificates curl \
+	&& apt-get install -y --no-install-recommends ffmpeg poppler-utils ca-certificates curl \
 	&& rm -rf /var/lib/apt/lists/*
 
 COPY --from=oven/bun:1 /usr/local/bin/bun /usr/local/bin/bun

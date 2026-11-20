@@ -4,12 +4,13 @@ import { Effect } from "effect";
 import { Work } from "../Library/Work.aggregate.ts";
 import { Copier } from "./Copier.external.ts";
 import { Copy } from "./Copy.aggregate.ts";
-import { CopyStarted } from "./CopyEdition.command.ts";
+import { CopyStarted, editionToCopy } from "./CopyEdition.command.ts";
 
 /**
- * Whenever a try starts, ask the press to make the copy, unless the work has both its editions by
- * now: then it has a pair, and the Narration makes its copy. A share that drops a folder from one
- * walk can make a pair look like one edition, and that must not replace a synced copy.
+ * Whenever a try starts, ask the press to make the copy, unless the work by now has an edition the
+ * copy should be made from instead: both its text and its audio, so the Narration makes its copy,
+ * or its text, which wins over its pages. A share that drops a folder from one walk can make a work
+ * look as if it had one edition, and that must not replace a better copy.
  */
 export class ReadingCopy extends Domain.Policy(
 	"ReadingCopy",
@@ -28,7 +29,7 @@ export const ReadingCopyLive = ReadingCopy.toLayer(
 		return Effect.fn("ReadingCopy")(function* ({ source, event }) {
 			const work = yield* works.get(source.id);
 
-			if (work.text !== null && work.audio !== null) {
+			if (editionToCopy((kind) => work[kind] !== null) !== event.kind) {
 				return;
 			}
 

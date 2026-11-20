@@ -17,8 +17,8 @@ export const CopyRequest = Schema.Struct({
 export type CopyRequest = typeof CopyRequest.Type;
 
 /**
- * Whatever makes a reading copy of a work with only its text or only its audio. Asking queues the
- * work and returns; the answer comes back later as `RecordCopy` or `RecordCopyFailed`.
+ * Whatever makes a reading copy from one edition of a work with no pair. Asking queues the work
+ * and returns; the answer comes back later as `RecordCopy` or `RecordCopyFailed`.
  */
 export class Copier extends Domain.ExternalSystem(
 	"Copier",

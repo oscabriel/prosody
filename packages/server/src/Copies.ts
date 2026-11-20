@@ -9,10 +9,11 @@ export const COPIES = "/copies";
 
 /**
  * What the reading room may fetch of a copy: its contents, its timeline, its cover, its unpacked
- * pages and its audio. The copy's EPUB and what the speech model heard stay private.
+ * pages, its pictures of pages and its audio. The copy's EPUB and what the speech model heard stay
+ * private.
  */
 const SERVED =
-	/^(?:contents\.json|timeline\.json|cover\.jpg|text\/.+|audio\/[^/]+)$/u;
+	/^(?:contents\.json|timeline\.json|cover\.jpg|text\/.+|pictures\/[^/]+|audio\/[^/]+)$/u;
 
 /** A work id as the press makes them. */
 const WORK = /^w-[0-9a-f]{12}$/u;

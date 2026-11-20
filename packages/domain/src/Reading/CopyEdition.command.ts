@@ -18,9 +18,22 @@ export class CopyStarted extends Domain.Event("CopyStarted", {
 }) {}
 
 /**
- * Make a reading copy of a work that has only its text or only its audio. The press sends it when a
- * walk finds one edition in a work's folder. Sending it again for the same file changes nothing; a
- * file of another size, as when a broken file is replaced under the same name, is copied again.
+ * The edition a work's reading copy is made from when the work has no pair: its text if it has one,
+ * since a text is marked sentence by sentence, else its pages, else its audio. A pair has none: the
+ * Narration makes its copy.
+ */
+export const editionToCopy = (
+	has: (kind: EditionKind) => boolean
+): EditionKind | undefined =>
+	has("text") && has("audio")
+		? undefined
+		: (["text", "pages", "audio"] as const).find(has);
+
+/**
+ * Make a reading copy of a work's one edition: its text alone, its pages, or its audio alone. The
+ * press sends it on every walk for the edition `editionToCopy` picks. Sending it again for the same
+ * file changes nothing; a file of another size, as when a broken file is replaced under the same
+ * name, is copied again.
  */
 export class CopyEdition extends Domain.Command("CopyEdition", {
 	target: WorkId,

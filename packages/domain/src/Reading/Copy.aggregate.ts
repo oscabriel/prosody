@@ -27,8 +27,9 @@ const isRunning = (copy: typeof State.Type, attempt: number): boolean =>
 	copy.status === "copying" && copy.attempt === attempt;
 
 /**
- * The reading copy of a work that has only one edition: its text alone, or its audio alone. A
- * pair's copy is its Narration's. It holds one try at a time, and takes the first answer to it.
+ * The reading copy of a work with no pair, made from one edition: its text, else its pages, else
+ * its audio. A pair's copy is its Narration's. It holds one try at a time, and takes the first
+ * answer to it.
  */
 export class Copy extends Domain.Aggregate("Copy", {
 	id: WorkId,

@@ -1,3 +1,4 @@
+import type { EditionKind } from "@prosody/domain/Library/ShelveEdition.command";
 import type { ShelveRequest } from "@prosody/domain/Library/Stacks.external";
 import {
 	Array,
@@ -21,13 +22,14 @@ export interface Found {
 	readonly bytes: number;
 }
 
-/** One `Author/Title` folder, with the text and the audio found for it. */
+/** One `Author/Title` folder, with the text, the audio and the pages found for it. */
 export interface Book {
 	readonly shelfmark: string;
 	readonly author: string;
 	readonly title: string;
 	readonly text: Option.Option<Found>;
 	readonly audio: Option.Option<Found>;
+	readonly pages: Option.Option<Found>;
 }
 
 /** What one walk of the library saw. `unreadable` lists folders that failed, with the reason. */
@@ -51,18 +53,25 @@ export class Unshelvable extends Schema.TaggedError<Unshelvable>()(
 /** How long a mount has to answer before it counts as dropped. */
 const MOUNT_TIME = "8 seconds";
 
-/** The library's two halves, and the file each holds for a work. */
+/** The library's two halves, and the kinds of edition each holds. */
 const HALVES = [
-	{ folder: "ebooks", kind: "text", extension: ".epub" },
-	{ folder: "audiobooks", kind: "audio", extension: ".m4b" },
+	{ folder: "ebooks", kinds: ["text", "pages"] },
+	{ folder: "audiobooks", kinds: ["audio"] },
 ] as const;
+
+/** The file each kind of edition is, by its ending. */
+const EXTENSIONS = {
+	text: ".epub",
+	pages: ".pdf",
+	audio: ".m4b",
+} as const satisfies Record<EditionKind, string>;
 
 /** One edition seen in one folder. */
 interface Sighting {
 	readonly shelfmark: string;
 	readonly author: string;
 	readonly title: string;
-	readonly kind: (typeof HALVES)[number]["kind"];
+	readonly kind: EditionKind;
 	readonly found: Found;
 }
 
@@ -73,7 +82,7 @@ type Look = ReadonlyArray<Result.Result<Sighting, string>>;
 const bookOf = (sightings: Array.NonEmptyReadonlyArray<Sighting>): Book => {
 	const { shelfmark, author, title } = Array.headNonEmpty(sightings);
 
-	const edition = (kind: Sighting["kind"]) =>
+	const edition = (kind: EditionKind) =>
 		Option.map(
 			Array.findFirst(sightings, (sighting) => sighting.kind === kind),
 			(sighting) => sighting.found
@@ -85,6 +94,7 @@ const bookOf = (sightings: Array.NonEmptyReadonlyArray<Sighting>): Book => {
 		title,
 		text: edition("text"),
 		audio: edition("audio"),
+		pages: edition("pages"),
 	};
 };
 
@@ -184,16 +194,26 @@ export class Stacks extends Context.Service<
 									const shelfmark = `${author}/${title}`;
 									const folder = path.join(here, title);
 
+									const editions = Effect.forEach(
+										half.kinds,
+										(kind) =>
+											Effect.map(
+												firstFile(path.join(root, folder), EXTENSIONS[kind]),
+												Array.map((found) => ({ kind, found }))
+											),
+										{ concurrency: 1 }
+									);
+
 									return lookInto(
 										folder,
-										firstFile(path.join(root, folder), half.extension),
-										(found) =>
+										Effect.map(editions, Array.flatten),
+										({ kind, found }) =>
 											Effect.succeed([
 												Result.succeed({
 													shelfmark,
 													author,
 													title,
-													kind: half.kind,
+													kind,
 													found,
 												}),
 											])
@@ -271,8 +291,8 @@ export class Stacks extends Context.Service<
 
 				yield* answer(downloads, "downloads folder");
 
-				const { folder, extension } =
-					request.kind === "text" ? HALVES[0] : HALVES[1];
+				const { folder } = request.kind === "text" ? HALVES[0] : HALVES[1];
+				const extension = EXTENSIONS[request.kind];
 
 				if (
 					request.payload === "" ||

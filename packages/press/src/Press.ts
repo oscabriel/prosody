@@ -6,6 +6,7 @@ import { WorkId } from "@prosody/domain/Library/Work.id";
 import { AlignRequest } from "@prosody/domain/Narration/Aligner.external";
 import { PressApi } from "@prosody/domain/PressApi.api";
 import { CopyRequest } from "@prosody/domain/Reading/Copier.external";
+import { editionToCopy } from "@prosody/domain/Reading/CopyEdition.command";
 import { COPIES_ON_HOST } from "@prosody/server/Copies";
 import { API_ALIAS, Front, PRESS_ALIAS } from "@prosody/server/Front";
 import { Database } from "@prosody/server/ProsodyLive";
@@ -46,11 +47,12 @@ const DOWNLOADS_ON_HOST =
 const DOWNLOADS = "/downloads";
 
 /**
- * The press's base image: Bun, ffmpeg, the speech models and the library that runs them. Bump the
- * tag whenever `image/Dockerfile` changes; the press is rebuilt on top of it only when the tag moves.
+ * The press's base image: Bun, ffmpeg, poppler, the speech models and the library that runs them.
+ * Bump the tag whenever `image/Dockerfile` changes; the press is rebuilt on top of it only when the
+ * tag moves.
  */
 const PressImage = Docker.Image("PressImage", {
-	tag: "aligner-1",
+	tag: "pages-1",
 	build: { context: "packages/press/image" },
 });
 
@@ -162,7 +164,7 @@ export default class Press extends Docker.Service<Press>()(
 				description: null,
 			});
 
-			for (const kind of ["text", "audio"] as const) {
+			for (const kind of ["text", "audio", "pages"] as const) {
 				const found = book[kind];
 
 				if (Option.isSome(found)) {
@@ -180,8 +182,10 @@ export default class Press extends Docker.Service<Press>()(
 				return;
 			}
 
-			// One edition alone is read or heard alone.
-			for (const kind of ["text", "audio"] as const) {
+			// A work with no pair is read or heard by one edition alone.
+			const kind = editionToCopy((each) => Option.isSome(book[each]));
+
+			if (kind !== undefined) {
 				const found = book[kind];
 
 				if (Option.isSome(found)) {

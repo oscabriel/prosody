@@ -35,13 +35,20 @@ const State = Schema.Struct({
 	),
 	text: Schema.NullOr(Schema.String),
 	audio: Schema.NullOr(Schema.String),
+	/** A work stored before there were pages has none. */
+	pages: Schema.NullOr(Schema.String).pipe(
+		Schema.withDecodingDefaultKey(Effect.succeed(null))
+	),
 });
 
 type State = typeof State.Type;
 
 /** Whether it is on the shelf: in a folder, or, kept before folders were, with an edition. */
 const isShelved = (work: State): boolean =>
-	work.shelfmark !== null || work.text !== null || work.audio !== null;
+	work.shelfmark !== null ||
+	work.text !== null ||
+	work.audio !== null ||
+	work.pages !== null;
 
 /**
  * One book, whatever its editions. It refuses a second file for an edition it already has. A work
@@ -57,6 +64,7 @@ export class Work extends Domain.Aggregate("Work", {
 		shelfmark: null,
 		text: null,
 		audio: null,
+		pages: null,
 	},
 	commands: [CatalogueWork, ShelveEdition, CorrectTitle],
 	decide: {

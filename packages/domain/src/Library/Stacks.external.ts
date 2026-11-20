@@ -2,8 +2,8 @@ import * as Domain from "@alchemy.run/domain";
 import { Schema } from "effect";
 
 import { GrabId } from "../Acquisition/Grab.id.ts";
+import { Release } from "../Acquisition/Release.ts";
 import { Shelfmark } from "./Shelfmark.ts";
-import { EditionKind } from "./ShelveEdition.command.ts";
 import { WorkId } from "./Work.id.ts";
 
 /** One payload to shelve, as the press receives it. */
@@ -11,7 +11,7 @@ export const ShelveRequest = Schema.Struct({
 	grab: GrabId,
 	/** The work whose folder it goes in. */
 	work: WorkId,
-	kind: EditionKind,
+	kind: Release.fields.kind,
 	/** Its file or folder in the downloads. */
 	payload: Schema.String,
 	shelfmark: Shelfmark,

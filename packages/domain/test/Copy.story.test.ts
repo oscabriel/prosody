@@ -48,8 +48,22 @@ const epub = {
 	bytes: 1000,
 };
 
+const pdf = {
+	shelfmark,
+	kind: "pages" as const,
+	file: "The Odyssey - Homer.pdf",
+	bytes: 4000,
+};
+
+/** The Odyssey's file of each kind. */
+const FILES = {
+	text: epub.file,
+	audio: "The Odyssey.m4b",
+	pages: pdf.file,
+};
+
 /** The Odyssey in the library, with these files. */
-const shelved = (...kinds: ReadonlyArray<"text" | "audio">) =>
+const shelved = (...kinds: ReadonlyArray<keyof typeof FILES>) =>
 	given(
 		Work.ref("w-odyssey"),
 		new WorkCatalogued({
@@ -62,19 +76,19 @@ const shelved = (...kinds: ReadonlyArray<"text" | "audio">) =>
 			(kind) =>
 				new EditionShelved({
 					kind,
-					file: kind === "text" ? epub.file : "The Odyssey.m4b",
+					file: FILES[kind],
 					bytes: 1000,
 				})
 		)
 	);
 
-/** What the press is asked for the given try. */
-const asked = (attempt: number) => ({
+/** What the press is asked for the given try, of the text or of another edition. */
+const asked = (attempt: number, edition: typeof epub | typeof pdf = epub) => ({
 	work: WorkId.make("w-odyssey"),
 	attempt,
 	shelfmark,
-	kind: epub.kind,
-	file: epub.file,
+	kind: edition.kind,
+	file: edition.file,
 });
 
 /** A remake comes from one of your devices, as everything a reader sends does. */
@@ -191,5 +205,25 @@ describe("the copy of a work with one edition", () => {
 			when(odyssey, new CopyEdition(epub)),
 			then(odyssey, new CopyStarted({ ...epub, attempt: 1 }))
 		)
+	);
+
+	it.effect("is made of the pages when the work has no text", () =>
+		story(
+			shelved("pages", "audio"),
+			when(odyssey, new CopyEdition(pdf)),
+			then(odyssey, new CopyStarted({ ...pdf, attempt: 1 })),
+			call(Copier.copy, asked(1, pdf)),
+			succeed(Copier.copy, undefined)
+		)
+	);
+
+	it.effect(
+		"is not asked of the press for the pages of a work with its text",
+		() =>
+			story(
+				shelved("text", "pages"),
+				when(odyssey, new CopyEdition(pdf)),
+				then(odyssey, new CopyStarted({ ...pdf, attempt: 1 }))
+			)
 	);
 });

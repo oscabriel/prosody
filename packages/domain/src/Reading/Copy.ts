@@ -14,11 +14,20 @@ export const Chapter = Schema.Struct({
 
 export type Chapter = typeof Chapter.Type;
 
+/** A chapter of a book's pages: its title, and the page it begins on, counted from 1. */
+export const Heading = Schema.Struct({
+	title: Schema.String,
+	page: Schema.Int,
+});
+
+export type Heading = typeof Heading.Type;
+
 /**
  * What a reading copy holds, as the press writes it beside the copy in `contents.json`: the audio
  * file to play, the pages that hold sentences in reading order, the audio's chapters, and the cover
  * picture. A copy of the text alone has no audio; one of the audio alone has no pages, and lists its
- * chapters instead.
+ * chapters instead. A copy made of a book's pages has neither: it has a picture of each page, and
+ * the chapters its PDF lists.
  */
 export const Contents = Schema.Struct({
 	audio: Schema.NullOr(Schema.String),
@@ -31,6 +40,14 @@ export const Contents = Schema.Struct({
 	),
 	cover: Schema.NullOr(Schema.String).pipe(
 		Schema.withDecodingDefaultKey(Effect.succeed(null))
+	),
+	// Each page's picture in `pictures/`, in order. A copy made before there were copies of pages
+	// has no pictures and no headings.
+	pictures: Schema.Array(Schema.String).pipe(
+		Schema.withDecodingDefaultKey(Effect.succeed([]))
+	),
+	headings: Schema.Array(Heading).pipe(
+		Schema.withDecodingDefaultKey(Effect.succeed([]))
 	),
 });
 

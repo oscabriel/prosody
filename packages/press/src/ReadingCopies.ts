@@ -5,6 +5,7 @@ import type { AlignRequest } from "@prosody/domain/Narration/Aligner.external";
 import type { CopyRequest } from "@prosody/domain/Reading/Copier.external";
 import { Contents } from "@prosody/domain/Reading/Copy";
 import {
+	Array,
 	Context,
 	Effect,
 	FileSystem,
@@ -16,6 +17,7 @@ import {
 } from "effect";
 
 import { Covers } from "./Covers.ts";
+import { Pages } from "./Pages.ts";
 
 /** Where the press's container sees the library and the reading copies (on the host's own disk). */
 export const LIBRARY = "/library";
@@ -65,12 +67,13 @@ const reasonOf = (error: AlignFailed | Schema.SchemaError): string =>
  * Makes reading copies on the host's own disk, one at a time. For a pair, both files are copied out of the library,
  * and the aligner marks every sentence, finds it in the audio, writes the copy and listens to a
  * spread of sentences with a second speech model. A text alone is marked the same way; an audio
- * alone is copied, with the chapters its file marks.
+ * alone is copied, with the chapters its file marks; a book's pages are drawn, one picture each.
  *
  *   /copies/<work>/<work>.epub          a pair's reading copy: marked text, its overlays, the audio
  *   /copies/<work>/audio/               the audio, kept to play from
  *   /copies/<work>/timeline.json        a pair's every sentence's place in the audio, or none
  *   /copies/<work>/text/                the copy's pages, unpacked, for the reading room
+ *   /copies/<work>/pictures/            a copy of a PDF: a picture of each of its pages
  *   /copies/<work>/cover.jpg            the cover, when the book has a picture
  *   /copies/<work>/contents.json        the audio to play, the pages to read, the chapters to hear
  *                                       and the cover; written last, so a copy that has one is
@@ -93,6 +96,7 @@ export class ReadingCopies extends Context.Service<
 		const aligner = yield* Aligner;
 		const audioFiles = yield* Audio;
 		const covers = yield* Covers;
+		const pdfs = yield* Pages;
 
 		/**
 		 * A work's copy folder, emptied for a new try. What the speech model heard of the audio is
@@ -208,6 +212,8 @@ export class ReadingCopies extends Context.Service<
 					pages: aligned.pages,
 					chapters: [],
 					cover: Option.getOrNull(cover),
+					pictures: [],
+					headings: [],
 				});
 
 				return {
@@ -251,6 +257,8 @@ export class ReadingCopies extends Context.Service<
 				pages: marked.pages,
 				chapters: [],
 				cover: Option.getOrNull(cover),
+				pictures: [],
+				headings: [],
 			});
 
 			return { chapters: marked.pages.length };
@@ -290,14 +298,48 @@ export class ReadingCopies extends Context.Service<
 				pages: [],
 				chapters,
 				cover: Option.getOrNull(cover),
+				pictures: [],
+				headings: [],
 			});
 
 			return { chapters: chapters.length };
 		});
 
+		/** A book's pages: a picture of each, the chapters its outline lists, and the first as its cover. */
+		const copyPages = Effect.fnUntraced(function* (
+			folder: string,
+			source: string
+		) {
+			const pdf = path.join(folder, "source.pdf");
+			const drawn = path.join(folder, "pictures");
+
+			yield* fs.copyFile(source, pdf);
+
+			const [pictures, headings] = yield* Effect.all(
+				[pdfs.draw(pdf, drawn), pdfs.headings(pdf)],
+				{ concurrency: 1 }
+			).pipe(Effect.ensuring(Effect.ignore(fs.remove(pdf, { force: true }))));
+
+			const cover = yield* covers.make(
+				path.join(drawn, Array.headNonEmpty(pictures)),
+				folder
+			);
+
+			yield* finish(folder, {
+				audio: null,
+				pages: [],
+				chapters: [],
+				cover: Option.getOrNull(cover),
+				pictures,
+				headings,
+			});
+
+			return { chapters: headings.length };
+		});
+
 		const copy = Effect.fn("ReadingCopies.copy")(
 			function* (request: CopyRequest) {
-				const half = request.kind === "text" ? "ebooks" : "audiobooks";
+				const half = request.kind === "audio" ? "audiobooks" : "ebooks";
 
 				const source = path.join(
 					LIBRARY,
@@ -311,9 +353,12 @@ export class ReadingCopies extends Context.Service<
 					name.startsWith("heard-")
 				);
 
-				return yield* request.kind === "text"
-					? copyText(folder, source)
-					: copyAudio(folder, source, request.file);
+				return yield* Match.value(request.kind).pipe(
+					Match.when("text", () => copyText(folder, source)),
+					Match.when("pages", () => copyPages(folder, source)),
+					Match.when("audio", () => copyAudio(folder, source, request.file)),
+					Match.exhaustive
+				);
 			},
 			Effect.catchTags({
 				PlatformError: (error) =>
@@ -322,6 +367,10 @@ export class ReadingCopies extends Context.Service<
 					Effect.fail(new Unmade({ reason: reasonOf(error) })),
 				SchemaError: (error) =>
 					Effect.fail(new Unmade({ reason: reasonOf(error) })),
+				Undrawable: ({ reason }) =>
+					Effect.fail(
+						new Unmade({ reason: `its pages could not be drawn: ${reason}` })
+					),
 			})
 		);
 
@@ -329,6 +378,6 @@ export class ReadingCopies extends Context.Service<
 	}),
 }) {
 	static readonly layer = Layer.effect(this, this.make).pipe(
-		Layer.provide(Layer.mergeAll(Aligner.layer, Covers.layer))
+		Layer.provide(Layer.mergeAll(Aligner.layer, Covers.layer, Pages.layer))
 	);
 }

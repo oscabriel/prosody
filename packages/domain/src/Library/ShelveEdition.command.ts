@@ -3,8 +3,11 @@ import { Schema } from "effect";
 
 import { WorkId } from "./Work.id.ts";
 
-/** A work has at most one edition of each kind: its text and its audio. */
-export const EditionKind = Schema.Literals(["text", "audio"]);
+/**
+ * A work has at most one edition of each kind: its text (an EPUB), its audio (an M4B), and its
+ * pages (a PDF), a book as it was printed.
+ */
+export const EditionKind = Schema.Literals(["text", "audio", "pages"]);
 
 export type EditionKind = typeof EditionKind.Type;
 
@@ -28,7 +31,7 @@ export class AlreadyShelved extends Domain.Rejection(
 	{ httpApiStatus: 409 }
 ) {}
 
-/** Record a file in the library as a work's text or audio. */
+/** Record a file in the library as a work's text, audio or pages. */
 export class ShelveEdition extends Domain.Command("ShelveEdition", {
 	target: WorkId,
 	input: { kind: EditionKind, file: Schema.String, bytes: Schema.Int },
