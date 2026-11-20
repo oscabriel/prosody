@@ -1,9 +1,52 @@
 import { foldkit } from "@foldkit/vite-plugin";
-import type { ServerOptions } from "vite";
-import { defineConfig, loadEnv } from "vite";
+import type { Plugin, ServerOptions } from "vite";
+import { build, defineConfig, loadEnv } from "vite";
 
 /** The relay, on the host's loopback address. */
 const API = "http://127.0.0.1:3023";
+
+/**
+ * Build the service worker once the page is built, as `dist/worker.js`, with the paths of the page,
+ * the lock screen's icon and every built file written into it, so it can keep them all when it installs. A new build
+ * changes the list, so browsers install the new worker. It is built apart from the page, with
+ * none of the page's plugins: it runs alone, with no Foldkit.
+ */
+const worker = (): Plugin => {
+	let shell: Array<string> = [];
+
+	return {
+		name: "prosody-worker",
+		apply: "build",
+		generateBundle(_options, bundle) {
+			shell = [
+				"/",
+				// The lock screen shows it while a book plays from the device.
+				"/icon-512.png",
+				...Object.keys(bundle)
+					.filter((name) => name.startsWith("assets/"))
+					.map((name) => `/${name}`),
+			];
+		},
+		async closeBundle() {
+			await build({
+				configFile: false,
+				root: import.meta.dirname,
+				logLevel: "warn",
+				define: { SHELL: JSON.stringify(shell) },
+				build: {
+					emptyOutDir: false,
+					copyPublicDir: false,
+					lib: {
+						entry: "src/Worker.ts",
+						formats: ["iife"],
+						name: "worker",
+						fileName: () => "worker.js",
+					},
+				},
+			});
+		},
+	};
+};
 
 export default defineConfig(({ mode }) => {
 	const server: ServerOptions = {
@@ -25,7 +68,7 @@ export default defineConfig(({ mode }) => {
 	}
 
 	return {
-		plugins: [foldkit()],
+		plugins: [foldkit(), worker()],
 		optimizeDeps: {
 			entries: ["src/entry.ts"],
 			// The foldkit plugin keeps foldkit out of pre-bundling, so Vite never sees its imports of

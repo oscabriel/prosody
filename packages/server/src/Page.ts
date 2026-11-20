@@ -33,25 +33,37 @@ const ROUTED = /^\/(?:read\/.*)?$/u;
 /** A built file: no folders, so nothing outside the build. */
 const ASSET = /^\/assets\/[\w.-]+$/u;
 
+/** A file at the top of the build: the service worker, the web manifest and the icons. */
+const TOP = /^\/[\w-]+\.(?:js|webmanifest|png)$/u;
+
 /** Whether a path is the web app's: one of its pages, or a file of its build. */
 export const isPage = (path: string): boolean =>
-	ROUTED.test(path) || ASSET.test(path);
+	ROUTED.test(path) || ASSET.test(path) || TOP.test(path);
 
 /**
  * Serve the web app. A page it routes itself answers `index.html`, which is never kept, so a deploy
- * reaches the next visit. The files it loads are kept for good.
+ * reaches the next visit, and so do the files at the top of the build. The hashed files it loads are
+ * kept for good.
  */
 export const servePage = Effect.gen(function* () {
 	const request = yield* HttpServerRequest.HttpServerRequest;
 	const path = new URL(request.url, "http://localhost").pathname;
 
-	return ASSET.test(path)
-		? yield* HttpServerResponse.file(`${PAGE}${path}`, {
-				headers: { "cache-control": FOREVER },
-			})
-		: yield* HttpServerResponse.file(`${PAGE}/index.html`, {
-				headers: { "cache-control": "no-cache" },
-			});
+	if (ASSET.test(path)) {
+		return yield* HttpServerResponse.file(`${PAGE}${path}`, {
+			headers: { "cache-control": FOREVER },
+		});
+	}
+
+	return yield* HttpServerResponse.file(
+		TOP.test(path) ? `${PAGE}${path}` : `${PAGE}/index.html`,
+		{
+			contentType: path.endsWith(".webmanifest")
+				? "application/manifest+json"
+				: undefined,
+			headers: { "cache-control": "no-cache" },
+		}
+	);
 }).pipe(
 	Effect.catchCause(() =>
 		Effect.succeed(HttpServerResponse.text("Not Found", { status: 404 }))

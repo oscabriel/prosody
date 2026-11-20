@@ -27,10 +27,75 @@ const player = (): HTMLAudioElement | undefined => {
 	return element instanceof HTMLAudioElement ? element : undefined;
 };
 
+/** How far the lock screen's skip buttons go, in seconds, when they do not say. */
+const SKIP_BACK = 15;
+
+const SKIP_AHEAD = 30;
+
+/**
+ * Answer the lock screen's buttons by moving the audio element itself: what it does then comes
+ * back as its own events, as if the page's own buttons were pressed.
+ */
+const takeControls = (audio: HTMLAudioElement) =>
+	Effect.sync(() => {
+		const session = navigator.mediaSession;
+
+		session.setActionHandler("play", () => {
+			void audio.play();
+		});
+		session.setActionHandler("pause", () => {
+			audio.pause();
+		});
+		session.setActionHandler("seekbackward", ({ seekOffset }) => {
+			audio.currentTime = Math.max(
+				0,
+				audio.currentTime - (seekOffset ?? SKIP_BACK)
+			);
+		});
+		session.setActionHandler("seekforward", ({ seekOffset }) => {
+			audio.currentTime = Math.min(
+				audio.duration,
+				audio.currentTime + (seekOffset ?? SKIP_AHEAD)
+			);
+		});
+		session.setActionHandler("seekto", ({ seekTime }) => {
+			audio.currentTime = seekTime ?? audio.currentTime;
+		});
+	});
+
+/** Leave the lock screen as it was before the book was open. */
+const dropControls = Effect.sync(() => {
+	const session = navigator.mediaSession;
+
+	for (const action of [
+		"play",
+		"pause",
+		"seekbackward",
+		"seekforward",
+		"seekto",
+	] as const) {
+		session.setActionHandler(action, null);
+	}
+
+	session.metadata = null;
+});
+
+/** Show where the audio is on the lock screen's bar, once it knows its length. */
+const showPosition = (audio: HTMLAudioElement) =>
+	Effect.sync(() => {
+		if (Number.isFinite(audio.duration)) {
+			navigator.mediaSession.setPositionState({
+				duration: audio.duration,
+				playbackRate: audio.playbackRate,
+				position: Math.min(audio.currentTime, audio.duration),
+			});
+		}
+	});
+
 /**
  * What the audio element does, as Messages: when it starts, where it is (about four times a
  * second while it plays) and when it stops. Each carries the clock, so a place kept from it says
- * when it was kept.
+ * when it was kept. While the element is on the page, the lock screen's buttons move it.
  */
 export const Listen = Mount.defineStream("Listen", {
 	messages: [Message.Played, Message.Paused, Message.Ticked],
@@ -52,12 +117,17 @@ export const Listen = Mount.defineStream("Listen", {
 		);
 
 		const ticked = Stream.fromEventListener(audio, "timeupdate").pipe(
+			Stream.tap(() => showPosition(audio)),
 			Stream.map(() =>
 				Message.Ticked({ time: audio.currentTime, at: Date.now() })
 			)
 		);
 
-		return Stream.merge(played, Stream.merge(paused, ticked));
+		return Stream.unwrap(
+			Effect.acquireRelease(takeControls(audio), () => dropControls).pipe(
+				Effect.as(Stream.merge(played, Stream.merge(paused, ticked)))
+			)
+		);
 	},
 });
 

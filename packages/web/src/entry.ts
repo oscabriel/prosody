@@ -19,6 +19,12 @@ const Connection = ReaderApi.layerClient.pipe(
 	Layer.provideMerge(FetchHttpClient.layer)
 );
 
+// The service worker keeps the app on the device, so it opens with no network. The dev server
+// builds none.
+if (import.meta.env.PROD) {
+	void navigator.serviceWorker.register("/worker.js");
+}
+
 /** A fresh session for this page, for its command ids. */
 const flags = Effect.gen(function* () {
 	const random = yield* SecureRandom.SecureRandom;

@@ -10,10 +10,17 @@ describe("the web app's paths", () => {
 		expect(isPage("/assets/index-Cja7xpds.js")).toBeTruthy();
 	});
 
+	it("are the service worker, the web manifest and the icons", () => {
+		expect(isPage("/worker.js")).toBeTruthy();
+		expect(isPage("/manifest.webmanifest")).toBeTruthy();
+		expect(isPage("/icon-512.png")).toBeTruthy();
+	});
+
 	it("leave the Api's own paths alone", () => {
 		expect(isPage("/Shelf/main")).toBeFalsy();
 		expect(isPage("/openapi.json")).toBeFalsy();
 		expect(isPage("/reading")).toBeFalsy();
 		expect(isPage("/assets/fonts/x.woff2")).toBeFalsy();
+		expect(isPage("/copies/w-1c7eeddd853b/timeline.json")).toBeFalsy();
 	});
 });
