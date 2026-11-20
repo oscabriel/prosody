@@ -30,7 +30,10 @@ Pairing and alignment are built: each book with both editions is paired, aligned
 
 `pnpm check` is the gate: format, type-aware lint, typecheck, tests. Warnings fail it. `pnpm fix` applies the safe lint fixes and formats.
 
+- One TypeScript everywhere: `typescript` and `tsrs` are both 7.1 beta, and Oxlint runs its type-aware rules on tsrs, Oxc's Rust port of the checker, which it picks over `oxlint-tsgolint` when both are installed. `prepare` patches both with Effect's rules (`effect-tsgo patch --oxlint --tsrs`), so plain `oxlint` in the scripts, the editor and the agents' hook all lint the same way. Move `typescript`, `tsrs` and `@effect/tsgo` together, to versions `@effect/tsgo`'s README lists as supported; an unpatched tsrs fails with `unknown rule: effecttsgo/...`.
+
 - The lint has three layers: Ultracite's presets, Effect's own rules (`@effect/tsgo`, patched in by `prepare`), and anti-slop, copied into `tools/oxlint/anti-slop` (its `UPSTREAM.md` names the commit). The anti-slop copy is ours: change a rule there rather than turning it off file by file.
+- Effect's `recommended` preset, plus eleven of its rules beyond it, named in `oxlint.config.ts`: inside an Effect, use Effect's `Config`, `Clock`, `Schema`, `HttpClient`, `Console` and `Random` rather than the globals, and say what an error becomes, how much runs at once (`concurrency`) and where layers are provided. `strict-effect-provide` is off only in the entry points listed there. The rest of Effect's rules are style, for library authors, or for the browser, and stay off.
 - Where Effect's style and Ultracite's disagree, Effect's wins: barrel imports (`import { Schema } from "effect"`), `Array<A>`, PascalCase module files. Each exception is named in `oxlint.config.ts`.
 - Before using an Effect module that Effect marks unstable, add it to `allowedUnstableApis` in `tsconfig.base.json`.
 - Not turned on: anti-slop's code-smell rules (they warn) and its model-judged and diff rules (they send source to a paid model on every run).

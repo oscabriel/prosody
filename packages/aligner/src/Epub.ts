@@ -1,5 +1,6 @@
 import { isTag } from "domhandler";
 import type { AnyNode, Element } from "domhandler";
+import { Schema } from "effect";
 import { strFromU8, unzipSync } from "fflate";
 import { parseDocument } from "htmlparser2";
 
@@ -24,9 +25,10 @@ export interface Page {
 }
 
 /** The EPUB could not be read. */
-export class NotAnEpubError extends Error {
-	override readonly name = "NotAnEpubError";
-}
+export class NotAnEpubError extends Schema.TaggedError<NotAnEpubError>()(
+	"NotAnEpubError",
+	{ message: Schema.String }
+) {}
 
 const elements = (nodes: ReadonlyArray<AnyNode>): Array<Element> =>
 	nodes.flatMap((node) =>
@@ -82,7 +84,7 @@ export const open = (bytes: Uint8Array): Book => {
 	const container = files.get("META-INF/container.xml");
 
 	if (!container) {
-		throw new NotAnEpubError("it has no META-INF/container.xml");
+		throw new NotAnEpubError({ message: "it has no META-INF/container.xml" });
 	}
 
 	const rootfile = elements(
@@ -93,7 +95,9 @@ export const open = (bytes: Uint8Array): Book => {
 	const packageBytes = files.get(packagePath);
 
 	if (packagePath === "" || packageBytes === undefined) {
-		throw new NotAnEpubError("its container names no package document");
+		throw new NotAnEpubError({
+			message: "its container names no package document",
+		});
 	}
 
 	const packageXml = strFromU8(packageBytes);

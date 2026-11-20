@@ -3,7 +3,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"prepare": "effect-tsgo patch --oxlint",
+		"prepare": "effect-tsgo patch --oxlint --tsrs",
 		"fmt": "oxfmt",
 		"lint": "oxlint",
 		"fix": "oxlint --fix && oxfmt",
@@ -29,7 +29,7 @@
 		"@types/node": "catalog:",
 		"oxfmt": "catalog:",
 		"oxlint": "catalog:",
-		"oxlint-tsgolint": "catalog:",
+		"tsrs": "catalog:",
 		"typescript": "catalog:",
 		"ultracite": "catalog:",
 		"vitest": "catalog:"

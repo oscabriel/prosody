@@ -81,7 +81,10 @@ const lookInto = <A>(
 		onFailure: (failure) =>
 			Effect.succeed([Result.fail(`${what}: ${failure.message}`)]),
 		onSuccess: (items) =>
-			Effect.map(Effect.forEach(items, then), Array.flatten),
+			Effect.map(
+				Effect.forEach(items, then, { concurrency: 1 }),
+				Array.flatten
+			),
 	});
 
 /**
@@ -139,34 +142,41 @@ export class Stacks extends Context.Service<
 		});
 
 		const survey = Effect.fn("Stacks.survey")(function* (root: string) {
-			const looks = yield* Effect.forEach(HALVES, (half) =>
-				lookInto(
-					half.folder,
-					foldersIn(path.join(root, half.folder)),
-					(author) => {
-						const here = path.join(half.folder, author);
-
-						return lookInto(here, foldersIn(path.join(root, here)), (title) => {
-							const shelfmark = `${author}/${title}`;
-							const folder = path.join(here, title);
+			const looks = yield* Effect.forEach(
+				HALVES,
+				(half) =>
+					lookInto(
+						half.folder,
+						foldersIn(path.join(root, half.folder)),
+						(author) => {
+							const here = path.join(half.folder, author);
 
 							return lookInto(
-								folder,
-								firstFile(path.join(root, folder), half.extension),
-								(found) =>
-									Effect.succeed([
-										Result.succeed({
-											shelfmark,
-											author,
-											title,
-											kind: half.kind,
-											found,
-										}),
-									])
+								here,
+								foldersIn(path.join(root, here)),
+								(title) => {
+									const shelfmark = `${author}/${title}`;
+									const folder = path.join(here, title);
+
+									return lookInto(
+										folder,
+										firstFile(path.join(root, folder), half.extension),
+										(found) =>
+											Effect.succeed([
+												Result.succeed({
+													shelfmark,
+													author,
+													title,
+													kind: half.kind,
+													found,
+												}),
+											])
+									);
+								}
 							);
-						});
-					}
-				)
+						}
+					),
+				{ concurrency: 1 }
 			);
 
 			const [sightings, unreadable] = Array.separate(Array.flatten(looks));

@@ -16,7 +16,7 @@ import {
 	Tensor,
 	env,
 } from "@huggingface/transformers";
-import { Effect, Predicate, Schema } from "effect";
+import { Console, Effect, Predicate, Schema } from "effect";
 
 import { MODEL } from "../src/Acoustic.ts";
 
@@ -36,9 +36,11 @@ const dtype = Schema.decodeUnknownSync(
 	Schema.Literals(["int8", "fp32", "fp16", "q4"])
 )(process.env.DTYPE ?? "int8");
 
+const sessionJson = process.env.SESSION ?? "{}";
+
 const session = Schema.decodeSync(
 	Schema.fromJsonString(Schema.Record(Schema.String, Schema.Unknown))
-)(process.env.SESSION ?? "{}");
+)(sessionJson);
 
 env.cacheDir = process.env.PROSODY_ALIGNER_MODELS ?? "";
 
@@ -169,8 +171,8 @@ const pass = Effect.gen(function* () {
 
 	const total = features + inference + keeping;
 
-	console.log(
-		`${dtype} threads ${threads} window ${windowSeconds}+${contextSeconds} s ${process.env.SESSION ?? ""}: ` +
+	yield* Console.log(
+		`${dtype} threads ${threads} window ${windowSeconds}+${contextSeconds} s ${sessionJson}: ` +
 			`${(audioSeconds / (total + decodeSeconds)).toFixed(1)}x real time ` +
 			`(decode ${decodeSeconds.toFixed(1)} s, features ${features.toFixed(1)} s, model ${inference.toFixed(1)} s, keeping ${keeping.toFixed(1)} s; ` +
 			`load ${loadSeconds.toFixed(1)} s; ${frames} frames, ${spoken} not blank)`

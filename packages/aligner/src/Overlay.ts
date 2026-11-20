@@ -3,6 +3,7 @@ import { closeSync, openSync, readSync, statSync, writeSync } from "node:fs";
 import { render } from "dom-serializer";
 import { Element, isTag } from "domhandler";
 import type { AnyNode } from "domhandler";
+import { Schema } from "effect";
 import { Zip, ZipDeflate, ZipPassThrough, strToU8 } from "fflate";
 import { parseDocument } from "htmlparser2";
 
@@ -54,9 +55,10 @@ const MEDIA_TYPES = new Map([
 const MOST_BYTES = 2 ** 32 - 2 ** 26;
 
 /** The reading copy would be too large to be a valid archive. */
-export class TooLargeError extends Error {
-	override readonly name = "TooLargeError";
-}
+export class TooLargeError extends Schema.TaggedError<TooLargeError>()(
+	"TooLargeError",
+	{ message: Schema.String }
+) {}
 
 /** Audio is copied into the archive this many bytes at a time. */
 const AUDIO_PIECE = 4 * 2 ** 20;
@@ -350,9 +352,9 @@ export const writeReadingCopy = (
 	const bytes = tracks.reduce((n, track) => n + statSync(track.file).size, 0);
 
 	if (bytes > MOST_BYTES) {
-		throw new TooLargeError(
-			`the audio is ${(bytes / 2 ** 30).toFixed(1)} GB, and the archive holds 4`
-		);
+		throw new TooLargeError({
+			message: `the audio is ${(bytes / 2 ** 30).toFixed(1)} GB, and the archive holds 4`,
+		});
 	}
 
 	const layout = layoutOf(book, tracks);

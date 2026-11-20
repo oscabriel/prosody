@@ -28,13 +28,25 @@ catalog:
   # Toolchain.
   "@types/node": 26.6.6
   oxfmt: 0.78.0
-  oxlint: 1.92.0
-  "@oxlint/plugins": 1.92.0
-  oxlint-tsgolint: 7.0.2007
-  "@effect/tsgo": 0.69.0
+  oxlint: 1.94.0
+  "@oxlint/plugins": 1.94.0
+  tsrs: 7.1.0-beta.tsrs3
+  "@effect/tsgo": 0.73.2
   ultracite: 8.2.1
-  typescript: 7.0.2
+  typescript: 7.1.0-beta
   vitest: 5.1.0
+
+# pnpm holds a release back for a day after it is published. @effect/tsgo 0.73.2 was a day old
+# less a few hours when it was installed; once it is older, these lines can go.
+minimumReleaseAgeExclude:
+  - "@effect/tsgo-darwin-arm64@0.73.2"
+  - "@effect/tsgo-darwin-x64@0.73.2"
+  - "@effect/tsgo-linux-arm64@0.73.2"
+  - "@effect/tsgo-linux-arm@0.73.2"
+  - "@effect/tsgo-linux-x64@0.73.2"
+  - "@effect/tsgo-win32-arm64@0.73.2"
+  - "@effect/tsgo-win32-x64@0.73.2"
+  - "@effect/tsgo@0.73.2"
 
 # One copy of Effect in the whole tree, whatever a dependency asks for.
 overrides:

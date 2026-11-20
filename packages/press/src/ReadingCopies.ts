@@ -17,6 +17,8 @@ export const LIBRARY = "/library";
 
 export const COPIES = "/copies";
 
+const encodeContents = Schema.encodeEffect(Schema.fromJsonString(Contents));
+
 /** A pair the press could not make a reading copy of, and why, in words for the shelf. */
 export class Unaligned extends Schema.TaggedError<Unaligned>()("Unaligned", {
 	reason: Schema.String,
@@ -140,7 +142,7 @@ export class ReadingCopies extends Context.Service<
 
 				yield* fs.writeFileString(
 					path.join(folder, "contents.json"),
-					JSON.stringify(
+					yield* encodeContents(
 						Contents.make({ audio: request.audio, pages: aligned.pages })
 					)
 				);
@@ -152,9 +154,12 @@ export class ReadingCopies extends Context.Service<
 					heard: aligned.heard,
 				};
 			},
-			// A file that can't be read or written ends the try too, with the platform's words.
+			// A file that can't be read or written ends the try too, with the platform's words, as
+			// would contents that can't be written as JSON.
 			Effect.catchTags({
 				PlatformError: (error) =>
+					Effect.fail(new Unaligned({ reason: error.message })),
+				SchemaError: (error) =>
 					Effect.fail(new Unaligned({ reason: error.message })),
 			})
 		);

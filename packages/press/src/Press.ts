@@ -49,6 +49,8 @@ const decodeRequest = Schema.decodeUnknownEffect(
 	Schema.fromJsonString(AlignRequest)
 );
 
+const encodeRequest = Schema.encodeEffect(Schema.fromJsonString(AlignRequest));
+
 /** What the last walk did, for `docker service logs` and the press's own page. */
 interface Report {
 	readonly at: string;
@@ -161,7 +163,11 @@ export default class Press extends Docker.Service<Press>()(
 		/** Walk the library once and report everything in it. */
 		const walk = Effect.fn("Press.walk")(function* () {
 			const { books, unreadable } = yield* stacks.survey(LIBRARY);
-			const refused = Array.getSomes(yield* Effect.forEach(books, refusalOf));
+
+			const refused = Array.getSomes(
+				yield* Effect.forEach(books, refusalOf, { concurrency: 1 })
+			);
+
 			const at = DateTime.formatIso(yield* DateTime.now);
 			const done = { at, works: books.length, refused, unreadable };
 
@@ -216,7 +222,7 @@ export default class Press extends Docker.Service<Press>()(
 				yield* fs.makeDirectory(pending, { recursive: true });
 				yield* fs.writeFileString(
 					pendingFile(request),
-					JSON.stringify(request)
+					yield* encodeRequest(request)
 				);
 				yield* Queue.offer(waiting, request);
 			}

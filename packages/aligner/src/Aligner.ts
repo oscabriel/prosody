@@ -83,6 +83,12 @@ export class CopyFailed extends Schema.TaggedError<CopyFailed>()("CopyFailed", {
 	reason: Schema.String,
 }) {}
 
+/** The timeline as JSON. Encoding plain data never fails in practice; if it did, no copy was made. */
+const timelineJson = (entries: ReadonlyArray<Entry>) =>
+	Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown))(entries).pipe(
+		Effect.mapError((failed) => new CopyFailed({ reason: failed.message }))
+	);
+
 /** The text and the audio share nothing the aligner could find. */
 export class NothingAligned extends Schema.TaggedError<NothingAligned>()(
 	"NothingAligned",
@@ -152,7 +158,7 @@ export class Aligner extends Context.Service<
 				const bytes = yield* fs.readFile(saved);
 
 				// A file that does not decode, or that holds other audio, is heard again and replaced.
-				const read = yield* Effect.try(() => decode(bytes)).pipe(Effect.option);
+				const read = Option.liftThrowable(decode)(bytes);
 
 				if (
 					Option.isSome(read) &&
@@ -251,16 +257,20 @@ export class Aligner extends Context.Service<
 					}));
 				});
 
-			const said = yield* Effect.forEach(sentences, (sentence) => {
-				const parts = phrases(sentence.text);
-				const words = parts.flat();
+			const said = yield* Effect.forEach(
+				sentences,
+				(sentence) => {
+					const parts = phrases(sentence.text);
+					const words = parts.flat();
 
-				return Effect.map(acoustic.tokensOf(words), (tokens) => ({
-					words,
-					tokens,
-					phrases: phraseStarts(parts),
-				}));
-			});
+					return Effect.map(acoustic.tokensOf(words), (tokens) => ({
+						words,
+						tokens,
+						phrases: phraseStarts(parts),
+					}));
+				},
+				{ concurrency: 1 }
+			);
 
 			const emissions = yield* emissionsOf(pair, stated);
 			const clips = clipsOf(emissions, align(emissions, said));
@@ -302,7 +312,7 @@ export class Aligner extends Context.Service<
 				catch: (error) => new CopyFailed({ reason: String(error) }),
 			});
 
-			yield* fs.writeFileString(pair.timeline, JSON.stringify(entries));
+			yield* fs.writeFileString(pair.timeline, yield* timelineJson(entries));
 
 			if (pair.text !== undefined) {
 				yield* writeText(book.files, markups, pair.text);
