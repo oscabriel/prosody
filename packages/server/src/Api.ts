@@ -11,12 +11,15 @@ import { API_ALIAS, Front } from "./Front.ts";
 import { plainFetch } from "./Http.ts";
 import { isPage, PageImage, servePage } from "./Page.ts";
 import ProsodyLive, { Database } from "./ProsodyLive.ts";
+import { authFetch } from "./Session.ts";
 import { sourceFingerprint } from "./Source.ts";
+import { TAILSCALE, Tailscale } from "./Tailscale.ts";
 
 /**
  * The model's front door, as a swarm service. It publishes no port: the relay and the press reach
  * it by name on the Front network.
  *
+ *   /auth   Caddy's question before every request: is this one of your devices?
  *   /api    the reader's Api, for the web app (typed calls, and a WebSocket per live read)
  *   /press  the press's Api, closed to anything that arrives through the relay
  *   /copies the reading copies, read-only, for the reading room
@@ -44,7 +47,15 @@ export default class Api extends Docker.Service<Api>()(
 			environment: { PROSODY_SOURCE: yield* sourceFingerprint },
 			volumes: [
 				{ hostPath: COPIES_ON_HOST, containerPath: COPIES, readOnly: true },
+				{ hostPath: TAILSCALE, containerPath: TAILSCALE, readOnly: true },
 			],
+			// When tailscaled starts again, its socket is in a new folder the mount above cannot see.
+			// Swarm then replaces the Api, and the new one mounts the new folder.
+			healthcheck: {
+				cmd: `test -S ${TAILSCALE}/tailscaled.sock`,
+				interval: "10s",
+				retries: 2,
+			},
 			networks: [
 				...clusterNetworks,
 				{ name: front.name, aliases: [API_ALIAS] },
@@ -55,11 +66,16 @@ export default class Api extends Docker.Service<Api>()(
 		const reader = yield* ReaderApi;
 		const press = yield* PressApi;
 		const plain = yield* plainFetch;
+		const auth = yield* authFetch;
 
 		return {
 			fetch: Effect.gen(function* () {
 				const request = yield* HttpServerRequest.HttpServerRequest;
 				const path = new URL(request.url, "http://localhost").pathname;
+
+				if (path === "/auth") {
+					return yield* auth;
+				}
 
 				if (path.startsWith("/api")) {
 					return yield* reader.fetch;
@@ -89,5 +105,5 @@ export default class Api extends Docker.Service<Api>()(
 				Effect.provide([BunHttpPlatform.layer, BunFileSystem.layer])
 			),
 		};
-	}).pipe(Effect.provide(ProsodyLive))
+	}).pipe(Effect.provide([ProsodyLive, Tailscale.layer]))
 ) {}
