@@ -1,6 +1,7 @@
 import * as Docker from "@alchemy.run/docker";
 import * as Cluster from "@alchemy.run/effect-cluster";
 import { Shelfmark } from "@prosody/domain/Library/Shelfmark";
+import { ShelveRequest } from "@prosody/domain/Library/Stacks.external";
 import { WorkId } from "@prosody/domain/Library/Work.id";
 import { AlignRequest } from "@prosody/domain/Narration/Aligner.external";
 import { PressApi } from "@prosody/domain/PressApi.api";
@@ -8,21 +9,18 @@ import { CopyRequest } from "@prosody/domain/Reading/Copier.external";
 import { COPIES_ON_HOST } from "@prosody/server/Copies";
 import { API_ALIAS, Front, PRESS_ALIAS } from "@prosody/server/Front";
 import { Database } from "@prosody/server/ProsodyLive";
+import { QBittorrentSettings } from "@prosody/server/QBittorrent";
 import { sourceFingerprint } from "@prosody/server/Source";
 import { ServerHost } from "alchemy/Runtime/Process";
 import {
 	Array,
 	DateTime,
 	Effect,
-	FileSystem,
-	HashSet,
 	Layer,
 	Option,
-	Path,
 	Queue,
 	Ref,
 	Schedule,
-	Schema,
 } from "effect";
 import { Digest } from "effect/crypto";
 import {
@@ -31,12 +29,21 @@ import {
 	HttpServerResponse,
 } from "effect/http";
 
+import { isCopy, Pending } from "./Pending.ts";
 import { COPIES, LIBRARY, ReadingCopies } from "./ReadingCopies.ts";
 import type { Book } from "./Stacks.ts";
 import { Stacks } from "./Stacks.ts";
+import { watchDownloads } from "./Watch.ts";
 
-/** The library, as the host mounts it. Mounted into the press read-only. */
+/** The library, as the host mounts it. The press is its one writer. */
 const LIBRARY_ON_HOST = "/mnt/media/books";
+
+/** qBittorrent's books downloads, as the host mounts it. Mounted read-only. */
+const DOWNLOADS_ON_HOST =
+	"/mnt/media/torrents/books";
+
+/** Where the press's container sees the downloads. */
+const DOWNLOADS = "/downloads";
 
 /**
  * The press's base image: Bun, ffmpeg, the speech models and the library that runs them. Bump the
@@ -46,18 +53,6 @@ const PressImage = Docker.Image("PressImage", {
 	tag: "aligner-1",
 	build: { context: "packages/press/image" },
 });
-
-/** What the model asks of the press: to align a pair, or to copy an edition alone. */
-const Job = Schema.Union([AlignRequest, CopyRequest]);
-
-type Job = typeof Job.Type;
-
-const isCopy = Schema.is(CopyRequest);
-
-/** A job as the press keeps it on disk until it has answered. */
-const decodeJob = Schema.decodeUnknownEffect(Schema.fromJsonString(Job));
-
-const encodeJob = Schema.encodeEffect(Schema.fromJsonString(Job));
 
 /**
  * Send an answer to the model until it is heard, for five minutes: long enough for a deploy to
@@ -75,9 +70,11 @@ interface Report {
 }
 
 /** The walk's and the workshop's own services. The container provides files and processes. */
-const PressLive = Layer.mergeAll(Stacks.layer, ReadingCopies.layer).pipe(
-	Layer.provide(Digest.layerWebCrypto)
-);
+const PressLive = Layer.mergeAll(
+	Stacks.layer,
+	ReadingCopies.layer,
+	Pending.layer
+).pipe(Layer.provide(Digest.layerWebCrypto));
 
 /**
  * A new connection for every call to the model. While a deploy replaces the Api, the Api's address
@@ -89,9 +86,10 @@ const freshConnections = Effect.provideService(FetchHttpClient.RequestInit, {
 });
 
 /**
- * The press: the one service that touches book files. It walks the library and reports each work,
- * edition, pair and edition alone to the model, which decides what that changes. When the model
- * asks, it makes a reading copy, one at a time, and reports how that went.
+ * The press: the one service that touches book files, and the library's one writer. It walks the
+ * library and reports each work, edition, pair and edition alone to the model, which decides what
+ * that changes. When the model asks, it makes a reading copy, one at a time, and shelves a payload,
+ * and reports how that went. It watches qBittorrent, and reports how each grab's download goes.
  */
 export default class Press extends Docker.Service<Press>()(
 	"Press",
@@ -119,43 +117,43 @@ export default class Press extends Docker.Service<Press>()(
 			},
 			networks: [{ name: front.name }, ...clusterNetworks],
 			volumes: [
-				{ hostPath: LIBRARY_ON_HOST, containerPath: LIBRARY, readOnly: true },
+				{ hostPath: LIBRARY_ON_HOST, containerPath: LIBRARY },
+				{
+					hostPath: DOWNLOADS_ON_HOST,
+					containerPath: DOWNLOADS,
+					readOnly: true,
+				},
 				{ hostPath: COPIES_ON_HOST, containerPath: COPIES },
 			],
 		};
 	}).pipe(Effect.provide(Database)),
 	Effect.gen(function* () {
 		const host = yield* ServerHost;
-		const fs = yield* FileSystem.FileSystem;
-		const path = yield* Path.Path;
 		const stacks = yield* Stacks;
 		const copies = yield* ReadingCopies;
 		const last = yield* Ref.make(Option.none<Report>());
-		const waiting = yield* Queue.unbounded<Job>();
-		const asked = yield* Ref.make(HashSet.empty<string>());
+		const pending = yield* Pending;
 
-		// Each job waits on disk as well, until the press has answered it, so a restart (a deploy, a
-		// crash) picks up where it left off instead of waiting out a deadline. A pair waits as
-		// `<work>.json`; a copy as `<work>.<attempt>.copy.json`, since a remake can overtake a try
-		// still waiting, and each try's file is removed only when that try is answered.
-		const pending = path.join(COPIES, ".pending");
-
-		const pendingFile = (job: Job) =>
-			path.join(
-				pending,
-				isCopy(job)
-					? `${job.work}.${job.attempt}.copy.json`
-					: `${job.work}.json`
-			);
+		// Read as the press is built, so the deploy gives the press qBittorrent's settings.
+		yield* Effect.orDie(QBittorrentSettings);
 
 		/** The model's door for the press. */
 		const model = PressApi.clientHttp(`http://${API_ALIAS}:3000/press`);
 
-		/** Tell the model about one book. Sending the same book again changes nothing. */
+		/**
+		 * Tell the model about one book. Sending the same book again changes nothing. Its work is the
+		 * one that holds its folder: a work you wanted, shelved there, or else the work named for the
+		 * folder, which claims it.
+		 */
 		const report = Effect.fn("Press.report")(function* (book: Book) {
 			const press = yield* model;
-			const id = WorkId.make(yield* stacks.workIdOf(book.shelfmark));
+			const named = WorkId.make(yield* stacks.workIdOf(book.shelfmark));
 			const shelfmark = Shelfmark.make(book.shelfmark);
+
+			const id = yield* press.ClaimShelfmark(shelfmark, { work: named }).pipe(
+				Effect.as(named),
+				Effect.catchTag("ShelfmarkTaken", ({ work }) => Effect.succeed(work))
+			);
 
 			yield* press.CatalogueWork(id, {
 				title: book.title,
@@ -248,7 +246,7 @@ export default class Press extends Docker.Service<Press>()(
 				})
 			);
 
-			yield* fs.remove(pendingFile(request), { force: true });
+			yield* pending.done(request);
 		}, Effect.scoped);
 
 		/** Make the copy of an edition alone, and tell the model how it went. A copy has no deadline. */
@@ -274,47 +272,86 @@ export default class Press extends Docker.Service<Press>()(
 				})
 			);
 
-			yield* fs.remove(pendingFile(request), { force: true });
+			yield* pending.done(request);
 		}, Effect.scoped);
 
-		/** Queue a job, once: a policy may ask twice for the same try. */
-		const enqueue = Effect.fn("Press.enqueue")(function* (job: Job) {
-			const key = `${isCopy(job) ? "copy" : "align"}:${job.work}:${job.attempt}`;
+		/**
+		 * Shelve a payload, and tell the model how it went. While the library or the downloads don't
+		 * answer, nothing is written: the model is told why, and it fails with `StacksUnavailable`, to
+		 * be tried again. Once it is shelved, a walk reports its work, so a pair aligns at once.
+		 */
+		const shelve = Effect.fn("Press.shelve")(function* (
+			request: ShelveRequest
+		) {
+			const press = yield* model;
+			const { grab, work, shelfmark } = request;
+			const about = { shelfmark, payload: request.payload };
 
-			const isNew = yield* Ref.modify(asked, (seen) =>
-				HashSet.has(seen, key) ? [false, seen] : [true, HashSet.add(seen, key)]
+			yield* Effect.log("shelving", about);
+
+			yield* stacks.shelve(LIBRARY, DOWNLOADS, request).pipe(
+				Effect.tapErrorTag("StacksUnavailable", ({ reason }) =>
+					Effect.andThen(
+						Effect.logWarning("waiting for the library", reason),
+						persistently(press.RecordNotShelved(grab, { reason })).pipe(
+							Effect.ignore
+						)
+					)
+				),
+				Effect.flatMap((shelved) =>
+					Effect.andThen(
+						persistently(press.RecordShelved(grab, { work, shelfmark })),
+						Effect.andThen(
+							Effect.log("shelved", { ...about, ...shelved }),
+							walk()
+						)
+					)
+				),
+				Effect.catchTag("Unshelvable", ({ reason }) =>
+					Effect.andThen(
+						persistently(press.RecordNotShelved(grab, { reason })),
+						Effect.logWarning("not shelved", { ...about, reason })
+					)
+				)
 			);
 
-			if (isNew) {
-				yield* fs.makeDirectory(pending, { recursive: true });
-				yield* fs.writeFileString(pendingFile(job), yield* encodeJob(job));
-				yield* Queue.offer(waiting, job);
-			}
-		});
-
-		/**
-		 * Put back what was waiting when the press last stopped. A file that won't decode is skipped.
-		 * In name order, so a work's copy (`<work>.<attempt>.copy.json`) runs before its pair
-		 * (`<work>.json`), which was asked for later and replaces it.
-		 */
-		const resume = Effect.gen(function* () {
-			yield* fs.makeDirectory(pending, { recursive: true });
-
-			for (const name of (yield* fs.readDirectory(pending)).toSorted()) {
-				yield* fs
-					.readFileString(path.join(pending, name))
-					.pipe(
-						Effect.flatMap(decodeJob),
-						Effect.flatMap(enqueue),
-						Effect.catchCause(Effect.logWarning)
-					);
-			}
-		});
+			yield* pending.done(request);
+		}, Effect.scoped);
 
 		yield* host.run(
 			walk().pipe(
 				Effect.repeat(Schedule.spaced("5 minutes")),
 				Effect.asVoid,
+				freshConnections
+			)
+		);
+
+		// Every minute, how each grab's download goes. qBittorrent down is a minute without news.
+		yield* host.run(
+			Effect.scoped(Effect.flatMap(model, watchDownloads)).pipe(
+				Effect.catchCause(Effect.logWarning),
+				Effect.repeat(Schedule.spaced("1 minute")),
+				Effect.asVoid,
+				freshConnections
+			)
+		);
+
+		// Payloads are shelved one at a time, beside the reading copies, so a copy into the library
+		// never waits behind an hour of aligning. One the library or the downloads can't take yet goes
+		// back in line five minutes later, so the payloads behind it go on.
+		yield* host.run(
+			Queue.take(pending.shelving).pipe(
+				Effect.flatMap((job) =>
+					shelve(job).pipe(
+						Effect.catchTag("StacksUnavailable", () =>
+							Effect.forkDetach(
+								Effect.delay(Queue.offer(pending.shelving, job), "5 minutes")
+							)
+						),
+						Effect.catchCause(Effect.logError)
+					)
+				),
+				Effect.forever,
 				freshConnections
 			)
 		);
@@ -325,10 +362,10 @@ export default class Press extends Docker.Service<Press>()(
 		// uses every core it is given. A failure to report is logged: a pair's deadline covers its try,
 		// and a copy's answer has been sent again for five minutes by then.
 		yield* host.run(
-			resume.pipe(
+			pending.resume.pipe(
 				Effect.orDie,
 				Effect.andThen(
-					Queue.take(waiting).pipe(
+					Queue.take(pending.waiting).pipe(
 						Effect.flatMap((job) =>
 							(isCopy(job) ? copy(job) : align(job)).pipe(
 								Effect.catchCause(Effect.logError)
@@ -347,13 +384,25 @@ export default class Press extends Docker.Service<Press>()(
 				const route = new URL(request.url, "http://localhost").pathname;
 
 				if (request.method === "POST" && route === "/align") {
-					yield* enqueue(yield* HttpServerRequest.schemaBodyJson(AlignRequest));
+					yield* pending.enqueue(
+						yield* HttpServerRequest.schemaBodyJson(AlignRequest)
+					);
 
 					return HttpServerResponse.empty({ status: 202 });
 				}
 
 				if (request.method === "POST" && route === "/copy") {
-					yield* enqueue(yield* HttpServerRequest.schemaBodyJson(CopyRequest));
+					yield* pending.enqueue(
+						yield* HttpServerRequest.schemaBodyJson(CopyRequest)
+					);
+
+					return HttpServerResponse.empty({ status: 202 });
+				}
+
+				if (request.method === "POST" && route === "/shelve") {
+					yield* pending.enqueue(
+						yield* HttpServerRequest.schemaBodyJson(ShelveRequest)
+					);
 
 					return HttpServerResponse.empty({ status: 202 });
 				}

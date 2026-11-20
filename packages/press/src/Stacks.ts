@@ -1,3 +1,4 @@
+import type { ShelveRequest } from "@prosody/domain/Library/Stacks.external";
 import {
 	Array,
 	Context,
@@ -9,6 +10,7 @@ import {
 	Path,
 	Record,
 	Result,
+	Schema,
 } from "effect";
 import type { PlatformError } from "effect";
 import { Digest } from "effect/crypto";
@@ -33,6 +35,21 @@ export interface Survey {
 	readonly books: ReadonlyArray<Book>;
 	readonly unreadable: ReadonlyArray<string>;
 }
+
+/** The library or the downloads did not answer, so nothing was written. Shelving tries again later. */
+export class StacksUnavailable extends Schema.TaggedError<StacksUnavailable>()(
+	"StacksUnavailable",
+	{ reason: Schema.String }
+) {}
+
+/** The payload can't be shelved as it is, for this reason. */
+export class Unshelvable extends Schema.TaggedError<Unshelvable>()(
+	"Unshelvable",
+	{ reason: Schema.String }
+) {}
+
+/** How long a mount has to answer before it counts as dropped. */
+const MOUNT_TIME = "8 seconds";
 
 /** The library's two halves, and the file each holds for a work. */
 const HALVES = [
@@ -100,6 +117,15 @@ export class Stacks extends Context.Service<
 		readonly survey: (root: string) => Effect.Effect<Survey>;
 		/** A work's id, made from its shelfmark so every walk gives the same folder the same id. */
 		readonly workIdOf: (shelfmark: string) => Effect.Effect<string>;
+		/**
+		 * Copy a payload's edition from `downloads` into its work's folder in the library at `root`,
+		 * never moving it, once both answer.
+		 */
+		readonly shelve: (
+			root: string,
+			downloads: string,
+			request: Pick<ShelveRequest, "kind" | "payload" | "shelfmark">
+		) => Effect.Effect<Found, StacksUnavailable | Unshelvable>;
 	}
 >()("@prosody/press/Stacks", {
 	make: Effect.gen(function* () {
@@ -201,7 +227,124 @@ export class Stacks extends Context.Service<
 			return `w-${hex.slice(0, 12)}`;
 		});
 
-		return { survey, workIdOf };
+		/** Read a folder, or say it did not answer: a share that has dropped hangs, or reads empty. */
+		const answer = (folder: string, name: string) =>
+			fs.readDirectory(folder).pipe(
+				Effect.timeout(MOUNT_TIME),
+				Effect.tapError(Effect.logWarning),
+				Effect.mapError(
+					() => new StacksUnavailable({ reason: `The ${name} did not answer` })
+				)
+			);
+
+		/** The files in a payload with this extension: the payload itself, or those in its folder. */
+		const editionsIn = Effect.fnUntraced(function* (
+			payload: string,
+			extension: string
+		) {
+			const isEdition = (name: string) =>
+				name.toLowerCase().endsWith(extension);
+
+			if ((yield* fs.stat(payload)).type !== "Directory") {
+				return isEdition(payload) ? [payload] : [];
+			}
+
+			const names = yield* fs.readDirectory(payload, { recursive: true });
+
+			return names.filter(isEdition).map((name) => path.join(payload, name));
+		});
+
+		const shelve = Effect.fn("Stacks.shelve")(
+			function* (
+				root: string,
+				downloads: string,
+				request: Pick<ShelveRequest, "kind" | "payload" | "shelfmark">
+			) {
+				const halves = yield* answer(root, "library");
+
+				// A share that has dropped can read as an empty folder: never write into one.
+				if (!HALVES.every(({ folder }) => halves.includes(folder))) {
+					return yield* new StacksUnavailable({
+						reason: "The library is empty: its share may have dropped",
+					});
+				}
+
+				yield* answer(downloads, "downloads folder");
+
+				const { folder, extension } =
+					request.kind === "text" ? HALVES[0] : HALVES[1];
+
+				if (
+					request.payload === "" ||
+					request.payload.split("/").includes("..")
+				) {
+					return yield* new Unshelvable({
+						reason:
+							"Its files are not in a folder of their own in the downloads",
+					});
+				}
+
+				const names = request.shelfmark.split("/");
+
+				if (
+					names.length !== 2 ||
+					names.some((name) => ["", ".", ".."].includes(name))
+				) {
+					return yield* new Unshelvable({
+						reason: `"${request.shelfmark}" is not an author's folder and a title's`,
+					});
+				}
+
+				const editions = yield* editionsIn(
+					path.join(downloads, request.payload),
+					extension
+				);
+
+				const [edition] = editions;
+
+				if (edition === undefined || editions.length > 1) {
+					return yield* new Unshelvable({
+						reason:
+							edition === undefined
+								? `It has no ${extension} file`
+								: `It has ${editions.length} ${extension} files, and a shelf takes one`,
+					});
+				}
+
+				const shelf = path.join(root, folder, request.shelfmark);
+				const [author, title] = names;
+				const file = `${title} - ${author}${extension}`;
+
+				yield* fs.makeDirectory(shelf, { recursive: true });
+
+				const bytes = Number((yield* fs.stat(edition)).size);
+				const [held] = yield* firstFile(shelf, extension);
+
+				// The same file, by name and size, is this copy, made before a restart cut its answer short.
+				if (held !== undefined) {
+					return held.file === file && held.bytes === bytes
+						? held
+						: yield* new Unshelvable({
+								reason: `${request.shelfmark} already has ${held.file}`,
+							});
+				}
+
+				// Under another name until it is whole, so a walk never finds half a file.
+				const part = path.join(shelf, `.${file}.part`);
+
+				yield* fs.copyFile(edition, part);
+				yield* fs.rename(part, path.join(shelf, file));
+
+				return { file, bytes };
+			},
+			Effect.catchTag("PlatformError", ({ message }) =>
+				Effect.fail(
+					new StacksUnavailable({ reason: `Copying it failed (${message})` })
+				)
+			)
+		);
+
+		return { survey, workIdOf, shelve };
 	}),
 }) {
 	static readonly layer = Layer.effect(this, this.make);

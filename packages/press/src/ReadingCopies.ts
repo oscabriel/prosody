@@ -17,7 +17,7 @@ import {
 
 import { Covers } from "./Covers.ts";
 
-/** Where the press's container sees the library (read-only) and the reading copies (on the host's own disk). */
+/** Where the press's container sees the library and the reading copies (on the host's own disk). */
 export const LIBRARY = "/library";
 
 export const COPIES = "/copies";
