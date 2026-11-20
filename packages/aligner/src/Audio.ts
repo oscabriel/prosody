@@ -13,6 +13,28 @@ export interface Probed {
 	readonly seconds: number;
 }
 
+/** A chapter a file marks, from its start to its end in seconds. */
+export interface Chapter {
+	readonly title: string;
+	readonly start: number;
+	readonly end: number;
+}
+
+/** ffprobe's chapters, as it writes them in JSON: times as decimal strings, the title as a tag. */
+const ProbedChapters = Schema.fromJsonString(
+	Schema.Struct({
+		chapters: Schema.Array(
+			Schema.Struct({
+				start_time: Schema.FiniteFromString,
+				end_time: Schema.FiniteFromString,
+				tags: Schema.optionalKey(
+					Schema.Struct({ title: Schema.optionalKey(Schema.String) })
+				),
+			})
+		),
+	})
+);
+
 /** ffmpeg stopped before the end of a file. Whatever it decoded until then is not the book. */
 export class DecodeFailed extends Schema.TaggedError<DecodeFailed>()(
 	"DecodeFailed",
@@ -33,6 +55,13 @@ export class Audio extends Context.Service<
 		readonly probe: (
 			file: string
 		) => Effect.Effect<Probed, PlatformError.PlatformError>;
+		/** The chapters a file marks, in order. A file that marks none has none. */
+		readonly chapters: (
+			file: string
+		) => Effect.Effect<
+			ReadonlyArray<Chapter>,
+			PlatformError.PlatformError | Schema.SchemaError
+		>;
 		readonly samples: (
 			file: string
 		) => Stream.Stream<Uint8Array, DecodeFailed | PlatformError.PlatformError>;
@@ -75,6 +104,28 @@ export class Audio extends Context.Service<
 				profile,
 				seconds: Number.isFinite(seconds) ? seconds : 0,
 			};
+		});
+
+		const chapters = Effect.fn("Audio.chapters")(function* (file: string) {
+			const probed = yield* spawner.string(
+				ChildProcess.make("ffprobe", [
+					"-v",
+					"error",
+					"-show_chapters",
+					"-of",
+					"json",
+					file,
+				])
+			);
+
+			const { chapters: found } =
+				yield* Schema.decodeEffect(ProbedChapters)(probed);
+
+			return found.map((chapter) => ({
+				title: chapter.tags?.title ?? "",
+				start: chapter.start_time,
+				end: chapter.end_time,
+			}));
 		});
 
 		/**
@@ -148,7 +199,7 @@ export class Audio extends Context.Service<
 			return new Float32Array(bytes.buffer);
 		});
 
-		return { probe, samples, clip };
+		return { probe, chapters, samples, clip };
 	}),
 }) {
 	static readonly layer = Layer.effect(this, this.make);

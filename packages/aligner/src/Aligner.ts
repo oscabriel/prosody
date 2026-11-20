@@ -8,7 +8,6 @@ import {
 	Schema,
 } from "effect";
 import type { PlatformError } from "effect";
-import { strFromU8 } from "fflate";
 
 import type { ListenFailed } from "./Acoustic.ts";
 import { Acoustic } from "./Acoustic.ts";
@@ -18,10 +17,11 @@ import type { DecodeFailed } from "./Audio.ts";
 import { clipsOf } from "./Boundaries.ts";
 import { decode, encode } from "./Emissions.ts";
 import { open } from "./Epub.ts";
+import type { Book } from "./Epub.ts";
 import type { Entry } from "./Overlay.ts";
 import { writeReadingCopy } from "./Overlay.ts";
-import { headingOf } from "./Sections.ts";
-import { mark } from "./Sentences.ts";
+import { markPages } from "./Pages.ts";
+import type { Contents } from "./Pages.ts";
 import { phraseStarts, phrases } from "./Spoken.ts";
 import { SpotCheck } from "./SpotCheck.ts";
 import type { CheckFailed } from "./SpotCheck.ts";
@@ -44,19 +44,18 @@ export interface Pair {
 	readonly text?: string;
 }
 
-/** A page a narrator reads, and what a reader would call it. */
-export interface Contents {
-	readonly path: string;
-	readonly title: string;
+/** A book's text, marked: the pages that hold sentences, in reading order, and how many there are. */
+export interface Marked {
+	readonly sentences: number;
+	readonly pages: ReadonlyArray<Contents>;
+	/** The cover picture's path in the text folder, when the book names one. */
+	readonly cover: string | undefined;
 }
 
-/** A finished alignment: how many sentences the book has, and every one's place. */
-export interface Aligned {
-	readonly sentences: number;
+/** A finished alignment: the marked text, and every sentence's place in the audio. */
+export interface Aligned extends Marked {
 	readonly aligned: number;
 	readonly entries: ReadonlyArray<Entry>;
-	/** The pages that hold sentences, in reading order. */
-	readonly pages: ReadonlyArray<Contents>;
 	/** How many aligned sentences the spot check listened to, and how many it heard right. */
 	readonly checked: number;
 	readonly heard: number;
@@ -135,6 +134,14 @@ export class Aligner extends Context.Service<
 	Aligner,
 	{
 		readonly align: (pair: Pair) => Effect.Effect<Aligned, AlignFailed>;
+		/**
+		 * Mark the text of a book that has no audio, and write it into the folder `text`, as
+		 * `align` does.
+		 */
+		readonly mark: (
+			epub: string,
+			text: string
+		) => Effect.Effect<Marked, UnreadableEpub | PlatformError.PlatformError>;
 	}
 >()("@prosody/aligner/Aligner", {
 	make: Effect.gen(function* () {
@@ -189,11 +196,11 @@ export class Aligner extends Context.Service<
 
 		/** Every file of the book under `folder`, its pages marked. A path that leaves the folder is skipped. */
 		const writeText = Effect.fnUntraced(function* (
-			files: ReadonlyMap<string, Uint8Array>,
+			book: Book,
 			markups: ReadonlyMap<string, string>,
 			folder: string
 		) {
-			for (const [name, data] of files) {
+			for (const [name, data] of book.files) {
 				const target = path.join(folder, name);
 
 				// An archive lists its folders too, as names ending in a slash; they are made as needed.
@@ -209,6 +216,28 @@ export class Aligner extends Context.Service<
 					? fs.writeFile(target, data)
 					: fs.writeFileString(target, marked);
 			}
+		});
+
+		/** The EPUB at `epub`, opened. */
+		const openEpub = Effect.fnUntraced(function* (epub: string) {
+			const bytes = yield* fs.readFile(epub);
+
+			return yield* Effect.try({
+				try: () => open(bytes),
+				catch: (error) => new UnreadableEpub({ reason: String(error) }),
+			});
+		});
+
+		const markText = Effect.fn("Aligner.mark")(function* (
+			epub: string,
+			text: string
+		) {
+			const book = yield* openEpub(epub);
+			const { markups, pages, sentences } = markPages(book);
+
+			yield* writeText(book, markups, text);
+
+			return { sentences: sentences.length, pages, cover: book.cover };
 		});
 
 		const alignPair = Effect.fn("Aligner.align")(function* (pair: Pair) {
@@ -227,35 +256,8 @@ export class Aligner extends Context.Service<
 				}
 			}
 
-			const bytes = yield* fs.readFile(pair.epub);
-
-			const book = yield* Effect.try({
-				try: () => open(bytes),
-				catch: (error) => new UnreadableEpub({ reason: String(error) }),
-			});
-
-			const markups = new Map<string, string>();
-			const pages: Array<Contents> = [];
-
-			const sentences = book.pages
-				.filter((page) => page.narrated)
-				.flatMap((page) => {
-					const marked = mark(
-						strFromU8(book.files.get(page.path) ?? new Uint8Array()),
-						"ps-"
-					);
-
-					markups.set(page.path, marked.markup);
-
-					if (marked.sentences.length > 0) {
-						pages.push({ path: page.path, title: headingOf(marked.markup) });
-					}
-
-					return marked.sentences.map((sentence) => ({
-						key: `${page.path}#${sentence.id}`,
-						text: sentence.text,
-					}));
-				});
+			const book = yield* openEpub(pair.epub);
+			const { markups, pages, sentences } = markPages(book);
 
 			const said = yield* Effect.forEach(
 				sentences,
@@ -315,7 +317,7 @@ export class Aligner extends Context.Service<
 			yield* fs.writeFileString(pair.timeline, yield* timelineJson(entries));
 
 			if (pair.text !== undefined) {
-				yield* writeText(book.files, markups, pair.text);
+				yield* writeText(book, markups, pair.text);
 			}
 
 			// The aligner finishes cleanly even when it is wrong, so listen before believing it.
@@ -352,12 +354,13 @@ export class Aligner extends Context.Service<
 				aligned,
 				entries,
 				pages,
+				cover: book.cover,
 				checked,
 				heard,
 			};
 		});
 
-		return { align: alignPair };
+		return { align: alignPair, mark: markText };
 	}),
 }) {
 	static readonly layer = Layer.effect(this, this.make).pipe(

@@ -1,4 +1,4 @@
-import { isTag } from "domhandler";
+import { isTag, isText } from "domhandler";
 import type { AnyNode, Element } from "domhandler";
 import { Schema } from "effect";
 import { strFromU8, unzipSync } from "fflate";
@@ -14,6 +14,10 @@ export interface Book {
 	readonly packageXml: string;
 	/** The spine's pages, as paths in the archive. */
 	readonly pages: ReadonlyArray<Page>;
+	/** The cover picture's path in the archive, when the package names one. */
+	readonly cover: string | undefined;
+	/** What the book's own table of contents calls its pages, by path: the first entry for each. */
+	readonly titles: ReadonlyMap<string, string>;
 }
 
 export interface Page {
@@ -38,6 +42,46 @@ const elements = (nodes: ReadonlyArray<AnyNode>): Array<Element> =>
 /** A tag's name without its namespace prefix, lower case. */
 const local = (element: Element) =>
 	element.name.toLowerCase().replace(/^.*:/u, "");
+
+/** The text inside an element, with its spaces run together. */
+const textOf = (element: Element): string =>
+	element.children
+		.map((node) => {
+			if (isText(node)) {
+				return node.data;
+			}
+
+			return isTag(node) ? textOf(node) : "";
+		})
+		.join("")
+		.replaceAll(/\s+/gu, " ")
+		.trim();
+
+/**
+ * The titles an NCX table of contents gives the files it points into, by path. A file named more
+ * than once keeps its first entry, which is the outermost: a chapter, not a section inside it.
+ */
+const titlesIn = (ncx: string, ncxPath: string): Map<string, string> => {
+	const titles = new Map<string, string>();
+	const all = elements(parseDocument(ncx, { xmlMode: true }).children);
+
+	for (const point of all.filter((element) => local(element) === "navpoint")) {
+		const parts = elements(point.children);
+
+		const named = (name: string) =>
+			parts.find((element) => local(element) === name);
+
+		const label = named("text");
+		const src = named("content")?.attribs.src;
+		const path = src === undefined ? "" : resolve(ncxPath, src);
+
+		if (label !== undefined && path !== "" && !titles.has(path)) {
+			titles.set(path, textOf(label));
+		}
+	}
+
+	return titles;
+};
 
 /** `href` resolved against the folder of `base`, as a path in the archive. */
 export const resolve = (base: string, href: string): string => {
@@ -135,10 +179,38 @@ export const open = (bytes: Uint8Array): Book => {
 			)
 	);
 
+	// EPUB 3 marks the cover picture in the manifest; EPUB 2 names its id in a meta.
+	const coverId = all.find(
+		(element) =>
+			local(element) === "meta" &&
+			element.attribs.name?.toLowerCase() === "cover"
+	)?.attribs.content;
+
+	const coverItem =
+		[...manifest.values()].find((item) =>
+			(item.properties ?? "").split(/\s+/u).includes("cover-image")
+		) ?? manifest.get(coverId ?? "");
+
+	const cover =
+		coverItem?.href === undefined ||
+		!(coverItem["media-type"] ?? "").startsWith("image/")
+			? undefined
+			: resolve(packagePath, coverItem.href);
+
+	// Most EPUBs, EPUB 3 ones too, carry an EPUB 2 table of contents, the NCX.
+	const ncxHref = [...manifest.values()].find(
+		(item) => item["media-type"] === "application/x-dtbncx+xml"
+	)?.href;
+
+	const ncxPath = ncxHref === undefined ? "" : resolve(packagePath, ncxHref);
+	const ncx = files.get(ncxPath);
+
 	return {
 		files,
 		packagePath,
 		packageXml,
+		cover: cover !== undefined && files.has(cover) ? cover : undefined,
+		titles: ncx === undefined ? new Map() : titlesIn(strFromU8(ncx), ncxPath),
 		pages: pages.map((page, index) => ({
 			...page,
 			narrated: isNarrated(
