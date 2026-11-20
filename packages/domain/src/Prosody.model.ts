@@ -6,6 +6,7 @@ import {
 	ReleaseSearchLive,
 } from "./Acquisition/ReleaseSearch.policy.ts";
 import { Want } from "./Acquisition/Want.aggregate.ts";
+import { Wanted, WantedLive } from "./Acquisition/Wanted.view.ts";
 import { Cataloguing, CataloguingLive } from "./Library/Cataloguing.policy.ts";
 import { Shelf, ShelfLive } from "./Library/Shelf.view.ts";
 import { Work } from "./Library/Work.aggregate.ts";
@@ -23,7 +24,7 @@ import { ReadingCopy, ReadingCopyLive } from "./Reading/ReadingCopy.policy.ts";
  */
 export class Prosody extends Domain.Model("Prosody", {
 	aggregates: [Want, Work, Narration, Copy, Reading],
-	views: [Shelf, Place, Nightstand],
+	views: [Wanted, Shelf, Place, Nightstand],
 	policies: [ReleaseSearch, Cataloguing, Alignment, ReadingCopy],
 }) {}
 
@@ -36,6 +37,7 @@ export const ProsodyHandlers = Layer.mergeAll(
 	CataloguingLive,
 	AlignmentLive,
 	ReadingCopyLive,
+	WantedLive,
 	ShelfLive,
 	PlaceLive,
 	NightstandLive

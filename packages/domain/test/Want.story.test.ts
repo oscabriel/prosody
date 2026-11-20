@@ -1,5 +1,5 @@
 import { Story } from "@alchemy.run/domain/Story";
-import { describe, it } from "@effect/vitest";
+import { assert, describe, it } from "@effect/vitest";
 
 import { Indexer, IndexerFailed } from "../src/Acquisition/Indexer.external.ts";
 import {
@@ -18,6 +18,7 @@ import {
 	SearchStarted,
 	WantBook,
 } from "../src/Acquisition/WantBook.command.ts";
+import { Wanted } from "../src/Acquisition/Wanted.view.ts";
 import {
 	NotWanted,
 	WantWithdrawn,
@@ -79,6 +80,9 @@ const audiobook: Release = {
 	page: "https://tracker.example/t/1",
 };
 
+/** When a story commits its events: its clock stands at the start of 2026. */
+const NEW_YEAR = Date.UTC(2026, 0, 1);
+
 /** You want books from one of your devices, as everything a reader sends. */
 const fromLaptop = provide(Device, "laptop");
 
@@ -91,7 +95,19 @@ describe("a book you want", () => {
 			...described,
 			call(Indexer.search, book),
 			succeed(Indexer.search, { releases: [audiobook] }),
-			then(hailMary, new ReleasesOffered({ releases: [audiobook] }))
+			then(hailMary, new ReleasesOffered({ releases: [audiobook] })),
+			view(Wanted, SHELF, {
+				wants: {
+					"w-hailmary": {
+						...book,
+						at: NEW_YEAR,
+						state: "offered",
+						note: "",
+						offers: [audiobook],
+					},
+				},
+				catalogue: { "w-hailmary": { ...book, description } },
+			})
 		)
 	);
 
@@ -109,7 +125,18 @@ describe("a book you want", () => {
 			then(
 				hailMary,
 				new SearchFailed({ reason: "Prowlarr refused the API key" })
-			)
+			),
+			view(Wanted, SHELF, {
+				wants: {
+					"w-hailmary": {
+						...book,
+						at: NEW_YEAR,
+						state: "failed",
+						note: "Prowlarr refused the API key",
+						offers: [],
+					},
+				},
+			})
 		)
 	);
 
@@ -200,7 +227,10 @@ describe("a book you want", () => {
 			fromLaptop,
 			given(hailMary, wanted, new SearchStarted({ search: 1 })),
 			when(hailMary, new WithdrawWant()),
-			then(hailMary, new WantWithdrawn())
+			then(hailMary, new WantWithdrawn()),
+			view(Wanted, SHELF, ({ wants }) => {
+				assert.deepStrictEqual(wants, {});
+			})
 		)
 	);
 
