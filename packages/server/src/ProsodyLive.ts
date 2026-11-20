@@ -3,6 +3,7 @@ import * as ClusterDocker from "@alchemy.run/effect-cluster/Docker";
 import { Prosody, ProsodyHandlers } from "@prosody/domain/Prosody.model";
 import { Effect, Layer } from "effect";
 
+import { OpenLibraryMetadata } from "./OpenLibraryMetadata.ts";
 import { PressAligner } from "./PressAligner.ts";
 import { PressCopier } from "./PressCopier.ts";
 import { ProwlarrIndexer, ProwlarrSettings } from "./ProwlarrIndexer.ts";
@@ -22,11 +23,18 @@ export const Runners = ClusterDocker.SwarmPool("Runners", { replicas: 1 }).pipe(
 /**
  * The model on Effect Cluster. The runner loads this module's default export to host the model;
  * anything else that provides it, like the Api, reaches the model through the runner. Its policies
- * run on the runner: they search Prowlarr through the ProwlarrIndexer, and reach the press through
- * the PressAligner and the PressCopier.
+ * run on the runner: they search Prowlarr through the ProwlarrIndexer, look a wanted book up through
+ * the OpenLibraryMetadata, and reach the press through the PressAligner and the PressCopier.
  */
 export default Prosody.layer(ProsodyHandlers).pipe(
-	Layer.provide(Layer.mergeAll(ProwlarrIndexer, PressAligner, PressCopier)),
+	Layer.provide(
+		Layer.mergeAll(
+			ProwlarrIndexer,
+			OpenLibraryMetadata,
+			PressAligner,
+			PressCopier
+		)
+	),
 	Layer.provide(
 		DomainCluster.layerEntities({
 			name: "Prosody",

@@ -4,6 +4,7 @@ import { describe, it } from "@effect/vitest";
 import { Indexer } from "../src/Acquisition/Indexer.external.ts";
 import { Device } from "../src/Device.context.ts";
 import { WorkCatalogued } from "../src/Library/CatalogueWork.command.ts";
+import { Metadata } from "../src/Library/Metadata.external.ts";
 import { SHELF, Shelf } from "../src/Library/Shelf.view.ts";
 import { Shelfmark } from "../src/Library/Shelfmark.ts";
 import { EditionShelved } from "../src/Library/ShelveEdition.command.ts";
@@ -31,7 +32,7 @@ const { call, given, provide, rejected, succeed, then, view, when } = Story;
 
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Indexer, Aligner, Copier],
+	stub: [Indexer, Metadata, Aligner, Copier],
 });
 
 const odyssey = Copy.ref("w-odyssey");
@@ -49,7 +50,12 @@ const epub = {
 const shelved = (...kinds: ReadonlyArray<"text" | "audio">) =>
 	given(
 		Work.ref("w-odyssey"),
-		new WorkCatalogued({ title: "The Odyssey", author: "Homer", shelfmark }),
+		new WorkCatalogued({
+			title: "The Odyssey",
+			author: "Homer",
+			shelfmark,
+			description: null,
+		}),
 		...kinds.map(
 			(kind) =>
 				new EditionShelved({

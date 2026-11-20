@@ -3,6 +3,7 @@ import { describe, it } from "@effect/vitest";
 
 import { Indexer } from "../src/Acquisition/Indexer.external.ts";
 import { Device } from "../src/Device.context.ts";
+import { Metadata } from "../src/Library/Metadata.external.ts";
 import { SHELF, Shelf } from "../src/Library/Shelf.view.ts";
 import { Shelfmark } from "../src/Library/Shelfmark.ts";
 import { WorkId } from "../src/Library/Work.id.ts";
@@ -38,7 +39,7 @@ const { advance, call, given, provide, rejected, succeed, then, view, when } =
 
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Indexer, Aligner, Copier],
+	stub: [Indexer, Metadata, Aligner, Copier],
 });
 
 const carl = Narration.ref("w-carl");

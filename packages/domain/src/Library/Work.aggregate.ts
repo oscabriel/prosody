@@ -32,6 +32,7 @@ export class Work extends Domain.Aggregate("Work", {
 							title: cmd.title,
 							author: cmd.author,
 							shelfmark: cmd.shelfmark,
+							description: cmd.description,
 						}),
 					],
 		ShelveEdition: (work, cmd) => {

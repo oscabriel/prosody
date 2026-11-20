@@ -161,6 +161,7 @@ export default class Press extends Docker.Service<Press>()(
 				title: book.title,
 				author: book.author,
 				shelfmark,
+				description: null,
 			});
 
 			for (const kind of ["text", "audio"] as const) {

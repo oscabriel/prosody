@@ -24,15 +24,20 @@ import {
 	WithdrawWant,
 } from "../src/Acquisition/WithdrawWant.command.ts";
 import { Device } from "../src/Device.context.ts";
+import { WorkCatalogued } from "../src/Library/CatalogueWork.command.ts";
+import { Metadata } from "../src/Library/Metadata.external.ts";
+import { SHELF, Shelf } from "../src/Library/Shelf.view.ts";
+import { Work } from "../src/Library/Work.aggregate.ts";
 import { Aligner } from "../src/Narration/Aligner.external.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
 import { Copier } from "../src/Reading/Copier.external.ts";
 
-const { call, fail, given, provide, rejected, succeed, then, when } = Story;
+const { call, fail, given, provide, rejected, succeed, then, view, when } =
+	Story;
 
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Indexer, Aligner, Copier],
+	stub: [Indexer, Metadata, Aligner, Copier],
 });
 
 const hailMary = Want.ref("w-hailmary");
@@ -40,6 +45,28 @@ const hailMary = Want.ref("w-hailmary");
 const book = { title: "Project Hail Mary", author: "Andy Weir" };
 
 const wanted = new BookWanted(book);
+
+/** Project Hail Mary as Open Library and Audnexus know it. */
+const description = {
+	year: 2021,
+	openLibrary: "OL21745884W",
+	recording: {
+		asin: "B08G9PRS1K",
+		narrators: ["Ray Porter"],
+		minutes: 970,
+		chapters: [{ title: "Chapter 1", start: 17, end: 2221 }],
+	},
+};
+
+/** The catalogues outside are asked about a wanted book, and its work is catalogued as they answer. */
+const described = [
+	call(Metadata.describe, book),
+	succeed(Metadata.describe, { ...book, description }),
+	then(
+		Work.ref("w-hailmary"),
+		new WorkCatalogued({ ...book, shelfmark: null, description })
+	),
+] as const;
 
 const audiobook: Release = {
 	id: "https://tracker.example/t/1",
@@ -61,6 +88,7 @@ describe("a book you want", () => {
 			fromLaptop,
 			when(hailMary, new WantBook(book)),
 			then(hailMary, wanted, new SearchStarted({ search: 1 })),
+			...described,
 			call(Indexer.search, book),
 			succeed(Indexer.search, { releases: [audiobook] }),
 			then(hailMary, new ReleasesOffered({ releases: [audiobook] }))
@@ -72,6 +100,7 @@ describe("a book you want", () => {
 			fromLaptop,
 			when(hailMary, new WantBook(book)),
 			then(hailMary, wanted, new SearchStarted({ search: 1 })),
+			...described,
 			call(Indexer.search, book),
 			fail(
 				Indexer.search,
@@ -82,6 +111,33 @@ describe("a book you want", () => {
 				new SearchFailed({ reason: "Prowlarr refused the API key" })
 			)
 		)
+	);
+
+	it.effect(
+		"is catalogued as the catalogues outside know it, and not shelved",
+		() =>
+			story(
+				fromLaptop,
+				when(
+					hailMary,
+					new WantBook({ title: "project hail mary", author: "weir" })
+				),
+				then(
+					hailMary,
+					new BookWanted({ title: "project hail mary", author: "weir" }),
+					new SearchStarted({ search: 1 })
+				),
+				call(Metadata.describe, { title: "project hail mary", author: "weir" }),
+				succeed(Metadata.describe, { ...book, description }),
+				then(
+					Work.ref("w-hailmary"),
+					new WorkCatalogued({ ...book, shelfmark: null, description })
+				),
+				call(Indexer.search, { title: "project hail mary", author: "weir" }),
+				succeed(Indexer.search, { releases: [] }),
+				then(hailMary, new ReleasesOffered({ releases: [] })),
+				view(Shelf, SHELF, { works: {} })
+			)
 	);
 
 	it.effect("records nothing when it is wanted again", () =>

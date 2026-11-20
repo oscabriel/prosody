@@ -68,19 +68,23 @@ export class Shelf extends Domain.View("Shelf", {
 	// event is newer than they are, and a new version would rebuild the shelf from no history at all.
 	version: 1,
 	evolve: {
-		WorkCatalogued: (shelf, e, { source }) => ({
-			...shelf,
-			works: {
-				...shelf.works,
-				[source.id]: {
-					title: e.title,
-					author: e.author,
-					shelfmark: e.shelfmark,
-					text: false,
-					audio: false,
-				},
-			},
-		}),
+		// A work you want is on the shelf only once it is shelved.
+		WorkCatalogued: (shelf, e, { source }) =>
+			e.shelfmark === null
+				? shelf
+				: {
+						...shelf,
+						works: {
+							...shelf.works,
+							[source.id]: {
+								title: e.title,
+								author: e.author,
+								shelfmark: e.shelfmark,
+								text: false,
+								audio: false,
+							},
+						},
+					},
 		EditionShelved: (shelf, e, { source }) => {
 			const entry = shelf.works[source.id];
 

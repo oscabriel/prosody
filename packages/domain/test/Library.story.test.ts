@@ -1,12 +1,14 @@
 import * as Domain from "@alchemy.run/domain";
 import { Story } from "@alchemy.run/domain/Story";
 import { describe, expect, it } from "@effect/vitest";
+import { Schema } from "effect";
 
 import { Indexer } from "../src/Acquisition/Indexer.external.ts";
 import {
 	CatalogueWork,
 	WorkCatalogued,
 } from "../src/Library/CatalogueWork.command.ts";
+import { Metadata } from "../src/Library/Metadata.external.ts";
 import { SHELF, Shelf } from "../src/Library/Shelf.view.ts";
 import { Shelfmark } from "../src/Library/Shelfmark.ts";
 import {
@@ -24,7 +26,7 @@ const { given, rejected, then, view, when } = Story;
 
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Indexer, Aligner, Copier],
+	stub: [Indexer, Metadata, Aligner, Copier],
 });
 
 const carl = Work.ref("w-carl");
@@ -35,6 +37,7 @@ const catalogued = new WorkCatalogued({
 	title: "Dungeon Crawler Carl",
 	author: "Matt Dinniman",
 	shelfmark,
+	description: null,
 });
 
 const epub = {
@@ -68,6 +71,7 @@ describe("the library", () => {
 					title: "Dungeon Crawler Carl",
 					author: "Matt Dinniman",
 					shelfmark,
+					description: null,
 				})
 			),
 			then(carl, catalogued),
@@ -84,6 +88,7 @@ describe("the library", () => {
 					title: "Another Title",
 					author: "Matt Dinniman",
 					shelfmark,
+					description: null,
 				})
 			),
 			then(carl)
@@ -123,4 +128,16 @@ describe("the library", () => {
 				rejected(new AlreadyShelved({ kind: "text", file: epub.file }))
 			)
 	);
+});
+
+describe("a work catalogued before descriptions", () => {
+	it("has none", () => {
+		const stored: unknown = JSON.parse(
+			'{"_tag":"WorkCatalogued","title":"Dungeon Crawler Carl","author":"Matt Dinniman","shelfmark":"Matt Dinniman/Dungeon Crawler Carl"}'
+		);
+
+		expect(
+			Schema.decodeUnknownSync(WorkCatalogued)(stored).description
+		).toBeNull();
+	});
 });
