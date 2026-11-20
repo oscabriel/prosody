@@ -12,6 +12,13 @@ import { roomOf } from "../src/Steps.ts";
 
 const at = (span: string) => Sentence.make(`OEBPS/ch1.xhtml#${span}`);
 
+/** A place at a sentence, kept at `when`. */
+const place = (span: string, when: number) => ({
+	sentence: at(span),
+	time: null,
+	at: when,
+});
+
 /** A page with these places on its device. */
 const withPlaces = (places: Places) =>
 	Model.make({
@@ -34,8 +41,8 @@ const names = (commands: ReadonlyArray<{ readonly name: string }>) =>
 describe("your places on the device", () => {
 	it("send every place still waiting, and only those", () => {
 		const model = withPlaces({
-			"w-carl": { sentence: at("ps-2"), at: 2000, commandId: "s:1" },
-			"w-odyssey": { sentence: at("ps-9"), at: 1000, commandId: null },
+			"w-carl": { ...place("ps-2", 2000), commandId: "s:1" },
+			"w-odyssey": { ...place("ps-9", 1000), commandId: null },
 		});
 
 		expect(names(sendWaiting(model))).toStrictEqual(["KeepPlace"]);
@@ -43,7 +50,7 @@ describe("your places on the device", () => {
 
 	it("stop waiting once the model answers, and remember that", () => {
 		const model = withPlaces({
-			"w-carl": { sentence: at("ps-2"), at: 2000, commandId: "s:1" },
+			"w-carl": { ...place("ps-2", 2000), commandId: "s:1" },
 		});
 
 		const { model: next, commands } = answered(model, "s:1");
@@ -54,17 +61,16 @@ describe("your places on the device", () => {
 
 	it("take a place heard from the model only when it is newer", () => {
 		const model = withPlaces({
-			"w-carl": { sentence: at("ps-2"), at: 2000, commandId: "s:1" },
+			"w-carl": { ...place("ps-2", 2000), commandId: "s:1" },
 		});
 
-		const [older] = heard(model, "w-carl", { sentence: at("ps-1"), at: 1000 });
-		const [newer] = heard(model, "w-carl", { sentence: at("ps-7"), at: 3000 });
+		const [older] = heard(model, "w-carl", place("ps-1", 1000));
+		const [newer] = heard(model, "w-carl", place("ps-7", 3000));
 
 		expect(older.places["w-carl"]?.sentence).toStrictEqual(at("ps-2"));
 
 		expect(newer.places["w-carl"]).toStrictEqual({
-			sentence: at("ps-7"),
-			at: 3000,
+			...place("ps-7", 3000),
 			commandId: null,
 		});
 	});
@@ -79,15 +85,14 @@ describe("your places on the device", () => {
 			model,
 			Message.ReceivedPlace({
 				state: Option.some({
-					place: { sentence: at("ps-7"), at: 3000, device: "iphone" },
+					place: { ...place("ps-7", 3000), device: "iphone" },
 				}),
 				cursor: 1,
 			})
 		);
 
 		expect(next.places["w-carl"]).toStrictEqual({
-			sentence: at("ps-7"),
-			at: 3000,
+			...place("ps-7", 3000),
 			commandId: null,
 		});
 

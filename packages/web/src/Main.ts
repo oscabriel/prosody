@@ -41,6 +41,7 @@ import { shelfView } from "./Shelf.ts";
 import {
 	andThen,
 	goTo,
+	goToPlace,
 	inRoom,
 	isElsewhere,
 	settle,
@@ -299,9 +300,9 @@ const handle = (model: Model, message: Message): Return =>
 				Option.match(room.elsewhere, {
 					onNone: () => [room, []],
 					onSome: (place) =>
-						goTo(
+						goToPlace(
 							{ ...room, elsewhere: Option.none(), kept: Option.some(place) },
-							place.sentence
+							place
 						),
 				})
 			),

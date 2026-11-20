@@ -1,5 +1,9 @@
 import type { Contents } from "@prosody/domain/Reading/Copy";
-import type { Bookmark, Sentence } from "@prosody/domain/Reading/Sentence";
+import type {
+	Bookmark,
+	Position,
+	Sentence,
+} from "@prosody/domain/Reading/Sentence";
 import { Option } from "effect";
 import type { HttpClient } from "effect/http";
 import type { Command, Update } from "foldkit";
@@ -11,7 +15,15 @@ import type { Message, Model } from "./Model.ts";
 import { Seek } from "./Player.ts";
 import type { Reader } from "./Prosody.ts";
 import { Show } from "./Text.ts";
-import { firstOn, indexOf, pageOf, spanOf, startOf } from "./Timeline.ts";
+import {
+	firstOn,
+	heardOf,
+	indexOf,
+	pageOf,
+	sentenceAt,
+	spanOf,
+	startOf,
+} from "./Timeline.ts";
 
 /** What commands may need: the reader's Api, and HTTP for the reading copies. */
 export type Resources = Reader | HttpClient.HttpClient;
@@ -143,6 +155,26 @@ export const goTo = (room: Room, sentence: Sentence): Step =>
 	});
 
 /**
+ * Go to a place kept on a device: its sentence, or, for a place kept while the work had its audio
+ * alone, the sentence read at its time.
+ */
+export const goToPlace = (room: Room, place: Position): Step =>
+	Book.match<Step>(room.book, {
+		Open: ({ timeline }) => {
+			const sentence =
+				place.sentence ??
+				(place.time === null
+					? undefined
+					: sentenceAt(heardOf(timeline), place.time));
+
+			return sentence === undefined ? [room, []] : goTo(room, sentence);
+		},
+		Opening: () => [room, []],
+		Unmade: () => [room, []],
+		Failed: () => [room, []],
+	});
+
+/**
  * Once both the book and your place have arrived, open the book at your place, or at its first
  * page when you have none.
  */
@@ -155,7 +187,7 @@ export const settle = (room: Room): Step => {
 		Open: ({ contents, timeline }) =>
 			Option.match(room.heardPlace, {
 				onSome: (place) =>
-					goTo({ ...room, kept: Option.some(place) }, place.sentence),
+					goToPlace({ ...room, kept: Option.some(place) }, place),
 				onNone: () => {
 					const first = firstOn(timeline, contents.pages[0]?.path ?? "");
 

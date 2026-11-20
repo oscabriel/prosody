@@ -49,8 +49,9 @@ const SavePlaces = Command.define("SavePlaces", {
 });
 
 /** A place this device knows, as a device sends it. */
-const positionOf = ({ sentence, at }: DevicePlace): Position => ({
+const positionOf = ({ sentence, time, at }: DevicePlace): Position => ({
 	sentence,
+	time,
 	at,
 });
 
@@ -92,7 +93,7 @@ const keep = (
 	at: number
 ): readonly [Model, Room, Commands] => {
 	const allocation = DomainFoldkit.next(model.commandIds);
-	const place: Position = { sentence, at };
+	const place: Position = { sentence, time: null, at };
 
 	const [saved, saves] = withPlaces(
 		modifyFields(model, { commandIds: () => allocation.commandIds }),
@@ -196,6 +197,11 @@ export const heard = (
 
 	return withPlaces(model, {
 		...model.places,
-		[work]: { sentence: place.sentence, at: place.at, commandId: null },
+		[work]: {
+			sentence: place.sentence,
+			time: place.time,
+			at: place.at,
+			commandId: null,
+		},
 	});
 };

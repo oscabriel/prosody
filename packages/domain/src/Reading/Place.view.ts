@@ -14,7 +14,12 @@ export class Place extends Domain.View("Place", {
 	initial: { place: null },
 	evolve: {
 		PlaceKept: (_state, e) => ({
-			place: { sentence: e.sentence, at: e.at, device: e.device },
+			place: {
+				sentence: e.sentence,
+				time: e.time,
+				at: e.at,
+				device: e.device,
+			},
 		}),
 	},
 }) {}

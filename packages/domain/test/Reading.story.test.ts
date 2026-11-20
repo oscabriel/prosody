@@ -33,11 +33,21 @@ const story = Story.make(Prosody, {
 
 const carl = Reading.ref("w-carl");
 
+/** A work with its audio alone. */
+const alice = Reading.ref("w-alice");
+
 const sentence = (id: string) =>
 	Sentence.make(`OEBPS/Text/part0007.xhtml#${id}`);
 
 /** A place as a device sends it: the sentence and when. */
-const place = (id: string, at: number) => ({ sentence: sentence(id), at });
+const place = (id: string, at: number) => ({
+	sentence: sentence(id),
+	time: null,
+	at,
+});
+
+/** A place in a work with its audio alone: seconds into the audio, and when. */
+const heard = (time: number, at: number) => ({ sentence: null, time, at });
 
 /** The same place as the model keeps it, with the device the Session said sent it. */
 const kept = (id: string, at: number, device: string) => ({
@@ -86,6 +96,26 @@ describe("your place in a work", () => {
 			fromPhone,
 			when(carl, new KeepPlace(place("ps-12", 1000))),
 			then(carl)
+		)
+	);
+
+	it.effect("in a work with audio alone, is a time in the audio", () =>
+		story(
+			fromPhone,
+			when(alice, new KeepPlace(heard(1376.4, 1000))),
+			then(alice, new PlaceKept({ ...heard(1376.4, 1000), device: "iphone" })),
+			view(Place, alice, {
+				place: { ...heard(1376.4, 1000), device: "iphone" },
+			})
+		)
+	);
+
+	it.effect("records nothing when the same time is sent again", () =>
+		story(
+			given(alice, new PlaceKept({ ...heard(1376.4, 1000), device: "iphone" })),
+			fromPhone,
+			when(alice, new KeepPlace(heard(1376.4, 1000))),
+			then(alice)
 		)
 	);
 });
@@ -189,12 +219,20 @@ describe("the nightstand", () => {
 	);
 });
 
-describe("a reading kept before the nightstand", () => {
-	it("is a work not yet opened", () => {
+describe("a reading kept before", () => {
+	it("the nightstand is a work not yet opened", () => {
 		const state = Schema.decodeSync(Reading.definition.state)({
 			place: kept("ps-12", 1000, "iphone"),
 		});
 
 		expect(state.stage).toBe("unopened");
+	});
+
+	it("there were times keeps its sentence, and no time", () => {
+		const state = Schema.decodeSync(Reading.definition.state)({
+			place: { sentence: sentence("ps-12"), at: 1000, device: "iphone" },
+		});
+
+		expect(state.place).toStrictEqual(kept("ps-12", 1000, "iphone"));
 	});
 });
