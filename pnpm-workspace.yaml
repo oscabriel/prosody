@@ -1,6 +1,12 @@
 packages:
   - "packages/*"
 
+# Neither needs its install script: onnxruntime-node's fetches GPU files we don't use, and
+# protobufjs's only checks versions.
+allowBuilds:
+  onnxruntime-node: false
+  protobufjs: false
+
 # Versions that must move together are pinned here once. A package asks for one with "catalog:".
 catalog:
   # Alchemy, one release for every package.
