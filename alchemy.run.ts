@@ -6,7 +6,10 @@ import { API_ALIAS, Front } from "@prosody/server/Front";
 import * as Alchemy from "alchemy";
 import { Effect, Layer } from "effect";
 
-/** Loopback only. Caddy already routes prosody-api.example.com to this port. */
+/**
+ * Loopback only. Caddy sends read.example.com here, and prosody.example.com's dev server calls it, each
+ * after asking `/auth` whether the request is from one of your devices.
+ */
 const RELAY = "127.0.0.1:3023";
 
 /**
