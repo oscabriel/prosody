@@ -1,33 +1,48 @@
 import * as Domain from "@alchemy.run/domain";
 import { Story } from "@alchemy.run/domain/Story";
-import { describe, expect, it } from "@effect/vitest";
+import { assert, describe, expect, it } from "@effect/vitest";
 import { Schema } from "effect";
 
 import { Downloads } from "../src/Acquisition/Downloads.external.ts";
 import { Indexer } from "../src/Acquisition/Indexer.external.ts";
+import { Wanted } from "../src/Acquisition/Wanted.view.ts";
+import { Device } from "../src/Device.context.ts";
 import {
 	CatalogueWork,
 	WorkCatalogued,
 } from "../src/Library/CatalogueWork.command.ts";
+import {
+	ClaimShelfmark,
+	ShelfmarkClaimed,
+	ShelfmarkTaken,
+} from "../src/Library/ClaimShelfmark.command.ts";
+import {
+	CorrectTitle,
+	OnTheShelf,
+	TitleCorrected,
+} from "../src/Library/CorrectTitle.command.ts";
 import { Metadata } from "../src/Library/Metadata.external.ts";
 import { SHELF, Shelf } from "../src/Library/Shelf.view.ts";
-import { Shelfmark } from "../src/Library/Shelfmark.ts";
+import { Shelfmark, shelfmarkOf } from "../src/Library/Shelfmark.ts";
+import { ShelfmarkClaim } from "../src/Library/ShelfmarkClaim.aggregate.ts";
 import {
 	AlreadyShelved,
 	EditionShelved,
 	NotCatalogued,
 	ShelveEdition,
 } from "../src/Library/ShelveEdition.command.ts";
+import { Stacks } from "../src/Library/Stacks.external.ts";
 import { Work } from "../src/Library/Work.aggregate.ts";
+import { WorkId } from "../src/Library/Work.id.ts";
 import { Aligner } from "../src/Narration/Aligner.external.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
 import { Copier } from "../src/Reading/Copier.external.ts";
 
-const { given, rejected, then, view, when } = Story;
+const { given, provide, rejected, then, view, when } = Story;
 
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Indexer, Downloads, Metadata, Aligner, Copier],
+	stub: [Indexer, Downloads, Metadata, Stacks, Aligner, Copier],
 });
 
 const carl = Work.ref("w-carl");
@@ -129,6 +144,96 @@ describe("the library", () => {
 				rejected(new AlreadyShelved({ kind: "text", file: epub.file }))
 			)
 	);
+});
+
+describe("a work you wanted", () => {
+	/** Dungeon Crawler Carl, as Open Library knows it, catalogued when you wanted it. */
+	const wanted = new WorkCatalogued({
+		title: "Dungeon Crawler Carl",
+		author: "Matt Dinniman",
+		shelfmark: null,
+		description: { year: 2020, openLibrary: "OL1W", recording: null },
+	});
+
+	it.effect(
+		"is catalogued again, at its shelfmark, when it is found on the shelf",
+		() =>
+			story(
+				given(carl, wanted),
+				when(
+					carl,
+					new CatalogueWork({
+						title: "Dungeon Crawler Carl",
+						author: "Matt Dinniman",
+						shelfmark,
+						description: null,
+					})
+				),
+				then(carl, catalogued),
+				view(Shelf, SHELF, shelfWith({ text: false, audio: false }))
+			)
+	);
+
+	it.effect("has its title corrected until it is on the shelf", () =>
+		story(
+			provide(Device, "laptop"),
+			given(carl, wanted),
+			when(
+				carl,
+				new CorrectTitle({
+					title: "Dungeon Crawler Carl",
+					author: "Matt Dinniman",
+				})
+			),
+			then(
+				carl,
+				new TitleCorrected({
+					title: "Dungeon Crawler Carl",
+					author: "Matt Dinniman",
+				})
+			),
+			view(Wanted, SHELF, ({ catalogue }) => {
+				assert.strictEqual(catalogue["w-carl"]?.author, "Matt Dinniman");
+			}),
+			given(carl, catalogued),
+			when(carl, new CorrectTitle({ title: "Carl", author: "Matt Dinniman" })),
+			rejected(new OnTheShelf())
+		)
+	);
+
+	it.effect("has no title to correct before it is catalogued", () =>
+		story(
+			provide(Device, "laptop"),
+			when(carl, new CorrectTitle({ title: "Carl", author: "Matt Dinniman" })),
+			rejected(new NotCatalogued())
+		)
+	);
+});
+
+describe("a folder in the library", () => {
+	const folder = ShelfmarkClaim.ref(shelfmark);
+
+	const carlId = WorkId.make("w-carl");
+
+	it.effect(
+		"is held by the first work to claim it, and named to the rest",
+		() =>
+			story(
+				when(folder, new ClaimShelfmark({ work: carlId })),
+				then(folder, new ShelfmarkClaimed({ work: carlId })),
+				when(folder, new ClaimShelfmark({ work: carlId })),
+				then(folder),
+				when(folder, new ClaimShelfmark({ work: WorkId.make("w-second") })),
+				rejected(new ShelfmarkTaken({ work: carlId }))
+			)
+	);
+
+	it("is named for its work's author and title, as one folder", () => {
+		expect(
+			shelfmarkOf("Martin Kleppmann", "Designing Data: The Big Ideas")
+		).toBe("Martin Kleppmann/Designing Data - The Big Ideas");
+		expect(shelfmarkOf(" AC/DC ", 'What? "No"')).toBe("ACDC/What No");
+	});
 });
 
 describe("a work catalogued before descriptions", () => {

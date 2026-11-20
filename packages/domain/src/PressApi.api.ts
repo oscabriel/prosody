@@ -3,12 +3,13 @@ import * as Domain from "@alchemy.run/domain";
 import { Prosody } from "./Prosody.model.ts";
 
 /**
- * What the press may report: the works and editions it finds, their pairs and editions alone, how
- * aligning and copying went, and how each grab's download goes.
+ * What the press may report: the works and editions it finds, the folders they are in, their pairs
+ * and editions alone, how aligning and copying went, and how each grab's download and shelving go.
  */
 export class PressApi extends Domain.Api("PressApi", {
 	model: Prosody,
 	commands: [
+		"ClaimShelfmark",
 		"CatalogueWork",
 		"ShelveEdition",
 		"PairEditions",
@@ -21,6 +22,8 @@ export class PressApi extends Domain.Api("PressApi", {
 		"RecordStall",
 		"RecordPayloadArrived",
 		"RecordSeeding",
+		"RecordShelved",
+		"RecordNotShelved",
 	],
 	views: [],
 }) {}

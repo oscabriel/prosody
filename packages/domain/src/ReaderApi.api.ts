@@ -12,6 +12,7 @@ export class ReaderApi extends Domain.Api("ReaderApi", {
 		"WantBook",
 		"WithdrawWant",
 		"SearchAgain",
+		"CorrectTitle",
 		"GrabRelease",
 		"ResumeGrab",
 		"AbandonGrab",

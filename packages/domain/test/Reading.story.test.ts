@@ -7,6 +7,7 @@ import { Indexer } from "../src/Acquisition/Indexer.external.ts";
 import { Device } from "../src/Device.context.ts";
 import { Metadata } from "../src/Library/Metadata.external.ts";
 import { SHELF } from "../src/Library/Shelf.view.ts";
+import { Stacks } from "../src/Library/Stacks.external.ts";
 import { Aligner } from "../src/Narration/Aligner.external.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
 import { Copier } from "../src/Reading/Copier.external.ts";
@@ -33,7 +34,7 @@ const { given, provide, rejected, then, view, when } = Story;
 // called.
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Indexer, Downloads, Metadata, Aligner, Copier],
+	stub: [Indexer, Downloads, Metadata, Stacks, Aligner, Copier],
 });
 
 const carl = Reading.ref("w-carl");

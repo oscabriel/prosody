@@ -20,6 +20,10 @@ import {
 import { Indexer } from "../src/Acquisition/Indexer.external.ts";
 import { ReleasesOffered } from "../src/Acquisition/OfferReleases.command.ts";
 import {
+	PayloadNotShelved,
+	RecordNotShelved,
+} from "../src/Acquisition/RecordNotShelved.command.ts";
+import {
 	PayloadArrived,
 	RecordPayloadArrived,
 } from "../src/Acquisition/RecordPayloadArrived.command.ts";
@@ -31,6 +35,10 @@ import {
 	PayloadSeeded,
 	RecordSeeding,
 } from "../src/Acquisition/RecordSeeding.command.ts";
+import {
+	PayloadShelved,
+	RecordShelved,
+} from "../src/Acquisition/RecordShelved.command.ts";
 import {
 	GrabStalled,
 	RecordStall,
@@ -57,8 +65,14 @@ import {
 	WantWithdrawn,
 } from "../src/Acquisition/WithdrawWant.command.ts";
 import { Device } from "../src/Device.context.ts";
+import { WorkCatalogued } from "../src/Library/CatalogueWork.command.ts";
+import { ShelfmarkClaimed } from "../src/Library/ClaimShelfmark.command.ts";
 import { Metadata } from "../src/Library/Metadata.external.ts";
 import { SHELF } from "../src/Library/Shelf.view.ts";
+import { Shelfmark } from "../src/Library/Shelfmark.ts";
+import { ShelfmarkClaim } from "../src/Library/ShelfmarkClaim.aggregate.ts";
+import { Stacks } from "../src/Library/Stacks.external.ts";
+import { Work } from "../src/Library/Work.aggregate.ts";
 import { WorkId } from "../src/Library/Work.id.ts";
 import { Aligner } from "../src/Narration/Aligner.external.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
@@ -69,7 +83,7 @@ const { call, fail, given, provide, rejected, succeed, then, view, when } =
 
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Indexer, Downloads, Metadata, Aligner, Copier],
+	stub: [Indexer, Downloads, Metadata, Stacks, Aligner, Copier],
 });
 
 const work = WorkId.make("w-hailmary");
@@ -79,6 +93,18 @@ const hailMary = Want.ref(work);
 const grab = GrabId.make("w-hailmary.1");
 
 const grabbed = Grab.ref(grab);
+
+const shelfmark = Shelfmark.make("Andy Weir/Project Hail Mary");
+
+const folder = ShelfmarkClaim.ref(shelfmark);
+
+/** Project Hail Mary, catalogued when you wanted it, with no shelfmark yet. */
+const catalogued = new WorkCatalogued({
+	title: "Project Hail Mary",
+	author: "Andy Weir",
+	shelfmark: null,
+	description: null,
+});
 
 const audiobook: Release = {
 	id: "1_https://tracker.example/t/1",
@@ -142,6 +168,7 @@ describe("a release you grab", () => {
 					note: "",
 					seeded: 0,
 					arrived: null,
+					shelf: null,
 				});
 			})
 		)
@@ -250,6 +277,117 @@ describe("a release you grab", () => {
 			when(grabbed, new AbandonGrab()),
 			rejected(new NotDownloading({ status: "arrived" }))
 		)
+	);
+
+	it.effect("is shelved in its work's folder when its payload arrives", () =>
+		story(
+			...downloading,
+			given(Work.ref(work), catalogued),
+			when(
+				grabbed,
+				new RecordPayloadArrived({ payload: "Project Hail Mary [M4B]" })
+			),
+			then(grabbed, new PayloadArrived({ payload: "Project Hail Mary [M4B]" })),
+			then(folder, new ShelfmarkClaimed({ work })),
+			call(Stacks.shelve, {
+				grab,
+				work,
+				kind: "audio",
+				payload: "Project Hail Mary [M4B]",
+				shelfmark,
+			}),
+			succeed(Stacks.shelve, undefined),
+			when(
+				grabbed,
+				new RecordNotShelved({ reason: "The library did not answer." })
+			),
+			then(
+				grabbed,
+				new PayloadNotShelved({ reason: "The library did not answer." })
+			),
+			when(
+				grabbed,
+				new RecordNotShelved({ reason: "The library did not answer." })
+			),
+			then(grabbed),
+			when(
+				grabbed,
+				new RecordShelved({
+					work,
+					shelfmark,
+				})
+			),
+			then(
+				grabbed,
+				new PayloadShelved({
+					work,
+					shelfmark,
+				})
+			),
+			view(Wanted, SHELF, ({ grabs }) => {
+				assert.deepStrictEqual(grabs[grab]?.shelf, {
+					work,
+					shelfmark,
+				});
+				assert.strictEqual(grabs[grab]?.note, "");
+			})
+		)
+	);
+
+	it.effect(
+		"goes in the folder of the work that holds it, as that work's edition",
+		() =>
+			story(
+				...downloading,
+				given(
+					Work.ref(work),
+					new WorkCatalogued({
+						title: "Project Hail Mary",
+						author: "Andy Weir",
+						shelfmark: null,
+						description: null,
+					})
+				),
+				given(folder, new ShelfmarkClaimed({ work: WorkId.make("w-found") })),
+				when(grabbed, new RecordPayloadArrived({ payload: "phm.m4b" })),
+				then(grabbed, new PayloadArrived({ payload: "phm.m4b" })),
+				call(Stacks.shelve, {
+					grab,
+					work: WorkId.make("w-found"),
+					kind: "audio",
+					payload: "phm.m4b",
+					shelfmark,
+				}),
+				succeed(Stacks.shelve, undefined)
+			)
+	);
+
+	it.effect(
+		"of a work catalogued before works kept their names, is named as the catalogues name it",
+		() =>
+			story(
+				...downloading,
+				when(grabbed, new RecordPayloadArrived({ payload: "phm.m4b" })),
+				then(grabbed, new PayloadArrived({ payload: "phm.m4b" })),
+				call(Metadata.describe, {
+					title: "Project Hail Mary",
+					author: "Andy Weir",
+				}),
+				succeed(Metadata.describe, {
+					title: "Project Hail Mary",
+					author: "Andy Weir",
+					description: { year: 2021, openLibrary: null, recording: null },
+				}),
+				then(folder, new ShelfmarkClaimed({ work })),
+				call(Stacks.shelve, {
+					grab,
+					work,
+					kind: "audio",
+					payload: "phm.m4b",
+					shelfmark,
+				}),
+				succeed(Stacks.shelve, undefined)
+			)
 	);
 
 	it.effect("records only more hours seeded", () =>

@@ -1,5 +1,5 @@
 import * as Domain from "@alchemy.run/domain";
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 
 import { WorkId } from "../Library/Work.id.ts";
 import {
@@ -9,6 +9,10 @@ import {
 } from "./AbandonGrab.command.ts";
 import { GrabId, GrabStatus } from "./Grab.id.ts";
 import {
+	PayloadNotShelved,
+	RecordNotShelved,
+} from "./RecordNotShelved.command.ts";
+import {
 	PayloadArrived,
 	RecordPayloadArrived,
 } from "./RecordPayloadArrived.command.ts";
@@ -17,6 +21,7 @@ import {
 	RecordProgress,
 } from "./RecordProgress.command.ts";
 import { PayloadSeeded, RecordSeeding } from "./RecordSeeding.command.ts";
+import { PayloadShelved, RecordShelved } from "./RecordShelved.command.ts";
 import { GrabStalled, RecordStall } from "./RecordStall.command.ts";
 import { Release } from "./Release.ts";
 import {
@@ -37,6 +42,12 @@ const State = Schema.Struct({
 	payload: Schema.NullOr(Schema.String),
 	/** Whole hours seeded. */
 	seeded: Schema.Int,
+	// A grab kept before shelving was not shelved, and has no note.
+	isShelved: Schema.Boolean.pipe(
+		Schema.withDecodingDefaultKey(Effect.succeed(false))
+	),
+	/** Why its edition is not shelved yet, as the press last said. */
+	note: Schema.String.pipe(Schema.withDecodingDefaultKey(Effect.succeed(""))),
 }).annotate({ identifier: "GrabState" });
 
 type State = typeof State.Type;
@@ -44,6 +55,10 @@ type State = typeof State.Type;
 /** Whether its payload is still on its way. */
 const isDownloading = (grab: State): boolean =>
 	grab.status === "downloading" || grab.status === "stalled";
+
+/** Whether its payload has come and its edition is waiting to be shelved. */
+const isWaiting = (grab: State): boolean =>
+	grab.payload !== null && !grab.isShelved;
 
 /**
  * One release you grabbed, from the download to the end of its seeding. The press reports how the
@@ -59,6 +74,8 @@ export class Grab extends Domain.Aggregate("Grab", {
 		percent: 0,
 		payload: null,
 		seeded: 0,
+		isShelved: false,
+		note: "",
 	},
 	commands: [
 		StartDownload,
@@ -68,6 +85,8 @@ export class Grab extends Domain.Aggregate("Grab", {
 		AbandonGrab,
 		RecordPayloadArrived,
 		RecordSeeding,
+		RecordShelved,
+		RecordNotShelved,
 		ReleasePayload,
 	],
 	decide: {
@@ -96,6 +115,14 @@ export class Grab extends Domain.Aggregate("Grab", {
 		RecordSeeding: (grab, cmd) =>
 			grab.status === "arrived" && cmd.hours > grab.seeded
 				? [new PayloadSeeded({ hours: cmd.hours })]
+				: [],
+		RecordShelved: (grab, cmd) =>
+			isWaiting(grab)
+				? [new PayloadShelved({ work: cmd.work, shelfmark: cmd.shelfmark })]
+				: [],
+		RecordNotShelved: (grab, cmd) =>
+			isWaiting(grab) && grab.note !== cmd.reason
+				? [new PayloadNotShelved({ reason: cmd.reason })]
 				: [],
 		ReleasePayload: (grab) => {
 			if (grab.status === "released") {
@@ -138,6 +165,8 @@ export class Grab extends Domain.Aggregate("Grab", {
 			payload: e.payload,
 		}),
 		PayloadSeeded: (grab, e) => ({ ...grab, seeded: e.hours }),
+		PayloadShelved: (grab) => ({ ...grab, isShelved: true, note: "" }),
+		PayloadNotShelved: (grab, e) => ({ ...grab, note: e.reason }),
 		PayloadReleased: (grab) => ({ ...grab, status: "released" as const }),
 	},
 }) {}

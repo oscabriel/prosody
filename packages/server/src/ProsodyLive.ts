@@ -6,6 +6,7 @@ import { Effect, Layer } from "effect";
 import { OpenLibraryMetadata } from "./OpenLibraryMetadata.ts";
 import { PressAligner } from "./PressAligner.ts";
 import { PressCopier } from "./PressCopier.ts";
+import { PressStacks } from "./PressStacks.ts";
 import { ProwlarrIndexer, ProwlarrSettings } from "./ProwlarrIndexer.ts";
 import { QBittorrentSettings } from "./QBittorrent.ts";
 import { QBittorrentDownloads } from "./QBittorrentDownloads.ts";
@@ -34,7 +35,7 @@ export const Runners = ClusterDocker.SwarmPool("Runners", { replicas: 1 }).pipe(
  * anything else that provides it, like the Api, reaches the model through the runner. Its policies
  * run on the runner: they search Prowlarr through the ProwlarrIndexer, download with qBittorrent
  * through the QBittorrentDownloads, look a wanted book up through the OpenLibraryMetadata, and reach
- * the press through the PressAligner and the PressCopier.
+ * the press through the PressStacks, the PressAligner and the PressCopier.
  */
 export default Prosody.layer(ProsodyHandlers).pipe(
 	Layer.provide(
@@ -42,6 +43,7 @@ export default Prosody.layer(ProsodyHandlers).pipe(
 			ProwlarrIndexer,
 			QBittorrentDownloads,
 			OpenLibraryMetadata,
+			PressStacks,
 			PressAligner,
 			PressCopier
 		)

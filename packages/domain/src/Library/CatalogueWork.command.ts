@@ -18,7 +18,8 @@ export class WorkCatalogued extends Domain.Event("WorkCatalogued", {
 
 /**
  * Enter a work in the catalogue: one the press found in the library, or one you want, as the
- * catalogues outside know it. Cataloguing it again changes nothing.
+ * catalogues outside know it. Cataloguing it again changes nothing, unless it is a work you wanted
+ * and the press has found it on the shelf: then it is entered again, at its shelfmark.
  */
 export class CatalogueWork extends Domain.Command("CatalogueWork", {
 	target: WorkId,

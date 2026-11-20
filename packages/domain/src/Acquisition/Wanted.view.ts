@@ -3,6 +3,7 @@ import { DateTime, Effect, Record, Schema } from "effect";
 
 import { Description } from "../Library/Metadata.external.ts";
 import { SHELF, ShelfName } from "../Library/Shelf.view.ts";
+import { Shelfmark } from "../Library/Shelfmark.ts";
 import { Work } from "../Library/Work.aggregate.ts";
 import { Session } from "../Session.middleware.ts";
 import { Grab } from "./Grab.aggregate.ts";
@@ -47,12 +48,16 @@ export const GrabbedRelease = Schema.Struct({
 	release: Release,
 	state: Schema.Literals(["downloading", "stalled", "arrived"]),
 	percent: Schema.Int,
-	/** Why it stalled, or nothing. */
+	/** Why it stalled, or why it is not on the shelf yet, or nothing. */
 	note: Schema.String,
 	/** Whole hours seeded. */
 	seeded: Schema.Int,
 	/** When its payload came, in milliseconds: the days to seed it in run from then. */
 	arrived: Schema.NullOr(Schema.Finite),
+	/** The work and folder it was shelved in, once it is. A grab kept before shelving has none. */
+	shelf: Schema.NullOr(
+		Schema.Struct({ work: Schema.String, shelfmark: Shelfmark })
+	).pipe(Schema.withDecodingDefaultKey(Effect.succeed(null))),
 });
 
 export type GrabbedRelease = typeof GrabbedRelease.Type;
@@ -167,6 +172,19 @@ export class Wanted extends Domain.View("Wanted", {
 							},
 						},
 					},
+		TitleCorrected: (desk, e, { source }) => {
+			const catalogued = desk.catalogue[source.id];
+
+			return catalogued === undefined
+				? desk
+				: {
+						...desk,
+						catalogue: {
+							...desk.catalogue,
+							[source.id]: { ...catalogued, title: e.title, author: e.author },
+						},
+					};
+		},
 		DownloadStarted: (desk, e, { source }) => {
 			const book = desk.catalogue[e.work] ?? desk.wants[e.work];
 
@@ -184,6 +202,7 @@ export class Wanted extends Domain.View("Wanted", {
 						note: "",
 						seeded: 0,
 						arrived: null,
+						shelf: null,
 					},
 				},
 			};
@@ -223,6 +242,17 @@ export class Wanted extends Domain.View("Wanted", {
 			changedGrab(desk, source.id, (grabbed) => ({
 				...grabbed,
 				seeded: e.hours,
+			})),
+		PayloadShelved: (desk, e, { source }) =>
+			changedGrab(desk, source.id, (grabbed) => ({
+				...grabbed,
+				note: "",
+				shelf: { work: e.work, shelfmark: e.shelfmark },
+			})),
+		PayloadNotShelved: (desk, e, { source }) =>
+			changedGrab(desk, source.id, (grabbed) => ({
+				...grabbed,
+				note: e.reason,
 			})),
 		PayloadReleased: (desk, _e, { source }) => ({
 			...desk,

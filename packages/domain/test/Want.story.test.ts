@@ -29,6 +29,7 @@ import { Device } from "../src/Device.context.ts";
 import { WorkCatalogued } from "../src/Library/CatalogueWork.command.ts";
 import { Metadata } from "../src/Library/Metadata.external.ts";
 import { SHELF, Shelf } from "../src/Library/Shelf.view.ts";
+import { Stacks } from "../src/Library/Stacks.external.ts";
 import { Work } from "../src/Library/Work.aggregate.ts";
 import { Aligner } from "../src/Narration/Aligner.external.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
@@ -39,7 +40,7 @@ const { call, fail, given, provide, rejected, succeed, then, view, when } =
 
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Indexer, Downloads, Metadata, Aligner, Copier],
+	stub: [Indexer, Downloads, Metadata, Stacks, Aligner, Copier],
 });
 
 const hailMary = Want.ref("w-hailmary");

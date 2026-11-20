@@ -379,6 +379,8 @@ const handle = (model: Model, message: Message): Return =>
 				FailedSearchAgain: ({ failure }) => deskFailed(model, failure),
 				SucceededWithdrawWant: () => ({ model }),
 				FailedWithdrawWant: ({ failure }) => deskFailed(model, failure),
+				SucceededCorrectTitle: () => ({ model }),
+				FailedCorrectTitle: ({ failure }) => deskFailed(model, failure),
 				SucceededGrabRelease: () => ({ model }),
 				FailedGrabRelease: ({ failure }) => deskFailed(model, failure),
 				SucceededResumeGrab: () => ({ model }),

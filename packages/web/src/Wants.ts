@@ -6,6 +6,7 @@ import type { ResumeGrab } from "@prosody/domain/Acquisition/ResumeGrab.command"
 import type { SearchAgain } from "@prosody/domain/Acquisition/SearchAgain.command";
 import type { WantBook } from "@prosody/domain/Acquisition/WantBook.command";
 import type { WithdrawWant } from "@prosody/domain/Acquisition/WithdrawWant.command";
+import type { CorrectTitle } from "@prosody/domain/Library/CorrectTitle.command";
 import { WorkId } from "@prosody/domain/Library/Work.id";
 import { Effect, Match, Option, Schema } from "effect";
 import { Command } from "foldkit";
@@ -135,6 +136,7 @@ type DeskFailure = DomainFoldkit.Failure<
 	| typeof WantBook
 	| typeof SearchAgain
 	| typeof WithdrawWant
+	| typeof CorrectTitle
 	| typeof GrabRelease
 	| typeof ResumeGrab
 	| typeof AbandonGrab
@@ -157,6 +159,9 @@ const refusalOf = (rejection: Refusal): Option.Option<string> =>
 		),
 		Match.tag("StillObligated", ({ hours }) =>
 			Option.some(`Not released: it owes ${hours} more hours of seeding.`)
+		),
+		Match.tag("OnTheShelf", () =>
+			Option.some("It is on the shelf, so its title stays.")
 		),
 		Match.orElse(() => Option.none())
 	);

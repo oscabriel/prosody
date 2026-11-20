@@ -18,6 +18,7 @@ export const ReaderHttp = DomainHttp.toHttpApi(ReaderApi, {
 		"WantBook",
 		"WithdrawWant",
 		"SearchAgain",
+		"CorrectTitle",
 		"GrabRelease",
 		"ResumeGrab",
 		"AbandonGrab",

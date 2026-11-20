@@ -9,6 +9,7 @@ import { Metadata } from "../src/Library/Metadata.external.ts";
 import { SHELF, Shelf } from "../src/Library/Shelf.view.ts";
 import { Shelfmark } from "../src/Library/Shelfmark.ts";
 import { EditionShelved } from "../src/Library/ShelveEdition.command.ts";
+import { Stacks } from "../src/Library/Stacks.external.ts";
 import { Work } from "../src/Library/Work.aggregate.ts";
 import { WorkId } from "../src/Library/Work.id.ts";
 import { Aligner } from "../src/Narration/Aligner.external.ts";
@@ -33,7 +34,7 @@ const { call, given, provide, rejected, succeed, then, view, when } = Story;
 
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Indexer, Downloads, Metadata, Aligner, Copier],
+	stub: [Indexer, Downloads, Metadata, Stacks, Aligner, Copier],
 });
 
 const odyssey = Copy.ref("w-odyssey");
