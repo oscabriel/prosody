@@ -175,8 +175,41 @@ h1 {
 }
 
 .entry {
+	display: flex;
+	align-items: flex-start;
+	gap: 1.25rem;
 	padding: 1.5rem 0;
 	border-top: 1px solid var(--rule);
+}
+
+.entry-text {
+	flex: 1;
+	min-width: 0;
+}
+
+/* A book's cover beside its entry: the picture over a plain binding, which shows the title's
+   first letter until the picture comes, and keeps it when there is none. */
+.cover {
+	position: relative;
+	display: grid;
+	flex: none;
+	place-items: center;
+	width: 3.5rem;
+	aspect-ratio: 2 / 3;
+	margin-top: 0.35rem;
+	overflow: hidden;
+	border: 1px solid var(--rule);
+	color: var(--ink-faint);
+	font-size: 1.75rem;
+	font-style: italic;
+	line-height: 1;
+}
+
+.cover::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: var(--cover, none) center / cover no-repeat;
 }
 
 .entry .line {
@@ -201,7 +234,8 @@ h1 {
 	white-space: nowrap;
 }
 
-.entry.synced .label {
+/* A work that opens says what it is in ink; one that does not yet, in grey. */
+.entry.opens .label {
 	color: var(--ink);
 }
 
@@ -525,6 +559,11 @@ h1 {
 
 	.listening-cover {
 		width: min(100%, 15rem);
+	}
+
+	.cover {
+		width: 2.75rem;
+		font-size: 1.375rem;
 	}
 
 	.toc {

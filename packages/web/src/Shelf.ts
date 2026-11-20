@@ -1,51 +1,116 @@
-import type { ShelfEntry, Sync } from "@prosody/domain/Library/Shelf.view";
+import type {
+	Made,
+	ShelfEntry,
+	Sync,
+} from "@prosody/domain/Library/Shelf.view";
+import { COVER } from "@prosody/domain/Reading/Copy";
 import { Option } from "effect";
 import type { Document, Html, HtmlBuilder } from "foldkit/html";
 
+import { copyUrl } from "./Copy.ts";
 import { bookView, offlineView } from "./Layout.ts";
 import type { Message, Model } from "./Model.ts";
 import { dayOf, readingNow } from "./Nightstand.ts";
 import { sizeIn } from "./OnDevice.ts";
 import { roomRouter } from "./Route.ts";
 
-/** A work as the shelf lists it: its id, its entry, and its sync if it has a pair. */
-type Listed = readonly [string, ShelfEntry, Option.Option<Sync>];
+/**
+ * A work as the shelf lists it: its id, its entry, its sync if it has a pair, and its copy if it
+ * has one edition.
+ */
+interface Listed {
+	readonly id: string;
+	readonly entry: ShelfEntry;
+	readonly sync: Option.Option<Sync>;
+	readonly made: Option.Option<Made>;
+}
 
 /** The shelf's works with their ids, by author and then title. */
 const worksOf = (model: Model): ReadonlyArray<Listed> =>
 	Option.match(model.shelf, {
 		onNone: () => [],
-		onSome: ({ works, syncs }) =>
+		onSome: ({ works, syncs, copies }) =>
 			Object.entries(works)
 				.toSorted(([, a], [, b]) =>
 					`${a.author} ${a.title}`.localeCompare(`${b.author} ${b.title}`)
 				)
-				.map(([id, entry]): Listed => [
+				.map(([id, entry]) => ({
 					id,
 					entry,
-					Option.fromUndefinedOr(syncs[id]),
-				]),
+					sync: Option.fromUndefinedOr(syncs[id]),
+					made: Option.fromUndefinedOr(copies[id]),
+				})),
 	});
 
-/** Whether a work's text and audio are joined, as a label and a line that says why. */
-const syncOf = (entry: ShelfEntry, sync: Option.Option<Sync>) =>
+/** Where a work stands: whether it opens, a label for its kind, and a line that says why. */
+interface Standing {
+	readonly opens: boolean;
+	readonly label: string;
+	readonly line: string;
+}
+
+/** Whether a work's text and audio are joined. */
+const pairOf = (sync: Option.Option<Sync>): Standing =>
 	Option.match(sync, {
 		onSome: ({ state, note }) => ({
-			state,
+			opens: state === "synced",
 			label: { syncing: "syncing", synced: "synced", failed: "not synced" }[
 				state
 			],
 			line: note,
 		}),
-		onNone: () => ({
-			state: "unpaired" as const,
-			label: entry.text && entry.audio ? "not paired" : "one edition",
-			line:
-				entry.text || entry.audio
-					? `No ${entry.text ? "audio" : "text"}`
-					: "No editions",
-		}),
+		onNone: () => ({ opens: false, label: "not paired", line: "" }),
 	});
+
+/** Whether a work's one edition has its copy, to read or to hear on its own. */
+const aloneOf = (entry: ShelfEntry, made: Option.Option<Made>): Standing => {
+	const kind = entry.text ? "Text alone" : "Audio alone";
+
+	return Option.match(made, {
+		// A copy that failed opens on why, and the room offers to make it again.
+		onSome: ({ state, note }) => ({
+			opens: state !== "copying",
+			label: {
+				copying: "copying",
+				made: entry.text ? "to read" : "to hear",
+				failed: "not copied",
+			}[state],
+			line: state === "failed" ? note : `${kind}, ${note}`,
+		}),
+		onNone: () => ({ opens: false, label: "one edition", line: kind }),
+	});
+};
+
+/** Where a work stands, by which editions it has. */
+const standingOf = ({ entry, sync, made }: Listed): Standing => {
+	if (entry.text && entry.audio) {
+		return pairOf(sync);
+	}
+
+	return entry.text || entry.audio
+		? aloneOf(entry, made)
+		: { opens: false, label: "no editions", line: "No editions" };
+};
+
+/**
+ * A book's cover beside its entry: the picture over a plain binding that shows the title's first
+ * letter, which stays when there is no picture. Only a work with a copy has one to show.
+ */
+const coverView = (
+	work: string,
+	title: string,
+	hasCopy: boolean,
+	h: HtmlBuilder<Message>
+): Html => {
+	const picture = hasCopy
+		? { "--cover": `url("${copyUrl(work, COVER)}")` }
+		: {};
+
+	return h.div(
+		[h.Class("cover"), h.Style(picture), h.AriaHidden(true)],
+		[title.charAt(0)]
+	);
+};
 
 /** A line under a work kept on this device, saying how much room it takes. */
 const keptNote = (
@@ -62,32 +127,38 @@ const keptNote = (
 
 const workView = (
 	model: Model,
-	[id, entry, sync]: Listed,
+	listed: Listed,
 	h: HtmlBuilder<Message>
 ): Html => {
-	const { state, label, line } = syncOf(entry, sync);
+	const { id, entry } = listed;
+	const { opens, label, line } = standingOf(listed);
 
-	// A synced work opens in the reading room; the others are listed until they can.
-	const title =
-		state === "synced"
-			? h.a([h.Class("title"), h.Href(roomRouter({ work: id }))], [entry.title])
-			: h.span([h.Class("title")], [entry.title]);
+	// A work that opens links to its room; the others are listed until they can.
+	const title = opens
+		? h.a([h.Class("title"), h.Href(roomRouter({ work: id }))], [entry.title])
+		: h.span([h.Class("title")], [entry.title]);
 
 	return h.keyed("li")(
 		id,
-		[h.Class(`entry ${state}`)],
+		[h.Class(opens ? "entry opens" : "entry")],
 		[
+			coverView(id, entry.title, opens, h),
 			h.div(
-				[h.Class("line")],
+				[h.Class("entry-text")],
 				[
-					title,
-					h.span([h.Class("leader")], []),
-					h.span([h.Class("label")], [label]),
+					h.div(
+						[h.Class("line")],
+						[
+							title,
+							h.span([h.Class("leader")], []),
+							h.span([h.Class("label")], [label]),
+						]
+					),
+					h.p([h.Class("byline")], [entry.author]),
+					h.p([h.Class("note")], [line]),
+					...keptNote(model, id, h),
 				]
 			),
-			h.p([h.Class("byline")], [entry.author]),
-			h.p([h.Class("note")], [line]),
-			...keptNote(model, id, h),
 		]
 	);
 };
@@ -123,16 +194,22 @@ const nightstandView = (
 					id,
 					[h.Class("entry")],
 					[
-						h.a(
-							[h.Class("title"), h.Href(roomRouter({ work: id }))],
-							[entry.title]
+						coverView(id, entry.title, true, h),
+						h.div(
+							[h.Class("entry-text")],
+							[
+								h.a(
+									[h.Class("title"), h.Href(roomRouter({ work: id }))],
+									[entry.title]
+								),
+								h.p([h.Class("byline")], [entry.author]),
+								h.p(
+									[h.Class("note")],
+									[`Last read on ${bedside.device}, ${dayOf(bedside.at)}`]
+								),
+								...keptNote(model, id, h),
+							]
 						),
-						h.p([h.Class("byline")], [entry.author]),
-						h.p(
-							[h.Class("note")],
-							[`Last read on ${bedside.device}, ${dayOf(bedside.at)}`]
-						),
-						...keptNote(model, id, h),
 					]
 				)
 			)
@@ -154,12 +231,18 @@ const keptView = (model: Model, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
 						id,
 						[h.Class("entry")],
 						[
-							h.a(
-								[h.Class("title"), h.Href(roomRouter({ work: id }))],
-								[copy.title]
+							coverView(id, copy.title, true, h),
+							h.div(
+								[h.Class("entry-text")],
+								[
+									h.a(
+										[h.Class("title"), h.Href(roomRouter({ work: id }))],
+										[copy.title]
+									),
+									h.p([h.Class("byline")], [copy.author]),
+									...keptNote(model, id, h),
+								]
 							),
-							h.p([h.Class("byline")], [copy.author]),
-							...keptNote(model, id, h),
 						]
 					)
 				);
@@ -229,7 +312,7 @@ export const shelfView = (model: Model, h: HtmlBuilder<Message>): Document => {
 				h.p(
 					[h.Class("intro")],
 					[
-						"Your library, with each book's text and audio joined. A synced book opens where you left it, on whichever device you left it.",
+						"Your library. A book with its text and audio joined is synced; one with only its text is there to read, and one with only its audio to hear. Each opens where you left it, on whichever device you left it.",
 					]
 				),
 				...keptTotalView(model, h),
