@@ -2,6 +2,7 @@ import { Story } from "@alchemy.run/domain/Story";
 import { describe, expect, it } from "@effect/vitest";
 import { Schema } from "effect";
 
+import { Indexer } from "../src/Acquisition/Indexer.external.ts";
 import { Device } from "../src/Device.context.ts";
 import { SHELF } from "../src/Library/Shelf.view.ts";
 import { Aligner } from "../src/Narration/Aligner.external.ts";
@@ -30,7 +31,7 @@ const { given, provide, rejected, then, view, when } = Story;
 // called.
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Aligner, Copier],
+	stub: [Indexer, Aligner, Copier],
 });
 
 const carl = Reading.ref("w-carl");

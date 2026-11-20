@@ -1,6 +1,7 @@
 import { Story } from "@alchemy.run/domain/Story";
 import { describe, it } from "@effect/vitest";
 
+import { Indexer } from "../src/Acquisition/Indexer.external.ts";
 import { Device } from "../src/Device.context.ts";
 import { WorkCatalogued } from "../src/Library/CatalogueWork.command.ts";
 import { SHELF, Shelf } from "../src/Library/Shelf.view.ts";
@@ -30,7 +31,7 @@ const { call, given, provide, rejected, succeed, then, view, when } = Story;
 
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Aligner, Copier],
+	stub: [Indexer, Aligner, Copier],
 });
 
 const odyssey = Copy.ref("w-odyssey");

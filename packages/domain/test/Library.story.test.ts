@@ -2,6 +2,7 @@ import * as Domain from "@alchemy.run/domain";
 import { Story } from "@alchemy.run/domain/Story";
 import { describe, expect, it } from "@effect/vitest";
 
+import { Indexer } from "../src/Acquisition/Indexer.external.ts";
 import {
 	CatalogueWork,
 	WorkCatalogued,
@@ -23,7 +24,7 @@ const { given, rejected, then, view, when } = Story;
 
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
-	stub: [Aligner, Copier],
+	stub: [Indexer, Aligner, Copier],
 });
 
 const carl = Work.ref("w-carl");
