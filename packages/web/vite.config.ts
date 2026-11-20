@@ -11,8 +11,8 @@ export default defineConfig(({ mode }) => {
 		port: 3022,
 		strictPort: true,
 		// The app calls its own origin at /api, so the browser needs no cross-origin allowances.
-		// `ws` carries the live reads, which are WebSockets.
-		proxy: { "/api": { target: API, ws: true } },
+		// `ws` carries the live reads, which are WebSockets. /copies is the reading copies.
+		proxy: { "/api": { target: API, ws: true }, "/copies": API },
 	};
 
 	// The private address Caddy serves this dev server at. It lives in the gitignored .env, so a

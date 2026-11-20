@@ -112,12 +112,13 @@ export default defineConfig({
 	},
 	overrides: [
 		{
-			// The entry points: each service Alchemy runs, and the fingerprint its plan reads on your
-			// machine, provides its own layers once.
+			// The entry points: each service Alchemy runs, the fingerprint its plan reads on your
+			// machine, and the web app's page, provides its own layers once.
 			files: [
 				"packages/press/src/Press.ts",
 				"packages/server/src/Api.ts",
 				"packages/server/src/Source.ts",
+				"packages/web/src/entry.ts",
 			],
 			rules: { "effecttsgo/strict-effect-provide": "off" },
 		},

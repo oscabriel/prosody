@@ -1,96 +1,12 @@
-import type * as Domain from "@alchemy.run/domain";
-import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
 import type { ShelfEntry, Sync } from "@prosody/domain/Library/Shelf.view";
-import { SHELF, Shelf } from "@prosody/domain/Library/Shelf.view";
-import { ReaderApi } from "@prosody/domain/ReaderApi.api";
-import { Option, Schema } from "effect";
-import type { Update } from "foldkit";
-import { Subscription } from "foldkit";
-import type { Document, HtmlBuilder } from "foldkit/html";
-import { defineMessageUnion } from "foldkit/message";
+import { Option } from "effect";
+import type { Document, Html, HtmlBuilder } from "foldkit/html";
 
-/** The connection to the model that commands and live reads need. */
-type Reader = Domain.Api.ClientKey<"ReaderApi">;
+import { bookView } from "./Layout.ts";
+import type { Message, Model } from "./Model.ts";
+import { roomRouter } from "./Route.ts";
 
-/** Foldkit Commands and Subscriptions for everything on the reader's Api. */
-const Prosody = DomainFoldkit.make(ReaderApi);
-
-/** The shelf as the model keeps it: every work by id. */
-const ShelfState = Shelf.definition.state ?? Schema.Never;
-
-// MODEL
-
-export const Flags = Schema.Struct({});
-
-export type Flags = typeof Flags.Type;
-
-export const Model = Schema.Struct({
-	/** None until the model first answers. */
-	shelf: Schema.Option(ShelfState),
-	hasAnswered: Schema.Boolean,
-	error: Schema.Option(Schema.String),
-});
-
-export type Model = typeof Model.Type;
-
-// MESSAGE
-
-export const Message = defineMessageUnion({
-	ReceivedShelf: { state: Schema.Option(ShelfState), cursor: Schema.Finite },
-	FailedWatchShelf: { reason: Schema.String },
-});
-
-export type Message = typeof Message.Type;
-
-// INIT
-
-export const init = (): Update.Return<Model, Message, Reader> => ({
-	model: Model.make({
-		shelf: Option.none(),
-		hasAnswered: false,
-		error: Option.none(),
-	}),
-});
-
-// UPDATE
-
-export const update = (_model: Model, message: Message) =>
-	Message.match<Update.Return<Model, Message, Reader>>(message, {
-		ReceivedShelf: ({ state }) => ({
-			model: Model.make({
-				shelf: state,
-				hasAnswered: true,
-				error: Option.none(),
-			}),
-		}),
-		FailedWatchShelf: ({ reason }) => ({
-			model: Model.make({
-				shelf: Option.none(),
-				hasAnswered: true,
-				error: Option.some(reason),
-			}),
-		}),
-	});
-
-// SUBSCRIPTION
-
-/** Follow the one shelf. The model pushes it again after every change. */
-export const subscriptions = Subscription.make<Model, Message, Reader>()(
-	() => ({
-		shelf: Prosody.Shelf.watch({
-			key: () => SHELF,
-			toMessage: (snapshot): Message => Message.ReceivedShelf(snapshot),
-			onFailure: (error): Message =>
-				Message.FailedWatchShelf({ reason: error._tag }),
-			onDefect: (): Message =>
-				Message.FailedWatchShelf({ reason: "The connection failed" }),
-		}),
-	})
-);
-
-// VIEW
-
-/** A work as the page lists it: its id, its entry, and its sync if it has a pair. */
+/** A work as the shelf lists it: its id, its entry, and its sync if it has a pair. */
 type Listed = readonly [string, ShelfEntry, Option.Option<Sync>];
 
 /** The shelf's works with their ids, by author and then title. */
@@ -109,55 +25,54 @@ const worksOf = (model: Model): ReadonlyArray<Listed> =>
 				]),
 	});
 
-/** What can be done with a work, from the editions it has. */
-const editionsOf = (entry: ShelfEntry) => {
-	if (entry.text && entry.audio) {
-		return "Text and audio";
-	}
-
-	if (entry.text) {
-		return "Text";
-	}
-
-	if (entry.audio) {
-		return "Audio";
-	}
-
-	return "No editions";
-};
-
-/** Whether a work's text and audio are joined, as a state for its mark and a line that says why. */
+/** Whether a work's text and audio are joined, as a label and a line that says why. */
 const syncOf = (entry: ShelfEntry, sync: Option.Option<Sync>) =>
 	Option.match(sync, {
 		onSome: ({ state, note }) => ({
 			state,
-			line: `${{ syncing: "Syncing", synced: "Synced", failed: "Not synced" }[state]}: ${note}`,
+			label: { syncing: "syncing", synced: "synced", failed: "not synced" }[
+				state
+			],
+			line: note,
 		}),
 		onNone: () => ({
 			state: "unpaired" as const,
+			label: entry.text && entry.audio ? "not paired" : "one edition",
 			line:
 				entry.text || entry.audio
-					? `Not synced: no ${entry.text ? "audio" : "text"}`
-					: "Not synced",
+					? `No ${entry.text ? "audio" : "text"}`
+					: "No editions",
 		}),
 	});
 
-const workView = ([id, entry, sync]: Listed, h: HtmlBuilder<Message>) => {
-	const { state, line } = syncOf(entry, sync);
+const workView = ([id, entry, sync]: Listed, h: HtmlBuilder<Message>): Html => {
+	const { state, label, line } = syncOf(entry, sync);
+
+	// A synced work opens in the reading room; the others are listed until they can.
+	const title =
+		state === "synced"
+			? h.a([h.Class("title"), h.Href(roomRouter({ work: id }))], [entry.title])
+			: h.span([h.Class("title")], [entry.title]);
 
 	return h.keyed("li")(
 		id,
-		[h.Class("work")],
+		[h.Class(`entry ${state}`)],
 		[
-			h.div([h.Class("title")], [entry.title]),
-			h.div([h.Class("author")], [entry.author]),
-			h.div([h.Class(`sync ${state}`)], [line]),
-			h.div([h.Class("editions")], [editionsOf(entry)]),
+			h.div(
+				[h.Class("line")],
+				[
+					title,
+					h.span([h.Class("leader")], []),
+					h.span([h.Class("label")], [label]),
+				]
+			),
+			h.p([h.Class("byline")], [entry.author]),
+			h.p([h.Class("note")], [line]),
 		]
 	);
 };
 
-const statusOf = (model: Model, count: number) => {
+const statusOf = (model: Model, count: number): string => {
 	if (Option.isSome(model.error)) {
 		return `Can't reach the shelf: ${model.error.value}`;
 	}
@@ -173,18 +88,26 @@ const statusOf = (model: Model, count: number) => {
 	return count === 1 ? "1 work" : `${count} works`;
 };
 
-export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
+export const shelfView = (model: Model, h: HtmlBuilder<Message>): Document => {
 	const works = worksOf(model);
 
 	return {
 		title: "Prosody",
-		body: h.main(
-			[],
+		body: bookView(
+			h,
 			[
-				h.h1([], ["Prosody"]),
-				h.p([h.Class("status")], [statusOf(model, works.length)]),
-				h.ul(
-					[h.Class("shelf")],
+				h.p(
+					[h.Class("intro")],
+					[
+						"Your library, with each book's text and audio joined. A synced book opens where you left it, on whichever device you left it.",
+					]
+				),
+			],
+			[
+				h.h1([], ["The shelf"]),
+				h.p([h.Class("label status")], [statusOf(model, works.length)]),
+				h.ol(
+					[h.Class("contents")],
 					works.map((work) => workView(work, h))
 				),
 			]

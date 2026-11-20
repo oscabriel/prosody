@@ -1,0 +1,35 @@
+import { describe, expect, it } from "@effect/vitest";
+import type { Timeline } from "@prosody/domain/Reading/Copy";
+import { Sentence } from "@prosody/domain/Reading/Sentence";
+
+import { heardOf, leftOnPage, sentenceAt, startOf } from "../src/Timeline.ts";
+
+const at = (span: string) => Sentence.make(`OEBPS/ch1.xhtml#${span}`);
+
+const timeline: Timeline = [
+	{ sentence: at("ps-1"), state: "aligned", start: 10, end: 12 },
+	{ sentence: at("ps-2"), state: "unaligned" },
+	{ sentence: at("ps-3"), state: "aligned", start: 13, end: 15.5 },
+];
+
+describe("the timeline", () => {
+	it("knows the sentence being read, and keeps it through a pause", () => {
+		const heard = heardOf(timeline);
+
+		expect(sentenceAt(heard, 9)).toBeUndefined();
+		expect(sentenceAt(heard, 11)).toStrictEqual(at("ps-1"));
+		expect(sentenceAt(heard, 12.5)).toStrictEqual(at("ps-1"));
+		expect(sentenceAt(heard, 14)).toStrictEqual(at("ps-3"));
+	});
+
+	it("plays text nobody read from the next sentence that was read", () => {
+		expect(startOf(timeline, at("ps-1"))).toBe(10);
+		expect(startOf(timeline, at("ps-2"))).toBe(13);
+		expect(startOf(timeline, at("ps-9"))).toBeUndefined();
+	});
+
+	it("knows how much audio a page has left", () => {
+		expect(leftOnPage(heardOf(timeline), "OEBPS/ch1.xhtml", 14)).toBe(1.5);
+		expect(leftOnPage(heardOf(timeline), "OEBPS/ch2.xhtml", 14)).toBe(0);
+	});
+});
