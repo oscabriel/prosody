@@ -13,9 +13,9 @@ export const copyUrl = (work: string, file: string): string =>
  * Open a work's reading copy: its contents and its timeline. A copy with no contents was made
  * before the reading room had pages to show.
  */
-export const OpenBook = Command.define("OpenBook", {
+export const OpenCopy = Command.define("OpenCopy", {
 	args: { work: Schema.String },
-	messages: [Message.OpenedBook, Message.FoundUnmade, Message.FailedOpenBook],
+	messages: [Message.OpenedCopy, Message.FoundUnmade, Message.FailedOpenCopy],
 	execute: ({ work }) =>
 		Effect.gen(function* () {
 			const client = yield* HttpClient.HttpClient;
@@ -36,10 +36,10 @@ export const OpenBook = Command.define("OpenBook", {
 					Effect.flatMap(HttpClientResponse.schemaBodyJson(Timeline))
 				);
 
-			return Message.OpenedBook({ work, contents, timeline });
+			return Message.OpenedCopy({ work, contents, timeline });
 		}).pipe(
 			Effect.catchCause((cause) =>
-				Effect.succeed(Message.FailedOpenBook({ work, reason: String(cause) }))
+				Effect.succeed(Message.FailedOpenCopy({ work, reason: String(cause) }))
 			)
 		),
 });
@@ -90,6 +90,18 @@ export const bodyOf = (xhtml: string, base: string): string => {
 	}
 
 	return body.innerHTML;
+};
+
+/** The files a page shows, such as its pictures, as `bodyOf` leaves their paths. */
+export const filesOf = (html: string): ReadonlyArray<string> => {
+	const { body } = new DOMParser().parseFromString(html, "text/html");
+
+	return [...body.querySelectorAll("[src], [href], [*|href]")].flatMap(
+		(element) =>
+			["src", "href", "xlink:href"].flatMap(
+				(name) => element.getAttribute(name) ?? []
+			)
+	);
 };
 
 /** Fetch one page of a work's reading copy, ready to show. */

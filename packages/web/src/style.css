@@ -140,6 +140,20 @@ h1 {
 	line-height: 1.625;
 }
 
+/* While the model cannot be reached, the leaf says so under the wordmark. */
+.offline {
+	max-width: 30ch;
+	margin: 1rem 0 0;
+	color: var(--ink-soft);
+	font-size: 1.0625rem;
+	font-style: italic;
+}
+
+.offline .label {
+	color: var(--ink);
+	font-style: normal;
+}
+
 .page {
 	padding: 4rem 3rem 8rem;
 }
@@ -191,6 +205,16 @@ h1 {
 	color: var(--ink);
 }
 
+/* The nightstand opens the shelf: what you are reading now, above every work. */
+.shelf-label {
+	margin: 2.5rem 0 0.75rem;
+	color: var(--ink);
+}
+
+.nightstand .title {
+	display: block;
+}
+
 .byline {
 	margin: 0.25rem 0 0;
 	font-style: italic;
@@ -215,6 +239,20 @@ h1 {
 .book-author {
 	margin: 0.25rem 0 0;
 	font-style: italic;
+}
+
+/* Where the work stands with you: a line of small moves under its author. */
+.moves {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.25rem 1rem;
+	margin: 1rem 0 0;
+	font-size: 1.0625rem;
+}
+
+.moves button {
+	color: var(--ink-soft);
 }
 
 .toc {

@@ -6,8 +6,10 @@ import { FetchHttpClient } from "effect/http";
 import { Socket } from "effect/socket";
 import { Runtime } from "foldkit";
 
+import { savedCopies } from "./DeviceCopies.ts";
 import { init, subscriptions, update, view } from "./Main.ts";
 import { Flags, Message, Model } from "./Model.ts";
+import { savedPlaces } from "./Places.ts";
 
 /**
  * The reader's Api for the life of the page, on this page's own origin. Calls go over HTTP; each
@@ -25,11 +27,17 @@ if (import.meta.env.PROD) {
 	void navigator.serviceWorker.register("/worker.js");
 }
 
-/** A fresh session for this page, for its command ids. */
+/** What the page starts from: a fresh session for its command ids, and what this device kept. */
 const flags = Effect.gen(function* () {
 	const random = yield* SecureRandom.SecureRandom;
 
-	return { session: yield* random.uuidV4() };
+	return {
+		// Names this page's commands, so each is unique even across reloads.
+		session: yield* random.uuidV4(),
+		isOnline: navigator.onLine,
+		places: yield* savedPlaces,
+		copies: yield* savedCopies,
+	};
 }).pipe(Effect.provide(SecureRandom.layerWebCrypto));
 
 Runtime.run(

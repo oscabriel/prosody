@@ -3,32 +3,14 @@ import { Option } from "effect";
 import type { Document, Html, HtmlBuilder } from "foldkit/html";
 
 import { copyUrl } from "./Copy.ts";
-import { bookView } from "./Layout.ts";
+import { bookView, offlineView } from "./Layout.ts";
 import { Book, Message, Page } from "./Model.ts";
 import type { Model, Room } from "./Model.ts";
+import { bedsideView, copyView } from "./Moves.ts";
 import { Listen, PLAYER } from "./Player.ts";
+import { chapterOf, entryOf, titleOf } from "./Steps.ts";
 import { Read } from "./Text.ts";
-import { heardOf, indexOf, leftOnPage, pageOf, spanOf } from "./Timeline.ts";
-
-/** What the shelf says of a work: its title and author, once it has answered. */
-const entryOf = (model: Model, work: string) =>
-	Option.flatMap(model.shelf, ({ works }) =>
-		Option.fromUndefinedOr(works[work])
-	);
-
-/** The chapter your place is in, or the page on show when you have no place yet. */
-const chapterOf = (room: Room, contents: Contents): number =>
-	Option.match(room.sentence, {
-		onNone: () => room.shown,
-		onSome: (sentence) => indexOf(contents, pageOf(sentence)),
-	});
-
-/** A page's name in the contents, or its number when it has none. */
-const titleOf = (contents: Contents, index: number): string => {
-	const title = contents.pages[index]?.title ?? "";
-
-	return title === "" ? `Section ${index + 1}` : title;
-};
+import { heardOf, leftOnPage, pageOf, spanOf } from "./Timeline.ts";
 
 /**
  * The contents, on the leaf: a manicule at the chapter you are in, and the chapters before it
@@ -75,8 +57,11 @@ const leafView = (model: Model, room: Room, h: HtmlBuilder<Message>) => {
 	const entry = Option.getOrUndefined(entryOf(model, room.work));
 
 	const heading = [
+		...offlineView(model, h),
 		h.p([h.Class("book-title")], [entry?.title ?? ""]),
 		h.p([h.Class("book-author")], [entry?.author ?? ""]),
+		...bedsideView(model, room, h),
+		...copyView(model, room, h),
 	];
 
 	return Book.match(room.book, {
@@ -150,7 +135,10 @@ const playerView = (
 				[
 					h.Id(PLAYER),
 					h.Src(
-						copyUrl(room.work, `audio/${encodeURIComponent(contents.audio)}`)
+						copyUrl(
+							room.work,
+							`audio/${encodeURIComponent(contents.audio)}${room.isKeptHere ? "?kept" : ""}`
+						)
 					),
 					h.Preload("metadata"),
 					h.OnMount(Listen()),
@@ -333,7 +321,14 @@ export const roomView = (
 	const page = Book.match(room.book, {
 		Opening: () => [h.p([h.Class("label status")], ["Opening the book"])],
 		Failed: ({ reason }) => [
-			h.p([h.Class("status")], [`This book could not be opened: ${reason}`]),
+			h.p(
+				[h.Class("status")],
+				[
+					model.isOnline
+						? `This book could not be opened: ${reason}`
+						: "You are offline, and this book is not kept on this device. It opens here when you are back.",
+				]
+			),
 		],
 		Unmade: ({ phase }) => unmadeView(phase, h),
 		Open: ({ contents, timeline }) => [
