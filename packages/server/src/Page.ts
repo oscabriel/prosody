@@ -27,8 +27,8 @@ export const PageImage = Effect.gen(function* () {
 /** Vite names each built file by its content, so a browser may keep one for a year. */
 const FOREVER = "public, max-age=31536000, immutable";
 
-/** The app's own pages: the shelf, and a work's reading room. */
-const ROUTED = /^\/(?:read\/.*)?$/u;
+/** The app's own pages: the shelf, a work's reading room, and the desk. */
+const ROUTED = /^\/(?:read\/.*|desk)?$/u;
 
 /** A built file: no folders, so nothing outside the build. */
 const ASSET = /^\/assets\/[\w.-]+$/u;

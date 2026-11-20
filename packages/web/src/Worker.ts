@@ -174,10 +174,12 @@ self.addEventListener("fetch", (event) => {
 		return;
 	}
 
-	// The app's own pages: the shelf and the reading rooms. Any other address is the Api's.
+	// The app's own pages: the shelf, the reading rooms and the desk. Any other address is the Api's.
 	if (
 		request.mode === "navigate" &&
-		(url.pathname === "/" || url.pathname.startsWith("/read/"))
+		(url.pathname === "/" ||
+			url.pathname === "/desk" ||
+			url.pathname.startsWith("/read/"))
 	) {
 		event.respondWith(page(request));
 	} else if (SHELL.includes(url.pathname)) {

@@ -11,9 +11,13 @@ import { HttpApiBuilder } from "effect/http-api";
  */
 export const ReaderHttp = DomainHttp.toHttpApi(ReaderApi, {
 	expose: [
+		"Wanted.get",
 		"Shelf.get",
 		"Place.get",
 		"Nightstand.get",
+		"WantBook",
+		"WithdrawWant",
+		"SearchAgain",
 		"RealignNarration",
 		"RemakeCopy",
 		"KeepPlace",

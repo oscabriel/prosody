@@ -2,11 +2,12 @@ import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
 import { describe, expect, it } from "@effect/vitest";
 import { Shelfmark } from "@prosody/domain/Library/Shelfmark";
 import { Option } from "effect";
+import { fromString } from "foldkit/url";
 
 import { update } from "../src/Main.ts";
 import { Book, Message, Model } from "../src/Model.ts";
 import { Prosody } from "../src/Prosody.ts";
-import { AppRoute } from "../src/Route.ts";
+import { AppRoute, urlToAppRoute } from "../src/Route.ts";
 import { roomOf } from "../src/Steps.ts";
 
 /** A page offline with Carl's room open. */
@@ -28,6 +29,8 @@ const inCarl = Model.make({
 			timeline: [],
 		}),
 	}),
+	wanted: Option.none(),
+	desk: { title: "", author: "", problem: Option.none() },
 });
 
 const names = (commands: ReadonlyArray<{ readonly name: string }>) =>
@@ -218,5 +221,23 @@ describe("a room waiting on its copy", () => {
 		);
 
 		expect(phaseOf(model)).toStrictEqual(Option.some("idle"));
+	});
+});
+
+describe("a room's address", () => {
+	it("names a work by its id", () => {
+		const url = Option.getOrThrow(
+			fromString("https://p.test/read/w-1c7eeddd853b")
+		);
+
+		expect(urlToAppRoute(url)).toStrictEqual(
+			AppRoute.Room({ work: "w-1c7eeddd853b" })
+		);
+	});
+
+	it("is not found when it names something else", () => {
+		const url = Option.getOrThrow(fromString("https://p.test/read/Dune"));
+
+		expect(AppRoute.guards.NotFound(urlToAppRoute(url))).toBeTruthy();
 	});
 });

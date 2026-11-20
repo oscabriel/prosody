@@ -198,6 +198,12 @@ export const route = (model: Model, next: AppRoute): Return =>
 				room: () => Option.none(),
 			}),
 		}),
+		Desk: () => ({
+			model: modifyFields(model, {
+				route: () => next,
+				room: () => Option.none(),
+			}),
+		}),
 		NotFound: () => ({
 			model: modifyFields(model, {
 				route: () => next,

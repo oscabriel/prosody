@@ -10,6 +10,7 @@ import type { Url } from "foldkit/url";
 import { toString as urlToString } from "foldkit/url";
 
 import { lostConnection, networkChanges } from "./Connection.ts";
+import { deskView } from "./Desk.ts";
 import {
 	changeCopying,
 	keepCopy,
@@ -64,6 +65,13 @@ import {
 import type { Return } from "./Steps.ts";
 import { Show } from "./Text.ts";
 import { pageOf, sentenceOf, spanOf, startOf } from "./Timeline.ts";
+import {
+	changeDesk,
+	deskFailed,
+	sendAbout,
+	sendWant,
+	submitWant,
+} from "./Wants.ts";
 
 /** The speeds the rate button steps through. */
 const RATES = [1, 1.2, 1.5, 1.8, 2, 0.8];
@@ -113,6 +121,8 @@ export const init = (flags: Flags, url: Url): Return =>
 				error: Option.none(),
 				nightstand: Option.none(),
 				room: Option.none(),
+				wanted: Option.none(),
+				desk: { title: "", author: "", problem: Option.none() },
 			}),
 			urlToAppRoute(url)
 		),
@@ -362,6 +372,13 @@ const handle = (model: Model, message: Message): Return =>
 				FailedFinishBook: () => ({ model }),
 				SucceededSetAside: () => ({ model }),
 				FailedSetAside: () => ({ model }),
+				// The desk's view brings what each of these changed.
+				SucceededWantBook: () => ({ model }),
+				FailedWantBook: ({ failure }) => deskFailed(model, failure),
+				SucceededSearchAgain: () => ({ model }),
+				FailedSearchAgain: ({ failure }) => deskFailed(model, failure),
+				SucceededWithdrawWant: () => ({ model }),
+				FailedWithdrawWant: ({ failure }) => deskFailed(model, failure),
 				SucceededRealignNarration: () => answeredRemake(model, "aligning"),
 				SucceededRemakeCopy: () => answeredRemake(model, "aligning"),
 				FailedRealignNarration: () => answeredRemake(model, "idle"),
@@ -395,13 +412,37 @@ const handle = (model: Model, message: Message): Return =>
 		WentOffline: () => ({
 			model: modifyFields(model, { isOnline: () => false }),
 		}),
+
+		// A desk where nothing was ever wanted answers with no state: an empty desk.
+		ReceivedWanted: ({ state }) => ({
+			model: modifyFields(model, {
+				wanted: () =>
+					Option.orElseSome(state, () => ({ wants: {}, catalogue: {} })),
+			}),
+		}),
+		FailedWatchWanted: () => lostConnection(model),
+		ChangedWantTitle: ({ value }) => ({
+			model: changeDesk(model, (desk) => ({ ...desk, title: value })),
+		}),
+		ChangedWantAuthor: ({ value }) => ({
+			model: changeDesk(model, (desk) => ({ ...desk, author: value })),
+		}),
+		SubmittedWant: () => submitWant(model),
+		MintedWork: ({ work, title, author }) =>
+			sendWant(model, work, title, author),
+		ClickedSearchAgain: ({ work }) => sendAbout(model, work, "searchAgain"),
+		ClickedWithdraw: ({ work }) => sendAbout(model, work, "withdraw"),
 	});
 
 // SUBSCRIPTION
 
+/** What the place watch is keyed by while no room is open and it reads nothing. No work has it. */
+const NO_ROOM = WorkId.make("w-none");
+
 /**
  * Follow the browser's network and the copy on its way to the device, and while the model can be
- * reached, the one shelf, the nightstand beside it, and your place in the work that is open.
+ * reached, the one shelf, the nightstand beside it, your place in the work that is open, and the
+ * books you want while the desk is open.
  */
 export const subscriptions = Subscription.make<Model, Message, Reader>()(
 	(entry) => ({
@@ -454,14 +495,22 @@ export const subscriptions = Subscription.make<Model, Message, Reader>()(
 			onDefect: (): Message =>
 				Message.FailedWatchNightstand({ reason: "The connection failed" }),
 		}),
+		wanted: Prosody.Wanted.watch({
+			key: () => SHELF,
+			isEnabled: (model: Model) =>
+				model.isOnline && AppRoute.guards.Desk(model.route),
+			toMessage: (snapshot): Message => Message.ReceivedWanted(snapshot),
+			onFailure: (error): Message =>
+				Message.FailedWatchWanted({ reason: error._tag }),
+			onDefect: (): Message =>
+				Message.FailedWatchWanted({ reason: "The connection failed" }),
+		}),
 		place: Prosody.Place.watch({
 			key: (model: Model) =>
-				WorkId.make(
-					Option.match(model.room, {
-						onNone: () => "",
-						onSome: (room) => room.work,
-					})
-				),
+				Option.match(model.room, {
+					onNone: () => NO_ROOM,
+					onSome: (room) => WorkId.make(room.work),
+				}),
 			isEnabled: (model: Model) => model.isOnline && Option.isSome(model.room),
 			toMessage: (snapshot): Message => Message.ReceivedPlace(snapshot),
 			onFailure: (error): Message =>
@@ -475,7 +524,9 @@ export const subscriptions = Subscription.make<Model, Message, Reader>()(
 // VIEW
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document =>
-	Option.match(model.room, {
-		onNone: () => shelfView(model, h),
-		onSome: (room) => roomView(model, room, h),
-	});
+	AppRoute.guards.Desk(model.route)
+		? deskView(model, h)
+		: Option.match(model.room, {
+				onNone: () => shelfView(model, h),
+				onSome: (room) => roomView(model, room, h),
+			});

@@ -527,6 +527,155 @@ h1 {
 	font-style: italic;
 }
 
+/* A link inside running text is underlined, so it reads as one. */
+a.inline {
+	text-decoration: underline 1px;
+	text-underline-offset: 0.18em;
+}
+
+/* THE DESK is a tool, so it gets the plain treatment: the same tokens, a sans face, no leaf. */
+
+.desk {
+	max-width: 50rem;
+	margin: 0 auto;
+	padding: 2rem 2rem 6rem;
+	font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	font-size: 1rem;
+	font-variant-numeric: lining-nums;
+}
+
+.desk-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 1rem;
+	padding-bottom: 1rem;
+	border-bottom: 1px solid var(--rule);
+}
+
+.desk-head .wordmark {
+	font-family: var(--face);
+}
+
+.desk-page {
+	padding-top: 2rem;
+}
+
+.desk h1 {
+	font-size: 2rem;
+	font-weight: 600;
+}
+
+.desk .intro {
+	max-width: 60ch;
+	font-size: 1rem;
+}
+
+.desk .note {
+	font-size: 0.9375rem;
+}
+
+.desk .byline {
+	font-style: normal;
+}
+
+.want-form {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 0.75rem 1rem;
+	margin: 1.5rem 0 0.5rem;
+}
+
+.field {
+	display: flex;
+	flex: 1 1 14rem;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
+.field input {
+	padding: 0.5rem 0.625rem;
+	border: 1px solid var(--rule);
+	border-radius: 0;
+	background: var(--paper);
+	color: var(--ink);
+	font: inherit;
+}
+
+.field input:focus-visible {
+	border-color: var(--ink);
+	outline: 0;
+}
+
+.want-form button {
+	padding: 0.5rem 1.25rem;
+	text-align: center;
+	border: 1px solid var(--ink);
+	background: var(--ink);
+	color: var(--paper);
+	font-weight: 500;
+}
+
+.desk .problem {
+	color: var(--ink);
+	font-style: italic;
+}
+
+.wants,
+.offers {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.want {
+	padding: 1.5rem 0;
+	border-top: 1px solid var(--rule);
+}
+
+.want .line {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.want .title {
+	margin: 0;
+	font-size: 1.25rem;
+	font-weight: 600;
+	line-height: 1.3;
+}
+
+.want .moves {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem 1.25rem;
+	margin: 0.5rem 0 0;
+	color: var(--ink-soft);
+	font-size: 0.9375rem;
+}
+
+.want .moves button {
+	color: var(--ink);
+}
+
+.offers {
+	margin-top: 1rem;
+}
+
+.offer {
+	padding: 0.5rem 0 0.5rem 1rem;
+	border-left: 1px solid var(--rule);
+}
+
+.offer .title {
+	font-size: 1rem;
+	font-weight: 400;
+	overflow-wrap: anywhere;
+}
+
 /* ON A PHONE the leaf stands above the page, and the contents fold away. */
 
 @media (width < 48rem) {
@@ -603,5 +752,13 @@ h1 {
 
 	.entry .leader {
 		display: none;
+	}
+
+	.desk {
+		padding: 1.5rem 1rem 6rem;
+	}
+
+	.want-form button {
+		flex: 1 1 100%;
 	}
 }

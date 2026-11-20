@@ -12,7 +12,7 @@ import { bookView, offlineView } from "./Layout.ts";
 import type { Message, Model } from "./Model.ts";
 import { dayOf, readingNow } from "./Nightstand.ts";
 import { sizeIn } from "./OnDevice.ts";
-import { roomRouter } from "./Route.ts";
+import { deskRouter, roomRouter } from "./Route.ts";
 
 /**
  * A work as the shelf lists it: its id, its entry, its sync if it has a pair, and its copy if it
@@ -316,6 +316,14 @@ export const shelfView = (model: Model, h: HtmlBuilder<Message>): Document => {
 					]
 				),
 				...keptTotalView(model, h),
+				h.p(
+					[h.Class("intro")],
+					[
+						"Want a book? Ask at ",
+						h.a([h.Class("inline"), h.Href(deskRouter())], ["the desk"]),
+						".",
+					]
+				),
 			],
 			[
 				h.h1([], ["The shelf"]),

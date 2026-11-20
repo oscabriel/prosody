@@ -1,4 +1,5 @@
 import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
+import { Wanted } from "@prosody/domain/Acquisition/Wanted.view";
 import { Shelf } from "@prosody/domain/Library/Shelf.view";
 import { Contents, Timeline } from "@prosody/domain/Reading/Copy";
 import { Nightstand } from "@prosody/domain/Reading/Nightstand.view";
@@ -78,6 +79,18 @@ export const ShelfState = Shelf.definition.state ?? Schema.Never;
 /** The nightstand as the model keeps it: every work you have begun, by id. */
 export const NightstandState = Nightstand.definition.state ?? Schema.Never;
 
+/** The books you want as the model keeps them, by work id, with what the catalogues say of each. */
+export const WantedState = Wanted.definition.state ?? Schema.Never;
+
+/** The desk's form for a book you want, and why the last thing asked of it was not done. */
+export const Desk = Schema.Struct({
+	title: Schema.String,
+	author: Schema.String,
+	problem: Schema.Option(Schema.String),
+});
+
+export type Desk = typeof Desk.Type;
+
 /** What you can do with a work on the nightstand. */
 export const Move = Schema.Literals(["open", "finish", "setAside"]);
 
@@ -154,6 +167,9 @@ export const Model = Schema.Struct({
 	/** None until the model first answers. */
 	nightstand: Schema.Option(NightstandState),
 	room: Schema.Option(Room),
+	/** None until the model first answers, which it does only while the desk is open. */
+	wanted: Schema.Option(WantedState),
+	desk: Desk,
 });
 
 export type Model = typeof Model.Type;
@@ -218,6 +234,21 @@ export const Message = defineMessageUnion({
 	RemovedCopy: { work: Schema.String },
 	WentOnline: {},
 	WentOffline: {},
+	ReceivedWanted: {
+		state: Schema.Option(WantedState),
+		cursor: Schema.Finite,
+	},
+	FailedWatchWanted: { reason: Schema.String },
+	ChangedWantTitle: { value: Schema.String },
+	ChangedWantAuthor: { value: Schema.String },
+	SubmittedWant: {},
+	MintedWork: {
+		work: Schema.String,
+		title: Schema.String,
+		author: Schema.String,
+	},
+	ClickedSearchAgain: { work: Schema.String },
+	ClickedWithdraw: { work: Schema.String },
 });
 
 export type Message = typeof Message.Type;
