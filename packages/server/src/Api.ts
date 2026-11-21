@@ -6,8 +6,9 @@ import { ReaderApi } from "@prosody/domain/ReaderApi.api";
 import { Effect, Option } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 
-import { COPIES, COPIES_ON_HOST, serveCopy } from "./Copies.ts";
+import { COPIES, serveCopy } from "./Copies.ts";
 import { API_ALIAS, Front } from "./Front.ts";
+import { copiesOnHost } from "./Host.ts";
 import { plainFetch } from "./Http.ts";
 import { isPage, PageImage, servePage } from "./Page.ts";
 import ProsodyLive, { Database } from "./ProsodyLive.ts";
@@ -46,7 +47,11 @@ export default class Api extends Docker.Service<Api>()(
 			port: 3000,
 			environment: { PROSODY_SOURCE: yield* sourceFingerprint },
 			volumes: [
-				{ hostPath: COPIES_ON_HOST, containerPath: COPIES, readOnly: true },
+				{
+					hostPath: yield* copiesOnHost,
+					containerPath: COPIES,
+					readOnly: true,
+				},
 				{ hostPath: TAILSCALE, containerPath: TAILSCALE, readOnly: true },
 			],
 			// When tailscaled starts again, its socket is in a new folder the mount above cannot see.

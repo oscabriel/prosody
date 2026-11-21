@@ -1,9 +1,6 @@
 import { Effect, FileSystem, Option } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 
-/** The reading copies on the host's own disk. Make it once: `sudo install -d -o $USER /srv/prosody`. */
-export const COPIES_ON_HOST = "/srv/prosody/copies";
-
 /** Where the Api's container sees them, read-only. */
 export const COPIES = "/copies";
 

@@ -21,8 +21,10 @@ RUN set -e; \
 	for f in config.json generation_config.json preprocessor_config.json tokenizer.json tokenizer_config.json \
 		onnx/encoder_model.onnx onnx/decoder_model_merged.onnx; do get "$w" "$r" "$f"; done
 
-# The press runs as uid 1000, the host's own user, so the reading copies it writes are yours.
-RUN useradd --uid 1000 --create-home press && install -d -o press /app
+# The press runs as the user who owns the library and the reading copies on the host, so what it
+# writes there is theirs: `PROSODY_UID` in `.env`, or 1000.
+ARG PRESS_UID=1000
+RUN useradd --uid "$PRESS_UID" --create-home press && install -d -o press /app
 USER press
 
 # The library that runs the models loads a native library, so it is installed here rather than

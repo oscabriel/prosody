@@ -1,10 +1,5 @@
 import type { PressApi } from "@prosody/domain/PressApi.api";
-import {
-	CATEGORY,
-	grabOf,
-	progressOf,
-	signIn,
-} from "@prosody/server/QBittorrent";
+import { grabOf, progressOf, signIn } from "@prosody/server/QBittorrent";
 import { DateTime, Effect, Option } from "effect";
 
 /** The model's door for the press. */
@@ -21,7 +16,9 @@ export const watchDownloads = Effect.fn("Press.watch")(function* (
 	const qbittorrent = yield* signIn();
 	const now = DateTime.toEpochMillis(yield* DateTime.now) / 1000;
 
-	for (const torrent of yield* qbittorrent.torrents({ category: CATEGORY })) {
+	const { category } = qbittorrent;
+
+	for (const torrent of yield* qbittorrent.torrents({ category })) {
 		const grab = grabOf(torrent);
 		const { percent, stall, payload, hours } = progressOf(torrent, now);
 

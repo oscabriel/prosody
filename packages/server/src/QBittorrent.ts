@@ -13,15 +13,19 @@ import {
  * in with: `DOWNLOADS_URL`, `DOWNLOADS_USERNAME` and `DOWNLOADS_PASSWORD`, read from `.env`
  * or the shell where the stack is deployed. The runner reads them to start and stop downloads, and
  * the press to watch them.
+ *
+ * `DOWNLOADS_CATEGORY` is the category every grab is filed under, `books` unless you say
+ * otherwise. Make it in qBittorrent, saving into the folder the press mounts as the downloads
+ * (`PROSODY_DOWNLOADS`).
  */
 export const QBittorrentSettings = Config.all({
 	url: Config.String("DOWNLOADS_URL"),
 	username: Config.String("DOWNLOADS_USERNAME"),
 	password: Config.Redacted("DOWNLOADS_PASSWORD"),
+	category: Config.String("DOWNLOADS_CATEGORY").pipe(
+		Config.withDefault("books")
+	),
 });
-
-/** The category every grab is filed under: it saves into the books downloads. */
-export const CATEGORY = "books";
 
 /** How long qBittorrent has to answer one request. */
 const ANSWER_TIME = "15 seconds";
@@ -69,7 +73,7 @@ export interface Progress {
 	readonly percent: number;
 	/** Why it is stalled, when it is. */
 	readonly stall: Option.Option<string>;
-	/** Its file or folder in the books downloads, once it has all come. Empty when it is elsewhere. */
+	/** Its file or folder in the downloads, once it has all come. Empty when it is elsewhere. */
 	readonly payload: Option.Option<string>;
 	/** Whole hours seeded. */
 	readonly hours: number;
@@ -126,7 +130,8 @@ export const progressOf = (torrent: Torrent, now: number): Progress => {
  * kept between a minute's watch and the next.
  */
 export const signIn = Effect.fn("QBittorrent.signIn")(function* () {
-	const { url, username, password } = yield* Effect.orDie(QBittorrentSettings);
+	const { url, username, password, category } =
+		yield* Effect.orDie(QBittorrentSettings);
 
 	// qBittorrent 5 refuses a request whose origin it can't see, as a guard against other sites.
 	const client = (yield* HttpClient.HttpClient).pipe(
@@ -183,6 +188,9 @@ export const signIn = Effect.fn("QBittorrent.signIn")(function* () {
 		);
 
 	return {
+		/** The category every grab is filed under. */
+		category,
+
 		/** The torrents in a category, or with a tag. */
 		torrents: Effect.fn("QBittorrent.torrents")(function* (filter: {
 			readonly category?: string;
@@ -211,7 +219,7 @@ export const signIn = Effect.fn("QBittorrent.signIn")(function* () {
 			const form = new FormData();
 
 			form.append("torrents", new Blob([torrent]), `${grab}.torrent`);
-			form.append("category", CATEGORY);
+			form.append("category", category);
 			form.append("tags", grab);
 
 			const response = yield* answerTo(

@@ -7,8 +7,13 @@ import { AlignRequest } from "@prosody/domain/Narration/Aligner.external";
 import { PressApi } from "@prosody/domain/PressApi.api";
 import { CopyRequest } from "@prosody/domain/Reading/Copier.external";
 import { editionToCopy } from "@prosody/domain/Reading/CopyEdition.command";
-import { COPIES_ON_HOST } from "@prosody/server/Copies";
 import { API_ALIAS, Front, PRESS_ALIAS } from "@prosody/server/Front";
+import {
+	copiesOnHost,
+	downloadsOnHost,
+	libraryOnHost,
+	pressUser,
+} from "@prosody/server/Host";
 import { Database } from "@prosody/server/ProsodyLive";
 import { QBittorrentSettings } from "@prosody/server/QBittorrent";
 import { sourceFingerprint } from "@prosody/server/Source";
@@ -36,24 +41,23 @@ import type { Book } from "./Stacks.ts";
 import { Stacks } from "./Stacks.ts";
 import { watchDownloads } from "./Watch.ts";
 
-/** The library, as the host mounts it. The press is its one writer. */
-const LIBRARY_ON_HOST = "/mnt/media/books";
-
-/** qBittorrent's books downloads, as the host mounts it. Mounted read-only. */
-const DOWNLOADS_ON_HOST =
-	"/mnt/media/torrents/books";
-
 /** Where the press's container sees the downloads. */
 const DOWNLOADS = "/downloads";
 
+/** Bump this whenever `image/Dockerfile` changes: the press is rebuilt only when the tag moves. */
+const IMAGE = "pages-1";
+
 /**
- * The press's base image: Bun, ffmpeg, poppler, the speech models and the library that runs them.
- * Bump the tag whenever `image/Dockerfile` changes; the press is rebuilt on top of it only when the
- * tag moves.
+ * The press's base image: Bun, ffmpeg, poppler, the speech models and the library that runs them,
+ * made for the user the press runs as. A user other than 1000 has an image of their own.
  */
-const PressImage = Docker.Image("PressImage", {
-	tag: "pages-1",
-	build: { context: "packages/press/image" },
+const PressImage = Effect.gen(function* () {
+	const uid = yield* pressUser;
+
+	return yield* Docker.Image("PressImage", {
+		tag: uid === "1000" ? IMAGE : `${IMAGE}-uid${uid}`,
+		build: { context: "packages/press/image", args: { PRESS_UID: uid } },
+	});
 });
 
 /**
@@ -119,13 +123,14 @@ export default class Press extends Docker.Service<Press>()(
 			},
 			networks: [{ name: front.name }, ...clusterNetworks],
 			volumes: [
-				{ hostPath: LIBRARY_ON_HOST, containerPath: LIBRARY },
+				// The library is mounted writable, for shelving; the downloads are only ever read.
+				{ hostPath: yield* libraryOnHost, containerPath: LIBRARY },
 				{
-					hostPath: DOWNLOADS_ON_HOST,
+					hostPath: yield* downloadsOnHost,
 					containerPath: DOWNLOADS,
 					readOnly: true,
 				},
-				{ hostPath: COPIES_ON_HOST, containerPath: COPIES },
+				{ hostPath: yield* copiesOnHost, containerPath: COPIES },
 			],
 		};
 	}).pipe(Effect.provide(Database)),

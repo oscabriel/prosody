@@ -2,8 +2,8 @@ import { foldkit } from "@foldkit/vite-plugin";
 import type { Plugin, ServerOptions } from "vite";
 import { build, defineConfig, loadEnv } from "vite";
 
-/** The relay, on the host's loopback address. */
-const API = "http://127.0.0.1:3023";
+/** Where the relay listens unless the root `.env` says otherwise, as in `Host.ts`. */
+const RELAY = "127.0.0.1:3023";
 
 /**
  * Build the service worker once the page is built, as `dist/worker.js`, with the paths of the page,
@@ -49,13 +49,18 @@ const worker = (): Plugin => {
 };
 
 export default defineConfig(({ mode }) => {
+	// The relay on the host's loopback address, as the deploy published it.
+	const root = `${import.meta.dirname}/../..`;
+	const relay = loadEnv(mode, root, "PROSODY_").PROSODY_RELAY ?? "";
+	const api = `http://${relay === "" ? RELAY : relay}`;
+
 	const server: ServerOptions = {
 		host: "127.0.0.1",
 		port: 3022,
 		strictPort: true,
 		// The app calls its own origin at /api, so the browser needs no cross-origin allowances.
 		// `ws` carries the live reads, which are WebSockets. /copies is the reading copies.
-		proxy: { "/api": { target: API, ws: true }, "/copies": API },
+		proxy: { "/api": { target: api, ws: true }, "/copies": api },
 	};
 
 	// The private address Caddy serves this dev server at. It lives in the gitignored .env, so a
