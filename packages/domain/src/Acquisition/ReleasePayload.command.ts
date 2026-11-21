@@ -3,7 +3,7 @@ import { Schema } from "effect";
 
 import { Session } from "../Session.middleware.ts";
 import { NotDownloading } from "./AbandonGrab.command.ts";
-import { GrabId } from "./Grab.id.ts";
+import { GrabId, GrabStatus } from "./Grab.id.ts";
 
 export const OBLIGATION = { hours: 72, days: 30 };
 
@@ -15,9 +15,15 @@ export class StillObligated extends Domain.Rejection(
 	{ httpApiStatus: 409 }
 ) {}
 
+export class NotArrived extends Domain.Rejection(
+	"NotArrived",
+	{ status: GrabStatus },
+	{ httpApiStatus: 409 }
+) {}
+
 export class ReleasePayload extends Domain.Command("ReleasePayload", {
 	target: GrabId,
 	middleware: [Session],
 	events: [PayloadReleased],
-	rejects: [StillObligated, NotDownloading],
+	rejects: [StillObligated, NotDownloading, NotArrived],
 }) {}

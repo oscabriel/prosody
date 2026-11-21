@@ -45,6 +45,7 @@ import {
 } from "../src/Acquisition/RecordStall.command.ts";
 import type { Release } from "../src/Acquisition/Release.ts";
 import {
+	NotArrived,
 	PayloadReleased,
 	ReleasePayload,
 	StillObligated,
@@ -404,12 +405,12 @@ describe("a release you grab", () => {
 		)
 	);
 
-	it.effect("owes every hour while it downloads", () =>
+	it.effect("is not released before its payload has come", () =>
 		story(
 			fromLaptop,
 			...downloading,
 			when(grabbed, new ReleasePayload()),
-			rejected(new StillObligated({ hours: 72 }))
+			rejected(new NotArrived({ status: "downloading" }))
 		)
 	);
 

@@ -89,7 +89,7 @@ Architecture, invariants and edge cases for the desk, `packages/domain/src/Acqui
 ### Seeding gate and release
 
 - `OBLIGATION` (`{ hours: 72, days: 30 }`) lives in [`packages/domain/src/Acquisition/ReleasePayload.command.ts`](../../packages/domain/src/Acquisition/ReleasePayload.command.ts) so the domain aggregate and the web desk share one constant.
-- `ReleasePayload` rejects with `StillObligated({ hours })` until `grab.status === "arrived"` and `grab.seeded >= OBLIGATION.hours` (or `NotDownloading` for `"none"` / `"abandoned"`).
+- `ReleasePayload` rejects with `NotArrived({ status })` while the grab is `"downloading"` or `"stalled"`, with `StillObligated({ hours })` until `grab.seeded >= OBLIGATION.hours`, and with `NotDownloading` for `"none"` / `"abandoned"`.
 - On `PayloadReleased`, `Releasing` ([`packages/domain/src/Acquisition/Releasing.policy.ts`](../../packages/domain/src/Acquisition/Releasing.policy.ts)) calls `Downloads.remove`, which deletes every torrent tagged with `grab` using `deleteFiles: "false"`.
 
 ## Shelving

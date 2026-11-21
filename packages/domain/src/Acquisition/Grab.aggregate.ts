@@ -25,6 +25,7 @@ import { PayloadShelved, RecordShelved } from "./RecordShelved.command.ts";
 import { GrabStalled, RecordStall } from "./RecordStall.command.ts";
 import { Release } from "./Release.ts";
 import {
+	NotArrived,
 	OBLIGATION,
 	PayloadReleased,
 	ReleasePayload,
@@ -123,10 +124,11 @@ export class Grab extends Domain.Aggregate("Grab", {
 				return new NotDownloading({ status: grab.status });
 			}
 
-			const owed =
-				grab.status === "arrived"
-					? OBLIGATION.hours - grab.seeded
-					: OBLIGATION.hours;
+			if (grab.status !== "arrived") {
+				return new NotArrived({ status: grab.status });
+			}
+
+			const owed = OBLIGATION.hours - grab.seeded;
 
 			return owed > 0
 				? new StillObligated({ hours: owed })
