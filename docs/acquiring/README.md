@@ -25,12 +25,12 @@ These go in `.env` beside the host's own (see [`../hosting.md`](../hosting.md)).
 
 | Setting | Needed | What it is |
 |---|---|---|
-| `INDEXER_URL`, `INDEXER_API_KEY` | yes | Where Prowlarr answers, with no slash at the end, and its API key (Settings, General). |
-| `DOWNLOADS_URL`, `DOWNLOADS_USERNAME`, `DOWNLOADS_PASSWORD` | yes | Where qBittorrent's Web UI answers, with no slash at the end, and what it signs in with. |
+| `INDEXER_URL`, `INDEXER_API_KEY` | to fetch | Where Prowlarr answers, with no slash at the end, and its API key (Settings, General). |
+| `DOWNLOADS_URL`, `DOWNLOADS_USERNAME`, `DOWNLOADS_PASSWORD` | to fetch | Where qBittorrent's Web UI answers, with no slash at the end, and what it signs in with. |
 | `DOWNLOADS_CATEGORY` | no, `books` | The category every grab is filed under. |
-| `PROSODY_DOWNLOADS` | yes | Where that category saves, as the host sees it. |
+| `PROSODY_DOWNLOADS` | to fetch | Where that category saves, as the host sees it. Mounted read-only into the press. |
 
-If you run neither, give the required settings placeholder values and point `PROSODY_DOWNLOADS` at any empty folder. A search then fails with the reason, the press logs a warning each minute, and reading is unaffected.
+Leave them all out and nothing is fetched: the desk still keeps your wants and looks each one up in the public catalogues, a search answers "Fetching is not set up on this host", the press mounts no downloads folder and watches nothing, and reading is unaffected.
 
 ## The seeding rule
 

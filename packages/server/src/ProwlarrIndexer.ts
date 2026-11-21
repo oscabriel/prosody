@@ -85,15 +85,25 @@ export const releasesOf = (results: ReadonlyArray<Found>): Array<Release> => {
 	);
 };
 
+export const NOT_SET_UP = "Fetching is not set up on this host";
+
 export const ProwlarrSettings = Config.all({
-	url: Config.String("INDEXER_URL"),
-	key: Config.Redacted("INDEXER_API_KEY"),
+	url: Config.String("INDEXER_URL").pipe(Config.withDefault("")),
+	key: Config.Redacted("INDEXER_API_KEY").pipe(
+		Config.withDefault(Redacted.make(""))
+	),
+});
+
+const settings = Effect.gen(function* () {
+	const set = yield* Effect.orDie(ProwlarrSettings);
+
+	return set.url === "" ? yield* failed(NOT_SET_UP) : set;
 });
 
 export const torrentOf = Effect.fn("Prowlarr.torrent")(function* (
 	link: string
 ) {
-	const { url, key } = yield* Effect.orDie(ProwlarrSettings);
+	const { url, key } = yield* settings;
 	const client = yield* HttpClient.HttpClient;
 
 	const response = yield* client
@@ -122,7 +132,7 @@ export const ProwlarrIndexer = Indexer.toLayer(
 
 		return {
 			search: Effect.fn("Prowlarr.search")(function* ({ title, author }) {
-				const { url, key } = yield* Effect.orDie(ProwlarrSettings);
+				const { url, key } = yield* settings;
 
 				const response = yield* client
 					.get(`${url}/api/v1/search`, {

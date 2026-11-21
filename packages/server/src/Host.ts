@@ -23,7 +23,7 @@ const onHost = Effect.fnUntraced(function* (name: string, otherwise?: string) {
 
 export const libraryOnHost = onHost("PROSODY_LIBRARY");
 
-export const downloadsOnHost = onHost("PROSODY_DOWNLOADS");
+export const downloadsOnHost = onHost("PROSODY_DOWNLOADS", "");
 
 export const copiesOnHost = onHost("PROSODY_COPIES", "/srv/prosody/copies");
 

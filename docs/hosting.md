@@ -43,12 +43,11 @@ Copy `.env.example` to `.env` at the repository's root and fill it in. Git ignor
 | Setting | Needed | What it is |
 |---|---|---|
 | `PROSODY_LIBRARY` | yes | The library on the host. Mounted writable into the press. |
-| `PROSODY_DOWNLOADS` | yes | Where fetched books land, as the host sees it. Mounted read-only into the press. Any empty folder will do if you fetch nothing. |
 | `PROSODY_COPIES` | no, `/srv/prosody/copies` | The reading copies, on a local disk. |
 | `PROSODY_UID` | no, `1000` | The user the press runs as. It must be able to write the library and the copies folder (`id -u`). |
 | `PROSODY_RELAY` | no, `127.0.0.1:3023` | Where the relay listens. Keep it on a loopback address. |
 
-The desk's fetching has settings of its own, listed in `.env.example` and explained in [`acquiring/`](acquiring/README.md). They must be set even if you fetch nothing: placeholder values will do, and reading is unaffected.
+The desk's fetching has settings of its own, listed in `.env.example` and explained in [`acquiring/`](acquiring/README.md). Leave them out if you fetch nothing.
 
 ## Before the first deploy
 

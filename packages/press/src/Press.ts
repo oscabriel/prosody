@@ -80,6 +80,12 @@ export default class Press extends Docker.Service<Press>()(
 		const database = yield* Cluster.Database.Database;
 		const front = yield* Front;
 		const image = yield* PressImage;
+		const downloads = yield* downloadsOnHost;
+
+		const fetched =
+			downloads === ""
+				? []
+				: [{ hostPath: downloads, containerPath: DOWNLOADS, readOnly: true }];
 
 		const clusterNetworks =
 			database.network?.kind === "docker"
@@ -98,12 +104,8 @@ export default class Press extends Docker.Service<Press>()(
 			networks: [{ name: front.name }, ...clusterNetworks],
 			volumes: [
 				{ hostPath: yield* libraryOnHost, containerPath: LIBRARY },
-				{
-					hostPath: yield* downloadsOnHost,
-					containerPath: DOWNLOADS,
-					readOnly: true,
-				},
 				{ hostPath: yield* copiesOnHost, containerPath: COPIES },
+				...fetched,
 			],
 		};
 	}).pipe(Effect.provide(Database)),

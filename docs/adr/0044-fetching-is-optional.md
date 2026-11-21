@@ -1,0 +1,3 @@
+# Fetching is optional
+
+Prosody is first an app for the books already in a library, and most hosts will run nothing for the desk to fetch through. So every setting for fetching has an empty default, and a host that sets none deploys as it is: the press mounts no downloads folder and watches nothing, and a search or a grab is refused with "Fetching is not set up on this host", which the desk shows like any other failed search. The desk still keeps wants and looks each up in the public catalogues. The alternative, placeholder values that every host had to invent, made the first deploy ask for things most readers never use.

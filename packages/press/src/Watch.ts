@@ -1,5 +1,10 @@
 import type { PressApi } from "@prosody/domain/PressApi.api";
-import { grabOf, progressOf, signIn } from "@prosody/server/QBittorrent";
+import {
+	grabOf,
+	isSetUp,
+	progressOf,
+	signIn,
+} from "@prosody/server/QBittorrent";
 import { DateTime, Effect, Option } from "effect";
 
 type Model = Effect.Success<ReturnType<typeof PressApi.clientHttp>>;
@@ -7,6 +12,10 @@ type Model = Effect.Success<ReturnType<typeof PressApi.clientHttp>>;
 export const watchDownloads = Effect.fn("Press.watch")(function* (
 	press: Model
 ) {
+	if (!(yield* isSetUp)) {
+		return;
+	}
+
 	const qbittorrent = yield* signIn();
 	const now = DateTime.toEpochMillis(yield* DateTime.now) / 1000;
 

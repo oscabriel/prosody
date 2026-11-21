@@ -9,9 +9,11 @@ import {
 } from "effect/http";
 
 export const QBittorrentSettings = Config.all({
-	url: Config.String("DOWNLOADS_URL"),
-	username: Config.String("DOWNLOADS_USERNAME"),
-	password: Config.Redacted("DOWNLOADS_PASSWORD"),
+	url: Config.String("DOWNLOADS_URL").pipe(Config.withDefault("")),
+	username: Config.String("DOWNLOADS_USERNAME").pipe(Config.withDefault("")),
+	password: Config.Redacted("DOWNLOADS_PASSWORD").pipe(
+		Config.withDefault(Redacted.make(""))
+	),
 	category: Config.String("DOWNLOADS_CATEGORY").pipe(
 		Config.withDefault("books")
 	),
@@ -102,9 +104,20 @@ export const progressOf = (torrent: Torrent, now: number): Progress => {
 	};
 };
 
+export const NOT_SET_UP = "Fetching is not set up on this host";
+
+export const isSetUp = Effect.map(
+	Effect.orDie(QBittorrentSettings),
+	({ url }) => url !== ""
+);
+
 export const signIn = Effect.fn("QBittorrent.signIn")(function* () {
 	const { url, username, password, category } =
 		yield* Effect.orDie(QBittorrentSettings);
+
+	if (url === "") {
+		return yield* failed(NOT_SET_UP);
+	}
 
 	const client = (yield* HttpClient.HttpClient).pipe(
 		HttpClient.mapRequest((request) =>

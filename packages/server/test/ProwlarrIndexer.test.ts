@@ -1,7 +1,13 @@
 import { describe, expect, it } from "@effect/vitest";
+import { Indexer } from "@prosody/domain/Acquisition/Indexer.external";
+import { ConfigProvider, Effect, Layer, ManagedRuntime } from "effect";
 
 import type { Found } from "../src/ProwlarrIndexer.ts";
-import { releasesOf } from "../src/ProwlarrIndexer.ts";
+import {
+	NOT_SET_UP,
+	ProwlarrIndexer,
+	releasesOf,
+} from "../src/ProwlarrIndexer.ts";
 
 const found = (
 	title: string,
@@ -66,5 +72,25 @@ describe("Prowlarr's results", () => {
 		expect(releases.filter(({ kind }) => kind === "text")).toHaveLength(10);
 		expect(releases.at(0)?.seeders).toBe(124);
 		expect(releases.at(-1)?.seeders).toBe(2);
+	});
+});
+
+const Unset = ProwlarrIndexer.pipe(
+	Layer.provide(ConfigProvider.layer(ConfigProvider.fromEnvRecord({})))
+);
+
+const refusal = Effect.gen(function* () {
+	const indexer = yield* Indexer;
+
+	return yield* Effect.flip(
+		indexer.search({ title: "Emma", author: "Jane Austen" })
+	);
+});
+
+describe("A host with no settings for fetching", () => {
+	it("refuses a search, and says why", async () => {
+		const refused = await ManagedRuntime.make(Unset).runPromise(refusal);
+
+		expect(refused.reason).toBe(NOT_SET_UP);
 	});
 });
