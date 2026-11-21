@@ -1,6 +1,6 @@
 # Prosody
 
-The words Prosody uses for the route a book travels: wanted, grabbed, shelved, aligned, and read or heard. One model, in `packages/domain`, speaks all of them.
+The words Prosody uses for the route a book travels: wanted, shelved, aligned, and read or heard. One model, in `packages/domain`, speaks all of them.
 
 ## Language
 
@@ -67,7 +67,7 @@ One pass by the press over the whole library, reporting every work, edition, pai
 _Avoid_: Scan, sync, import
 
 **Shelved**:
-An edition is shelved once it is in its work's folder in the library and the catalogue knows it. To shelve a payload is to copy its edition there; the payload stays where it is.
+An edition is shelved once it is in its work's folder in the library and the catalogue knows it. To shelve a book that was fetched is to copy its edition there; what was fetched stays where it is.
 _Avoid_: Import, move, file
 
 ### Alignment and reading copies
@@ -89,7 +89,7 @@ One go at an alignment or a reading copy. Each has its own number, its attempt, 
 _Avoid_: Job, run, retry
 
 **Request**:
-What the model asks of the press: to align a pair, to copy an edition alone, or to shelve a payload. It waits in the press's queue until it is answered.
+What the model asks of the press: to align a pair, to copy an edition alone, or to shelve a book that was fetched. It waits in the press's queue until it is answered.
 _Avoid_: Job, task, message
 
 **Timeline**:
@@ -170,73 +170,23 @@ _Avoid_: Archive, pause, hide
 A reading copy held whole on a device, to read or hear with no network.
 _Avoid_: Download, offline cache
 
-### Wanting and grabbing
+### Wanting
 
 **Desk**:
-Where you want books and follow each grab.
+Where you want books, and follow each one to the shelf.
 _Avoid_: Requests, downloads page, queue
 
 **Want**:
 A book you want, keyed by the work it will be.
 _Avoid_: Request, wishlist item
 
-**Search**:
-One asking of the Indexer for a want. Each has its own number, and only the latest one's answer counts.
-_Avoid_: Query, lookup
-
-**Release**:
-One upload of a book on a source, as the Indexer describes it.
-_Avoid_: Download, result, hit
-
-**Offer**:
-A release the latest search found for a want. Only an offer can be grabbed.
-_Avoid_: Result, candidate
-
-**Grab**:
-One release you chose, from its download to the end of its sharing. Only you grab; nothing does it for you.
-_Avoid_: Download (for the whole), request, order
-
-**Download**:
-The transfer of a grab's payload. It is one part of a grab's life.
-_Avoid_: Grab, fetch
-
-**Stall**:
-A download that has stopped coming, with the reason. It waits for you to resume or abandon it.
-_Avoid_: Failure, error, timeout
-
-**Payload**:
-The file or folder a grab's download brought, in the downloads. It is never moved or deleted.
-_Avoid_: Download, download, files
-
-**The downloads**:
-The folder on the host where payloads land.
-_Avoid_: Downloads folder, incoming
-
-**Obligation**:
-What your source asks of a payload before it may stop sharing.
-_Avoid_: Ratio, share time, rule
-
-**Release a payload**:
-To stop sharing a payload that owes nothing more. Its files stay where they are. As a verb, "release" is only ever said of a payload.
-_Avoid_: Remove, delete, finish
-
-**Abandon**:
-To stop following a grab that has not finished. What came of it stays with Downloads.
-_Avoid_: Cancel, delete
-
 **Withdraw**:
 To stop wanting a book. Its offers go with it.
 _Avoid_: Cancel, remove
 
+The words for fetching a wanted book are in [`docs/acquiring/GLOSSARY.md`](docs/acquiring/GLOSSARY.md).
+
 ### Who is asked
-
-**Indexer**:
-Whatever searches the sources for releases of a book. It holds the source accounts; Prosody only asks it questions.
-_Avoid_: Source, search provider
-
-**Downloads**:
-Whatever downloads a release and shares it, knowing each by its grab.
-_Avoid_: Client, download client
 
 **Metadata**:
 Whatever knows about books in general: the catalogues outside.
@@ -254,22 +204,14 @@ _Avoid_: Syncer, transcriber
 Whatever makes a reading copy from an edition alone.
 _Avoid_: Converter, transcoder
 
-**Source**:
-A site that lists releases and sets the obligation. Prosody never speaks to one itself.
-_Avoid_: Indexer, source
-
-**Download**:
-Downloads' own word for a grab's download. Prosody knows one only by its grab.
-_Avoid_: Using it for a release, a grab or a payload
-
 ### The parts
 
 **Model**:
-Everything Prosody knows and decides: wants and grabs, the library, each narration, each reading copy and each reading.
+Everything Prosody knows and decides: what you want, the library, each narration, each reading copy and each reading.
 _Avoid_: Backend, server, database
 
 **Press**:
-The one part that touches book files. It walks the library, makes reading copies, shelves payloads and watches downloads, and it plays Stacks, the Aligner and the Copier.
+The one part that touches book files. It walks the library, makes reading copies and shelves what was fetched, and it plays Stacks, the Aligner and the Copier.
 _Avoid_: Worker, processor, scanner
 
 **Api**:

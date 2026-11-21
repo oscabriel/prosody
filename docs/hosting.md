@@ -16,7 +16,7 @@ The examples write your domain as `example.com` and the app's name as `prosody.e
 | A name for the app | `prosody.example.com` must resolve to the host's tailnet address, with a certificate Caddy can serve (a DNS challenge works for a private name). |
 | A library | `ebooks/` and `audiobooks/` in one folder, laid out as below. It may be a network share. |
 | A folder for reading copies | On a local disk. A synced book takes about twice the size of its audiobook. |
-| the indexer and the download client | For the desk: searching and downloading. Reading works without them. |
+| Services to fetch books (optional) | The desk can fetch a book you want through services you already run; [`acquiring/`](acquiring/README.md) covers them. Reading works without them. |
 | Node 26.11+, pnpm 12, Bun | To check and deploy. `corepack enable` gives you the right pnpm. |
 
 The press's image is about 3 GB: it holds ffmpeg, poppler and two speech models, downloaded once as it is built. Aligning runs on the CPU, with a thread for every core.
@@ -34,7 +34,7 @@ The press walks one folder, `PROSODY_LIBRARY`, shaped like this:
 - A book is its author's folder and its title's folder. The same two names under `ebooks` and `audiobooks` make a pair, which is aligned.
 - The audio is one `.m4b` a book, in AAC-LC. Check the codec of anything else before you trust its alignment.
 - A book with one edition opens too: an EPUB to read, an audiobook to hear, a PDF a page at a time.
-- The press is the library's one writer, and it only ever adds a file: a download you grabbed, copied in as `<Title> - <Author>.<ext>`.
+- The press is the library's one writer, and it only ever adds a file: a book the desk fetched, copied in as `<Title> - <Author>.<ext>`.
 
 ## Settings
 
@@ -43,17 +43,12 @@ Copy `.env.example` to `.env` at the repository's root and fill it in. Git ignor
 | Setting | Needed | What it is |
 |---|---|---|
 | `PROSODY_LIBRARY` | yes | The library on the host. Mounted writable into the press. |
-| `PROSODY_DOWNLOADS` | yes | Where the download client's category for books saves, as the host sees it. Mounted read-only into the press. |
+| `PROSODY_DOWNLOADS` | yes | Where fetched books land, as the host sees it. Mounted read-only into the press. Any empty folder will do if you fetch nothing. |
 | `PROSODY_COPIES` | no, `/srv/prosody/copies` | The reading copies, on a local disk. |
 | `PROSODY_UID` | no, `1000` | The user the press runs as. It must be able to write the library and the copies folder (`id -u`). |
 | `PROSODY_RELAY` | no, `127.0.0.1:3023` | Where the relay listens. Keep it on a loopback address. |
-| `INDEXER_URL`, `INDEXER_API_KEY` | yes | Where the indexer answers, with no slash at the end, and its API key. |
-| `DOWNLOADS_URL`, `DOWNLOADS_USERNAME`, `DOWNLOADS_PASSWORD` | yes | Where the download client's Web UI answers, with no slash at the end, and what it signs in with. |
-| `DOWNLOADS_CATEGORY` | no, `books` | The category every grab is filed under. |
 
-If you have no the indexer or the download client, give those settings placeholder values. A search then fails with the reason, the press logs a warning each minute, and reading is unaffected. Point `PROSODY_DOWNLOADS` at any empty folder.
-
-Prosody holds the indexer's address and key, never a source login.
+The desk's fetching has settings of its own, listed in `.env.example` and explained in [`acquiring/`](acquiring/README.md). They must be set even if you fetch nothing: placeholder values will do, and reading is unaffected.
 
 ## Before the first deploy
 
@@ -65,8 +60,7 @@ Prosody holds the indexer's address and key, never a source login.
    ```
 
    Without sudo, set `PROSODY_COPIES` to a folder you own.
-3. In the download client, make the category (`books`) and set its save path to the folder the host sees as `PROSODY_DOWNLOADS`. Prosody finds a download by its path inside that folder, so a category that saves elsewhere is never shelved.
-4. Check the library answers: `ls "$PROSODY_LIBRARY"` shows `ebooks` and `audiobooks`.
+3. Check the library answers: `ls "$PROSODY_LIBRARY"` shows `ebooks` and `audiobooks`.
 
 ## Deploy
 
@@ -112,12 +106,10 @@ For what a setting does not cover, change the source. Each of these is one place
 
 | Assumption | Where | To change it |
 |---|---|---|
-| Sharing rule: 72 hours within 30 days | `OBLIGATION` in `packages/domain/src/Acquisition/ReleasePayload.command.ts` | Set your source's hours and days. `hours: 0` lets a payload go as soon as it has come. |
 | Library layout and file types | `HALVES` and `EXTENSIONS` in `packages/press/src/Stacks.ts`; the same folder names in `packages/press/src/ReadingCopies.ts` | Rename the two halves, or teach the walk another layout. |
 | Sign-in by Tailscale | `packages/server/src/Tailscale.ts` (`admission` decides who is let in) and `packages/server/src/Session.ts` (`/auth`) | Keep the contract with Caddy (`X-Prosody-Peer` in, `X-Prosody-Device` out) and answer it from another source of identity. |
 | `tailscaled`'s socket in `/var/run/tailscale` | `TAILSCALE` in `packages/server/src/Tailscale.ts` | Point it at your socket's folder. |
-| Indexer is the indexer | The port `packages/domain/src/Acquisition/Indexer.external.ts`, the adapter `packages/server/src/the indexer's adapter | Write another adapter for the same port and provide it in `packages/server/src/ProsodyLive.ts`. |
-| Downloads are the download client's | The port `Downloads.external.ts`, the adapters the downloads adapter and the downloads adapter, and the press's watch, `packages/press/src/Watch.ts` | The same, and the watch must report progress for the new client. |
+| How the desk fetches a book | [`acquiring/`](acquiring/README.md) | It lists its own assumptions. |
 | Metadata from Open Library and Audnexus | The port `packages/domain/src/Library/Metadata.external.ts`, the adapter `packages/server/src/OpenLibraryMetadata.ts` | Write another adapter. |
 | Speech models | `packages/press/image/Dockerfile` and `packages/aligner/src` | Change the model, then bump `IMAGE` in `packages/press/src/Press.ts`. |
 | One runner, one Postgres, on swarm | `packages/server/src/ProsodyLive.ts` and `alchemy.run.ts` | Declare other resources there. |
@@ -134,5 +126,4 @@ After any change, `pnpm check` must pass, and `pnpm run plan` shows what the dep
 | 401 "Signed out" | The request reached the relay without going through Caddy's `forward_auth`. |
 | The shelf is empty | The press could not read the library, or it is not laid out by author and title. The press's log names each folder it could not read. |
 | A book never aligns | It needs both an `.epub` and an `.m4b` under the same author and title. The press's log says why a pair failed. |
-| A grab never reaches the shelf | The category does not save into `PROSODY_DOWNLOADS`, or the payload holds no single `.epub` or `.m4b`. The desk shows the reason. |
 | The Api restarts after Tailscale does | Expected: `tailscaled` makes its socket's folder anew, and swarm replaces the Api to mount it. |

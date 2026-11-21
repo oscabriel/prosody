@@ -1,6 +1,6 @@
 # Prosody
 
-One self-hosted app for the whole route a book travels: wanting it, fetching it, shelving it, syncing its audiobook to its ebook, and reading or listening. the indexer and the download client stay outside it. `README.md` says what it does. The next work is a native iOS app.
+One self-hosted app for the whole route a book travels: wanting it, shelving it, syncing its audiobook to its ebook, and reading or listening. `README.md` says what it does. The next work is a native iOS app.
 
 ## Any host
 
@@ -8,13 +8,14 @@ The repository is public and names no real machine. Everything about one host is
 
 - A host's facts are settings in `.env`, read by `packages/server/src/Host.ts`; `.env.example` lists them all. A new fact about the host becomes a setting there, never a constant in the source.
 - `docs/hosting.md` is the guide for putting Prosody on other hardware. Its "Where each assumption lives" table names the file to change for everything that is not a setting. Keep both in step with the source.
-- Committed files write the host as "the host", its domain as `example.com`, and the source as "your source". Machine names, addresses, user names, home folders and other services on the machine stay out of files, comments, tests and commit messages.
+- Committed files write the host as "the host" and its domain as `example.com`. Machine names, addresses, user names, home folders and other services on the machine stay out of files, comments, tests and commit messages.
+- What the desk fetches books through is named only under `docs/acquiring/`, in the code, and in settings. This file, `README.md`, `GLOSSARY.md`, `docs/hosting.md` and `docs/how-it-works.md` say only that the desk can fetch a book, and point there.
 - If `CLAUDE.local.md` exists at the root, read it: it holds this checkout's own machine, names and working notes, and git does not track it.
 - Commit only when the user asks.
 
 ## Words
 
-`GLOSSARY.md` defines the project's words: a work and its editions, a pair, a shelfmark, a reading copy, a place, a want, a grab, a payload, the press. Use each as it is defined there, in code, comments, tests, the app's text and commit messages, and add a word there when the model gains one.
+`GLOSSARY.md` defines the project's words: a work and its editions, a pair, a shelfmark, a reading copy, a place, a want, the press. The words for fetching a book are in `docs/acquiring/GLOSSARY.md`. Use each as it is defined there, in code, comments, tests, the app's text and commit messages, and add a word there when the model gains one.
 
 ## Comments
 
@@ -30,9 +31,9 @@ Code carries no comments, of any kind: a doc comment, a note, a `TODO` and a dir
 - "The press": the walk, reading copies, its queue, covers, the aligner.
 - "The reading room": places, the nightstand, the lock screen, pages.
 - "Offline": the service worker, a place kept offline, a kept copy.
-- "The desk": wanting, searching, cataloguing.
-- "Grabs and shelving": downloads, sharing, payloads, shelving.
 - "Known limits": the bugs, and what is untested.
+
+`docs/acquiring/` holds everything about fetching a book at the desk: setting it up, its words, and how it works. Read it before changing anything in `packages/domain/src/Acquisition`, the desk, or shelving.
 
 `docs/adr/` records why the code is as it is, one decision to a file, and `docs/issues/` the hacks still to fix. Read the titles in both before changing a part, and the ADRs that touch it.
 
@@ -42,9 +43,9 @@ Code carries no comments, of any kind: a doc comment, a note, a `TODO` and a dir
 - Deploy with `pnpm run deploy --yes`, and never delete `.alchemy/` while the stack is up: it is Alchemy's record of what is deployed.
 - `packages/domain` imports only `effect` and `@alchemy.run/domain`. The linter enforces it.
 - Book files are read-only everywhere but to the press, which only ever adds a copied file to the library. Tests and experiments copy what they need and work on the copy.
-- A download payload in the downloads is never moved or deleted: a source may require it to keep sharing. `ReleasePayload` takes a payload out of the download client's list only, and only once it has shared what `OBLIGATION` asks.
+- A file in the downloads folder is never moved or deleted; `docs/acquiring/` says why.
 - A library on a network share can drop out. Check the mount answers (`timeout 8 ls <path>`) before a run that needs it, and treat a failure as an outage to report, not to repair.
-- Test against a stand-in the indexer and the download client, or a stage of its own (`ALCHEMY_STAGE`). Wanting a book on the live stack searches the real indexers, and grabbing one downloads it.
+- Test the desk against stand-ins, or a stage of its own (`ALCHEMY_STAGE`). On the live stack a want is really searched for, and a book really fetched.
 
 ## Before using an API
 
