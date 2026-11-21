@@ -48,7 +48,7 @@ interface Standing {
 const pairOf = (sync: Option.Option<Sync>): Standing =>
 	Option.match(sync, {
 		onSome: ({ state, note }) => ({
-			opens: state === "synced",
+			opens: state !== "syncing",
 			label: { syncing: "syncing", synced: "synced", failed: "not synced" }[
 				state
 			],

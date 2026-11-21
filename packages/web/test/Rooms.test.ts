@@ -7,6 +7,7 @@ import { fromString } from "foldkit/url";
 import { update } from "../src/Main.ts";
 import { Book, Message, Model } from "../src/Model.ts";
 import { Prosody } from "../src/Prosody.ts";
+import { copyFailureOf } from "../src/Rooms.ts";
 import { AppRoute, urlToAppRoute } from "../src/Route.ts";
 import { roomOf } from "../src/Steps.ts";
 
@@ -142,7 +143,8 @@ describe("a room with its audio alone", () => {
 
 const shelfWith = (
 	alice: "copying" | "made" | "failed",
-	carl: "syncing" | "synced"
+	carl: "syncing" | "synced" | "failed",
+	note = ""
 ) =>
 	Message.ReceivedShelf({
 		state: Option.some({
@@ -164,7 +166,7 @@ const shelfWith = (
 					pages: false,
 				},
 			},
-			syncs: { "w-carl": { state: carl, note: "" } },
+			syncs: { "w-carl": { state: carl, note } },
 			copies: {
 				"w-alice": { state: alice, note: "" },
 				"w-carl": { state: "copying", note: "" },
@@ -233,6 +235,28 @@ describe("a room waiting on its copy", () => {
 		);
 
 		expect(phaseOf(model)).toStrictEqual(Option.some("idle"));
+	});
+});
+
+describe("a pair aligned again", () => {
+	it("closes the open book, and asks the press for it", () => {
+		const shelved = update(inCarl, shelfWith("made", "synced"));
+		const asked = update(shelved.model, Message.ClickedRealign());
+
+		expect(phaseOf(asked.model)).toStrictEqual(Option.some("asked"));
+		expect(names(asked.commands ?? [])).toStrictEqual(["RealignNarration"]);
+	});
+
+	it("says why the press could not sync it", () => {
+		const { model } = update(
+			waiting("w-carl", "idle"),
+			shelfWith("made", "failed", "its audio is cut short")
+		);
+
+		expect(copyFailureOf(model, "w-carl")).toStrictEqual(
+			Option.some("its audio is cut short")
+		);
+		expect(copyFailureOf(model, "w-alice")).toStrictEqual(Option.none());
 	});
 });
 

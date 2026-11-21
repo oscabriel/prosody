@@ -244,8 +244,8 @@ export const copyFailureOf = (
 	model: Model,
 	work: string
 ): Option.Option<string> =>
-	Option.flatMap(model.shelf, ({ copies }) => {
-		const made = copies[work];
+	Option.flatMap(model.shelf, ({ copies, syncs }) => {
+		const made = isAlone(model, work) ? copies[work] : syncs[work];
 
 		return made?.state === "failed" ? Option.some(made.note) : Option.none();
 	});

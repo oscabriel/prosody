@@ -17,7 +17,7 @@ Each book on the shelf carries a status label:
 
 ## The reading room
 
-Click any ready book on the shelf to open its reading room. The side panel shows the book's title, author, reading standing, offline status and **Contents**.
+Click any ready book on the shelf to open its reading room. The side panel shows the book's title, author, reading standing, offline status and **Contents**. For a synced book it also has **Synced**, which holds the button to [align it again](/docs/syncing-a-book).
 
 ### Synced books
 

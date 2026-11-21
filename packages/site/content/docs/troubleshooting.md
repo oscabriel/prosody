@@ -46,7 +46,7 @@ Every library walk logs how many works it found and any folders it could not rea
 | Problem | Cause and fix |
 |---|---|
 | A book stays `syncing` for an hour | Normal for a long audiobook on CPU. Check the press logs to confirm it is progressing; each attempt has a six-hour timeout. |
-| A book is marked `not synced` | Read the reason printed directly below the author on the shelf, and look it up in [Syncing a book](/docs/syncing-a-book). |
+| A book is marked `not synced` | Read the reason printed directly below the author on the shelf, and look it up in [Syncing a book](/docs/syncing-a-book). Once the cause is fixed, open the book and click **Align it again →**. |
 | Many sentences are never highlighted | Expected in technical books where code listings, tables and captions are skipped by the narrator. |
 | The highlight drifts from the voice | Open an issue on the repository noting the book and where the drift starts. |
 
@@ -56,7 +56,7 @@ Every library walk logs how many works it found and any folders it could not rea
 |---|---|
 | The app shows `Offline` while you have internet | The app lost contact with your host (for example during a deploy or when Tailscale disconnected). It checks again every five seconds and reconnects automatically. |
 | A book opens at an older place | Another device read further while offline and has not synced yet. Open Prosody on that device while online so it sends its saved place. |
-| Opening a book shows `Align it again →` or `Make it now →` | Its reading copy is missing or predates the reading room format. Click the button; the room opens automatically when the press finishes. |
+| Opening a book shows `Align it again →` or `Make it now →` | Its reading copy is missing, failed to build or predates the reading room format. Click the button; the room opens automatically when the press finishes. |
 
 ## Reporting a bug
 

@@ -28,7 +28,7 @@ Expect a novel to place almost all of its sentences (97% to 99% in testing). A t
 
 ## When a sync is refused
 
-Prosody refuses an alignment rather than showing a highlight that drifts from the voice. When a sync fails, the shelf marks the book `not synced` and prints the exact reason beneath the author's name. A `not synced` pair cannot be opened into the reading room.
+Prosody refuses an alignment rather than showing a highlight that drifts from the voice. When a sync fails, the shelf marks the book `not synced` and prints the exact reason beneath the author's name. Opening a `not synced` pair shows the same reason in the reading room, with an **Align it again →** button.
 
 | Reason shown on the shelf | What it means |
 |---|---|
@@ -45,7 +45,12 @@ Prosody refuses an alignment rather than showing a highlight that drifts from th
 
 What the speech model heard is saved in `PROSODY_COPIES` beside each reading copy (`heard-<bytes>.emissions`), so re-aligning an unchanged audio file skips listening and finishes in under a minute.
 
-The reading room shows an **Align it again →** button when a synced book's reading copy predates the reading room format (missing `contents.json`). For an already-open synced book or a `not synced` pair, the web app does not yet expose a re-align button; re-alignment is currently triggered through the `RealignNarration` API command.
+You can re-align a pair from its reading room while you are online:
+
+- **A synced book:** open **Synced** in the side panel and click **Align it again**. The book closes in that room until the press finishes, then opens again by itself.
+- **A `not synced` book, or one whose reading copy predates the reading room format:** the room shows an **Align it again →** button in place of the text.
+
+If a re-alignment fails, the previous reading copy is gone and the book is `not synced` until a later try succeeds.
 
 ## Audio format requirements
 

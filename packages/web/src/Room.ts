@@ -72,6 +72,32 @@ const leafCoverView = (
 	];
 };
 
+const againView = (
+	model: Model,
+	room: Room,
+	h: HtmlBuilder<Message>
+): ReadonlyArray<Html> =>
+	model.isOnline && Book.guards.Open(room.book) && !isAlone(model, room.work)
+		? [
+				h.details(
+					[h.Class("again")],
+					[
+						h.summary([h.Class("label")], ["Synced"]),
+						h.p(
+							[],
+							[
+								"Aligning it again takes a minute or two for a book the press has heard before. The book closes here until it is done.",
+							]
+						),
+						h.button(
+							[h.Type("button"), h.OnClick(Message.ClickedRealign())],
+							["Align it again"]
+						),
+					]
+				),
+			]
+		: [];
+
 const leafView = (model: Model, room: Room, h: HtmlBuilder<Message>) => {
 	const entry = Option.getOrUndefined(entryOf(model, room.work));
 
@@ -81,6 +107,7 @@ const leafView = (model: Model, room: Room, h: HtmlBuilder<Message>) => {
 		h.p([h.Class("book-author")], [entry?.author ?? ""]),
 		...standingView(model, room, h),
 		...copyView(model, room, h),
+		...againView(model, room, h),
 	];
 
 	return Book.match(room.book, {
@@ -236,7 +263,11 @@ const unmadeWords = (alone: boolean, failure: Option.Option<string>) =>
 					"The press is making its reading copy. The book opens here when it is done.",
 			}
 		: {
-				idle: "This reading copy was made before the reading room, so it has no pages to show yet. Aligning it again makes them, and takes a minute or two for a book the press has heard before.",
+				idle: Option.match(failure, {
+					onNone: () =>
+						"This reading copy was made before the reading room, so it has no pages to show yet. Aligning it again makes them, and takes a minute or two for a book the press has heard before.",
+					onSome: (reason) => `The press could not sync this book: ${reason}.`,
+				}),
 				button: "Align it again →",
 				asked: "Asked the press to align it again.",
 				aligning:

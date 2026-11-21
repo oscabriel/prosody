@@ -283,6 +283,24 @@ h1 {
 	color: var(--ink-soft);
 }
 
+.again {
+	margin: 1rem 0 0;
+	font-size: 1.0625rem;
+}
+
+.again summary {
+	cursor: pointer;
+}
+
+.again p {
+	margin: 0.5rem 0;
+	color: var(--ink-soft);
+}
+
+.again button {
+	color: var(--ink-soft);
+}
+
 .toc {
 	margin-top: 2rem;
 	padding-top: 1rem;
