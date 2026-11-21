@@ -152,7 +152,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
 
 	return AppRoute.guards.Home(route)
 		? {
-				title: "Prosody: your audiobook and your ebook, as one book",
+				title: "Prosody: read and listen to the same book, in sync",
 				body: pageView(route, h, homeView(model, h)),
 			}
 		: {

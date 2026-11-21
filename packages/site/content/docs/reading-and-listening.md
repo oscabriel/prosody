@@ -8,7 +8,7 @@ order: 7
 
 Prosody opens on **The shelf**, listing every book discovered in your library.
 
-When you have books in progress, **On the nightstand** appears at the top of the shelf, ordered most recently opened first. Each entry shows `Last read on <device>, <date>`. Below it, **Every work** lists the full library alphabetically by author and title.
+When you have books in progress, **On the nightstand** appears at the top of the shelf, ordered most recently read first. Each entry shows `Last read on <device>, <date>`. Below it, **Every work** lists the full library alphabetically by author and title.
 
 Each book on the shelf carries a status label:
 
@@ -17,7 +17,7 @@ Each book on the shelf carries a status label:
 
 ## The reading room
 
-Click any ready book on the shelf to open its reading room. The side panel shows the book's title, author, reading standing, offline status and **Contents**. For a synced book it also has **Synced**, which holds the button to [align it again](/docs/syncing-a-book).
+Click a book on the shelf to open its reading room (books still `syncing` or `copying` cannot be opened yet; `not synced` and `not copied` books open to show the failure reason and a retry button). The side panel shows the book's title, author, reading standing, offline status and **Contents**. For a synced book it also has **Synced**, which holds the button to [align it again](/docs/syncing-a-book).
 
 ### Synced books
 

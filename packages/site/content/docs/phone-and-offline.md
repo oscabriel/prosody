@@ -41,5 +41,6 @@ To free space, open the book and click **Remove it**. Removing a kept copy delet
 
 ## Limits to keep in mind
 
+- **Phone audio is lightly tested.** Background playback, lock-screen controls and offline playback have only been verified on an iPhone in short runs of one to four minutes. Long sessions, interruptions (calls, other apps, Bluetooth) and Android playback are untested.
 - **Browser storage eviction.** Prosody requests persistent storage when keeping a book, but a mobile browser may still evict site caches when the device runs low on space. If that happens, keep the book again when you are back online.
 - **Native app.** There is no native mobile app yet; a native iOS app is planned next.

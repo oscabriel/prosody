@@ -46,13 +46,18 @@ Edge cases:
 
 2. **Triage every line.** Assign one category from the table above to every entry in the list. Read the surrounding code whenever the comment text alone is ambiguous. Do not move on until every entry is categorised.
 
-3. **File issues for excuses.** Create one issue per hack (not one per comment) at `docs/issues/NNNN-slug.md` using the next free number. Check existing files in `docs/issues/` first and append to an existing issue if it covers the same hack. Include:
+3. **File issues for excuses.** Create one issue per hack (not one per comment) at `docs/issues/NNNN-slug.md` using the next free number. Check existing files in `docs/issues/` first and append to an existing issue if it covers the same hack. Use the four-part shape in `docs/issues/`:
    - A heading stating the problem.
-   - `**Where**:` the file and symbol.
-   - What the comment excused.
-   - `**To fix**:` what removing the hack requires.
+   - `**Where:**` the file and symbol.
+   - `## What is wrong`: what the hack or shortcut does.
+   - `## What it costs`: what breaks or is risked while it remains.
+   - `## How to fix`: what removing the hack requires.
 
-4. **Write ADRs for decisions.** Create one ADR per decision (multiple comments often belong to one decision) at `docs/adr/NNNN-slug.md` using the next free number. Check existing files in `docs/adr/` first and extend one if it already covers the decision. Include a heading stating the decision followed by one to five sentences giving the context, the decision and the rationale.
+4. **Write ADRs for decisions.** Create one ADR per decision (multiple comments often belong to one decision) at `docs/adr/NNNN-slug.md` using the next free number. Check existing files in `docs/adr/` first and extend one if it already covers the decision. Use the three-part shape in `docs/adr/`:
+   - A heading stating the decision.
+   - `## Decision`: what the code does and where it lives.
+   - `## Why`: the constraint, trade-off or measured fact behind it.
+   - `## What breaks if you change this`: what fails if the decision is reversed or altered.
 
 5. **Strip, format and pass checks.** Run:
    ```sh

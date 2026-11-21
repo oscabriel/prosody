@@ -81,7 +81,7 @@ Notes on deploying and operating the stack:
 
 - Use `pnpm run deploy`, not `pnpm deploy` (which is a different, built-in pnpm command). Both `pnpm run plan` and `pnpm run deploy` build `@prosody/web` first and then invoke Alchemy with `bunx --bun alchemy`.
 - `pnpm run plan` builds the web app and shows what a deploy would change without modifying the running stack.
-- The first deploy builds the press's Docker image (`packages/press/image/Dockerfile`), installing `ffmpeg`, `poppler-utils` and `@huggingface/transformers`, and downloading both pinned speech models (`onnx-community/parakeet-ctc-0.6b-ONNX` and `onnx-community/whisper-base.en`) into `/models`. Later deploys reuse that image unless the Dockerfile, `IMAGE` in `packages/press/src/Press.ts` or `PROSODY_UID` changes.
+- The first deploy builds the press's Docker image (`packages/press/image/Dockerfile`, 3.15 GB), installing `ffmpeg`, `poppler-utils` and `@huggingface/transformers`, and downloading both pinned speech models (`onnx-community/parakeet-ctc-0.6b-ONNX` and `onnx-community/whisper-base.en`) into `/models`. Later deploys reuse that image unless the Dockerfile, `IMAGE` in `packages/press/src/Press.ts` or `PROSODY_UID` changes.
 - Alignment runs on the CPU. By default, Parakeet uses one thread per physical core (overridable with `PROSODY_ALIGNER_THREADS`), and the Whisper spot check uses 4 threads.
 - Keep `.alchemy/` while the stack is up. It holds Alchemy's local state, which `pnpm run destroy` reads to take the stack down.
 - Alchemy names the stage `live_<user>` from `$USER`. To run a second stack alongside it, set `ALCHEMY_STAGE` and give it its own `PROSODY_COPIES` and `PROSODY_RELAY`.

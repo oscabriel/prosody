@@ -100,7 +100,7 @@ On `PayloadArrived`, `Shelving` ([`packages/domain/src/Library/Shelving.policy.t
 
 1. Resolves the shelfmark (`shelfmarkFor`): uses `work.shelfmark` if set, else `shelfmarkOf(work.author, work.title)` ([`packages/domain/src/Library/Shelfmark.ts`](../../packages/domain/src/Library/Shelfmark.ts), which replaces `:` with ` -`, strips path-unsafe characters, and collapses whitespace), else falls back to `wants.get(work)` + `metadata.describe` for works created before `Work` stored title/author.
 2. Sends `ClaimShelfmark({ work })` to `ShelfmarkClaim` ([`packages/domain/src/Library/ShelfmarkClaim.aggregate.ts`](../../packages/domain/src/Library/ShelfmarkClaim.aggregate.ts)), keyed by the shelfmark. The first work to claim a shelfmark owns it; later claims receive `ShelfmarkTaken({ work: owner })`.
-3. Calls `Stacks.shelve` ([`packages/server/src/PressStacks.ts`](../../packages/server/src/PressStacks.ts) -> `POST http://press:3000/shelve`) with the owning `work` id. If an ebook is already on the shelf and you grab its audiobook, the audiobook is shelved under the existing work's id so the two pair.
+3. Calls `Stacks.shelve` ([`packages/server/src/PressStacks.ts`](../../packages/server/src/PressStacks.ts) -> `POST http://prosody-press:3000/shelve`) with the owning `work` id. If an ebook is already on the shelf and you grab its audiobook, the audiobook is shelved under the existing work's id so the two pair.
 
 ### Copying files in the press
 

@@ -13,7 +13,7 @@ Prosody is a self-hosted app for ebooks and audiobooks. It pairs an EPUB with it
 
 ## Requirements
 
-- A Linux host with Docker in swarm mode. Alignment runs on the host's CPU.
+- A Linux host with Docker in swarm mode. Alignment runs on the host's CPU (benchmarked on 8 CPU cores; no GPU required).
 - Tailscale on the host and on every device that opens the app.
 - Caddy on the host, with a TLS certificate for the domain you give Prosody.
 - A library directory split into `ebooks/<Author>/<Title>/` (`.epub`, `.pdf`) and `audiobooks/<Author>/<Title>/` (`.m4b`).

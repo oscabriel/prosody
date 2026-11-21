@@ -9,7 +9,7 @@ When a work has both an `.epub` and an `.m4b` under the same `<Author>/<Title>`,
 ## The sync pipeline
 
 1. **Decode and check the audio.** The press probes the `.m4b` with `ffprobe` and decodes it with `ffmpeg`.
-2. **Listen once.** A speech model listens to the entire audiobook on the CPU. For a 21-hour book this takes roughly an hour on a CPU-only host.
+2. **Listen once.** A speech model listens to the entire audiobook on the CPU. For a 21-hour book this takes roughly an hour on an 8-core CPU.
 3. **Align sentences.** Every sentence in the book's narrated sections is matched to its timestamps in the audio, leaving unread sentences unplaced.
 4. **Spot check.** A second speech model (Whisper) listens to up to 40 placed sentences between 3 and 15 seconds long, spread across the book, and compares what it hears against the text. Each clip passes if the words match with at least 80% likeness, and at least three in four checked sentences must pass.
 5. **Publish the reading copy.** Once the spot check passes, the press writes the reading copy and the shelf marks the book `synced`.

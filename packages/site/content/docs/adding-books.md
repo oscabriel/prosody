@@ -57,6 +57,6 @@ If the author or title folder is spelled differently under `ebooks/` and `audiob
 
 ## The desk
 
-**The desk** (linked from the shelf) lets you keep a list of books you want. Enter a title and author and click **Want it**; Prosody looks up the book's details in Open Library and keeps it on the desk until you click **Withdraw**.
+**The desk** (linked from the shelf) lets you keep a list of books you want. Enter a title and author and click **Want it**; Prosody looks up the book's details in public catalogues (Open Library, Audible and Audnexus) and keeps it on the desk until you click **Withdraw**.
 
 The desk can also be configured to fetch books through external services you run yourself. That integration is optional and disabled by default; see `docs/acquiring/README.md` in the repository if you want to enable it.

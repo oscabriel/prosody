@@ -69,7 +69,7 @@ Finally, the press writes the reading copy to `PROSODY_COPIES`: the marked XHTML
 
 ## Measured accuracy and speed
 
-Evaluated across five real books (three novels and two technical books, 72 hours of audio in total) on a CPU-only Linux host:
+Evaluated across five real books (three novels and two technical books, 72 hours of audio in total) on an 8-core CPU-only Linux host:
 
 | Measure | Result |
 |---|---|

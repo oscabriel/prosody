@@ -17,7 +17,7 @@ Prosody runs on a single Linux machine with no GPU. Alignment runs on the CPU, a
 
 ## Syncing speed
 
-Listening to an audiobook is the slow step, and it happens only once per audio file. Measured across five real books (72 hours of audio in total) on a CPU-only Linux host:
+Listening to an audiobook is the slow step, and it happens only once per audio file. Measured across five real books (72 hours of audio in total) on an 8-core CPU-only Linux host:
 
 | Audiobook length | Time to listen |
 |---|---|
