@@ -1,65 +1,222 @@
 # How Prosody works
 
-What the source does not say about each part: why it is built as it is, and what breaks when it changes. The words are defined in [`GLOSSARY.md`](../GLOSSARY.md), and putting Prosody on a host is [`hosting.md`](hosting.md).
+What the source does not show about each part: why it is built this way, and what breaks when it changes. Jump to the section for the part you are editing; each stands on its own.
+
+Terms follow [`GLOSSARY.md`](../GLOSSARY.md). For host setup and assumptions, see [`hosting.md`](hosting.md). For fetching books at the desk, see [`acquiring/`](acquiring/README.md). Single decisions live in [`adr/`](adr/) and known hacks in [`issues/`](issues/).
 
 ## Deploying
 
-- The Api serves the built app: `/`, `/read/<work>`, the hashed files under `/assets/`, which browsers keep for a year, and the files at the top of the build (`/worker.js`, `/manifest.webmanifest`, the icons), which they never keep. `pnpm run deploy` and `pnpm run plan` build `packages/web` first; the build is the Api's base image, `PageImage` (`packages/web/Dockerfile`), tagged with a fingerprint of the build and the Dockerfile so a change to either moves the Api. Caddy sends the app's host name to the built app, so the dev server (`pnpm --filter @prosody/web dev`, port 3022) has no host name unless `packages/web/.env` gives it one (`CADDY_DEV_HOST`).
-- Alchemy runs a service's setup on the host when it plans a deploy. Anything that touches the container's own files or mounts goes inside `host.run`.
-- A service's container runs its settings (the first effect of its `Docker.Service`) again as it starts, with no `.env` and no source beside it. There a host setting with no default reads as "" (`Host.ts`), and the source fingerprint as "none".
-- Alchemy 2.0.0-beta.87 misses a change to a service's code alone when the service's settings depend on other resources. The Api and the press carry `PROSODY_SOURCE`, a fingerprint of the source (`packages/server/src/Source.ts`), so code changes deploy; give any new service the same.
-- A deploy replaces each service stop-first, so for a few seconds the Api has no task, and its address (`prosody-api`) then reaches the calling container itself: a call from the press is answered by the press's own server. Bun keeps such a connection and would send every later call down it, long after the Api is back, so the press calls the model with a new connection each time (`keepalive: false` in `Press.ts`). Anything new that calls another service from Bun needs the same.
-- Deploy with `pnpm run deploy --yes`. Plain `alchemy deploy` skips the web build, and the Api then serves the old page. The first press walk after a deploy is refused with `RpcClientError` while the Api is replaced; the next, five minutes later, goes through.
-- Alchemy binds a `Config` value to whatever was being built when it was read, and the model's Layer is built by the Api, not the runner, which builds it again at run time from its own environment. So the runner pool (`Runners` in `ProsodyLive.ts`) reads the indexer's and the download client's settings as it is declared, and the deploy gives them to the runner alone; the adapters read them again only as they run, so the Api never has them. The press reads the download client's as it is built, for its watch. A setting the runner's policies need must be read there the same way, or the runner fails as it starts. `docker service inspect` shows them.
-- Run Alchemy as `bunx --bun alchemy`; under Node this stack does not load. Swarm mode must be on.
+Prosody deploys to a Docker Swarm host with `pnpm run deploy --yes` (preview changes with `pnpm run plan`). Swarm mode must be enabled, and Alchemy must run under Bun (`bunx --bun alchemy`); this stack does not load under Node.
+
+### Web build and `PageImage`
+
+`pnpm run deploy` and `pnpm run plan` build `packages/web` first. Running plain `alchemy deploy` skips that step, leaving the Api serving stale files.
+
+`PageImage` ([`packages/server/src/Page.ts`](../packages/server/src/Page.ts)) builds [`packages/web/Dockerfile`](../packages/web/Dockerfile) and tags it with a hash of `packages/web/dist` and the Dockerfile so changes to either redeploy the Api ([ADR 0019](adr/0019-redeploy-by-fingerprint.md)). The Api serves:
+
+| Path | File served | `cache-control` |
+|---|---|---|
+| `/`, `/read/<work>`, `/desk` | `/page/index.html` | `no-cache` |
+| `/assets/<file>` | Hashed build assets | `public, max-age=31536000, immutable` ([ADR 0034](adr/0034-built-files-kept-a-year.md)) |
+| `/worker.js`, `/manifest.webmanifest`, top-level `.png` icons | File from `/page/` | `no-cache` |
+
+For local UI work, `pnpm --filter @prosody/web dev` binds `127.0.0.1:3022`. If you serve it behind Caddy on a private host name, set `CADDY_DEV_HOST` in `packages/web/.env` so Vite adds it to `allowedHosts` and points HMR at `wss` on port 443 ([`packages/web/vite.config.ts`](../packages/web/vite.config.ts)).
+
+### Alchemy lifecycle traps
+
+Four behaviours of Alchemy 2.0.0-beta.87 shape how services are written here:
+
+- **Plan runs service setup on the host.** Anything that touches container files, mounts or background loops must go inside `host.run` (`ServerHost` in [`packages/press/src/Press.ts`](../packages/press/src/Press.ts)), not in the top-level service setup ([ADR 0018](adr/0018-host-facts-are-settings.md)).
+- **Containers re-run their settings effect at startup without `.env` or source.** Inside a running container, a required host setting with no default reads as `""` ([`packages/server/src/Host.ts`](../packages/server/src/Host.ts), [issue 0013](issues/0013-host-setting-empty-in-container.md)), and `fingerprintOf` reads as `"none"` ([`packages/server/src/Source.ts`](../packages/server/src/Source.ts)).
+- **Code-only changes can be missed.** When a service's settings depend on other resources, Alchemy 2.0.0-beta.87 does not redeploy it on a code-only change. Both Api and Press pass `PROSODY_SOURCE` (from `sourceFingerprint` in [`packages/server/src/Source.ts`](../packages/server/src/Source.ts)) in their environment; any new service needs the same ([ADR 0019](adr/0019-redeploy-by-fingerprint.md), [issue 0003](issues/0003-source-fingerprint-workaround.md)).
+- **`Config` binds to whatever resource is being built.** The Api builds the model's Layer, while the runner rebuilds it at run time from its own environment. So `Runners` in [`packages/server/src/ProsodyLive.ts`](../packages/server/src/ProsodyLive.ts) reads the desk's fetching settings where the pool is declared, giving them to the runner alone and never to the Api. The press reads the settings it needs for its watch in [`packages/press/src/Press.ts`](../packages/press/src/Press.ts). Any new setting a runner policy needs must be read in `Runners` the same way, or the runner fails on startup (check with `docker service inspect`).
+
+### Stop-first replacement and Bun connections
+
+Swarm replaces services stop-first. For a few seconds during a deploy, `prosody-api` has no running task, and calls to `http://prosody-api:3000` can resolve to the calling container itself. Bun's HTTP client would reuse that keep-alive connection long after the Api returns, so the press sets `keepalive: false` on every call to the model (`freshConnections` in [`packages/press/src/Press.ts`](../packages/press/src/Press.ts), [ADR 0020](adr/0020-press-reconnects-and-repeats.md)). Give any new Bun-to-service client the same option.
+
+Because the press can start a walk while the Api is mid-replacement, the first walk after a deploy is often refused with `RpcClientError`; the next walk, five minutes later, goes through.
 
 ## Signing in
 
-- Sign-in is Tailscale's. Before every request to the app's host name, Caddy asks the Api's `/auth` about the address it came from (`X-Prosody-Peer`), and the Api asks tailscaled whether that is an untagged machine of the host's own owner. `/auth` also refuses a request made by another site's page (its `Origin` or `Sec-Fetch-Site`), since the tailnet vouches for a machine, not for what runs on it. Caddy copies the machine's name onto the request as `X-Prosody-Device`. The reader's Api (the `Session` middleware, which gives `decide` the `Device`) and `/copies` refuse a request without it with `SignedOut`. Anything on the host that calls the relay directly can name any device; nothing off the host can reach the relay. The press's `/press` is still refused to anything that comes through the relay.
-- Caddy gives the relay one host name, behind `forward_auth`. A second name that goes straight to the relay would pass a browser's own `X-Prosody-Device` through.
-- The Api reaches tailscaled through its socket, in `/var/run/tailscale`, which it mounts. It runs as `nobody`: tailscaled takes settings from root and from its operator, and only answers anyone else. A mount cannot limit a socket, so keep that `USER`. systemd makes the folder anew whenever tailscaled starts; the Api's healthcheck then fails and swarm replaces it. `docker service update --force` on the Api does the same by hand.
+Prosody has no user accounts. Identity comes from Tailscale through Caddy's `forward_auth` ([ADR 0014](adr/0014-sign-in-is-the-tailnets.md)).
+
+### Request flow and trust boundaries
+
+1. Caddy sends every request for the app's host name to the Api's `/auth` with `X-Prosody-Peer` set to the client's address.
+2. `/auth` ([`packages/server/src/Session.ts`](../packages/server/src/Session.ts)) checks:
+   - TLS early data with an empty peer header returns `425` (`Too early`).
+   - Cross-site requests (mismatched `Origin` or cross-site/same-site `Sec-Fetch-Site` other than a top-level document navigation) are refused with `403`, because the tailnet vouches for a machine, not for other sites open in its browser ([ADR 0015](adr/0015-other-sites-pages-refused.md)).
+   - `Tailscale.admit` ([`packages/server/src/Tailscale.ts`](../packages/server/src/Tailscale.ts)) queries `tailscaled` over its Unix socket and admits only an untagged machine owned by the host's own user, caching results for 30 seconds (transport failures are not cached).
+3. On admission, `/auth` returns `X-Prosody-Device` with the machine's name. Caddy copies that header onto the forwarded request, overwriting anything the browser sent.
+4. `SessionLive` refuses `/api` requests without `X-Prosody-Device` with `SignedOut` and provides `Device` to `decide`. `/copies/` returns `401` (`Signed out`) without it.
+
+Keep two boundaries intact:
+
+- **One Caddy host name behind `forward_auth`.** The relay ([`alchemy.run.ts`](../alchemy.run.ts)) listens on loopback only ([ADR 0016](adr/0016-relay-is-the-one-door.md)). Anything on the host that calls the relay directly can supply any `X-Prosody-Device`; nothing off the host can reach it. Adding a second Caddy route straight to the relay without `forward_auth` would let a browser spoof `X-Prosody-Device`.
+- **`/press` is internal only.** The Api rejects any `/press` request carrying `x-forwarded-for` with `404` ([`packages/server/src/Api.ts`](../packages/server/src/Api.ts)), blocking everything that comes through the relay.
+
+### `tailscaled` socket and `USER nobody`
+
+The Api bind-mounts `/var/run/tailscale` read-only and runs as `USER nobody` ([`packages/web/Dockerfile`](../packages/web/Dockerfile)). `tailscaled` accepts configuration changes from root and its operator over that socket and only answers read queries from anyone else; a read-only bind mount does not restrict a Unix socket, so do not change `USER nobody` ([ADR 0017](adr/0017-api-runs-as-nobody.md)).
+
+When `tailscaled` restarts, systemd recreates `/var/run/tailscale`, leaving the Api's mount stale. The Api's healthcheck (`test -S /var/run/tailscale/tailscaled.sock` every 10 seconds, 2 retries) then fails and Swarm replaces the task. `docker service update --force` on the Api does the same on demand.
 
 ## The model
 
-- Policies act only on new events, never on history. A rule that must also cover what is already recorded needs another trigger: the press reports pairs, and editions alone, on every walk for this reason.
-- Bump a view's `version` whenever what it computes changes, so it is rebuilt from the history. On Alchemy 2.0.0-beta.87's Effect Cluster host that only works for a view keyed by its one aggregate (`Place`), which is rebuilt in place. A view fed through `keyOf` (`Shelf`, `Nightstand`) is backfilled, and the backfill finds no history: its directory listing sends `after` as `null`, which matches nothing. Such a view added to a running stack, or bumped, starts empty. `Nightstand` did; it fills as books are opened. Giving such a view another source without a bump does work on this host (the backfill's "changed" answer is ignored, and new instances route live): `Shelf` reads `Copy` that way, which is fine only because every `Copy` event is newer than the change.
+`packages/domain` imports only `effect` and `@alchemy.run/domain`, enforced by the linter ([ADR 0001](adr/0001-model-knows-nothing-of-its-host.md)).
+
+### Policies only see new events
+
+Policies react to events emitted after they are deployed; they never replay history. Any rule that must also apply to existing books needs a live trigger. That is why the press re-reports every work, edition, pair and edition alone on every five-minute walk: commands like `PairEditions` and `CopyEdition` emit nothing when nothing has changed, and emit fresh events when a new rule needs them ([ADR 0006](adr/0006-press-reports-facts-every-walk.md)).
+
+### Views and the `keyOf` backfill bug
+
+On Alchemy 2.0.0-beta.87's Effect Cluster host:
+
+- **Single-aggregate views** keyed directly by their aggregate (like `Place`, keyed by `Reading`) rebuild in place when their `version` is bumped.
+- **Multi-instance views routed through `keyOf`** (`Shelf`, `Nightstand`, `Wanted`) cannot be backfilled. Their directory listing sends `after` as `null` instead of `undefined`, which matches no rows, so a new or version-bumped `keyOf` view starts empty ([issue 0004](issues/0004-views-cannot-be-rebuilt.md)). `Nightstand` started empty when added and fills as books are opened.
+- Adding a new source aggregate to an existing `keyOf` view without bumping `version` works on this host (live events route to the view), provided all events from that new source are newer than the change. `Shelf` gained `Copy` this way.
+
+### Schema evolution without migrations
+
+Event history, stored aggregate/view state and `contents.json` files on disk are never migrated ([ADR 0007](adr/0007-stored-state-read-with-defaults.md)). When adding a field to stored state, give it a `Schema.withDecodingDefaultKey(...)` default, and never rename a stored key without `Schema.encodeKeys(...)`.
 
 ## The press
 
-- The press runs in its own base image, `packages/press/image/Dockerfile`, as the user `PROSODY_UID` names (1000 unless set), who owns the library and the copies folder on the host. Bump `IMAGE` in `Press.ts` whenever the Dockerfile changes, or the press keeps the old image. A user other than 1000 has an image of their own, tagged with the uid.
-- The library is `<PROSODY_LIBRARY>/ebooks/<Author>/<Title>/` and `<PROSODY_LIBRARY>/audiobooks/<Author>/<Title>/` (`HALVES` in `Stacks.ts`). The walk claims every folder it finds for the work named after it, `sha256(author/title)`, and reports the folder under whichever work holds it. That is how a folder shelved for a work you wanted keeps that work's id. Such a work, catalogued with no shelfmark, is catalogued again when the walk first finds it, so it appears on the shelf. `CorrectTitle` corrects a wanted work's title and author until it is on the shelf (`OnTheShelf` after): its folder is named for them. A work stored before works kept their names has none; shelving then asks the catalogues again, for the names you gave, and names its folder as they do.
-- `.pending` in the copies folder is the press's queue, `<work>.json` for a pair to align and `<work>.<attempt>.copy.json` for an edition to copy, one at a time in the order asked, so a copy can wait behind an alignment; and `<grab>.shelve.json` for a payload to shelve, in a line of its own, so shelving never waits behind an alignment. A request stays there until its answer is sent. After a restart they are taken in name order, so a work's copy runs before its pair, which replaces it.
-- A book with one edition has a `Copy` (Reading): the press reports the edition alone on every walk (`CopyEdition`; the same file at the same size again records nothing), and the `ReadingCopy` policy asks the press (the `Copier`) to make its copy, unless the `Work` by now has both editions, or an edition it would rather be copied from (see the bullet on a PDF, under "The reading room"). That check matters: a failing mount can hide one half of a pair for a walk, and the Work never forgets an edition, so a synced copy is never replaced by a copy of one half. The press answers `RecordCopy` or `RecordCopyFailed`, and sends the answer again for five minutes, through a deploy that replaces the Api. There is no deadline: a copy takes a second or two and waits on disk until it is answered. A failed copy stays failed until its file is replaced by one of another size (another name is `AlreadyShelved`), or you send `RemakeCopy`: the shelf links a book whose copy failed to its room, which says why and offers to make it again. A text with no sentences to read (pictures alone, or scanned pages) fails.
-- The Api serves the reading copies read-only at `/copies/<work>/`: `contents.json`, `timeline.json`, `cover.jpg`, `text/`, `pictures/` and `audio/`. `contents.json` says what the copy is: the audio to play (`null` for a text alone), the text's sections (none for an audio alone; `pages` in the file, as they were first called), the audio's chapters (an audio alone's, from the file, by ffprobe), the cover, and for a book of pages, the picture of each page and its `headings`. Only a pair has a timeline. A copy without `contents.json` is unfinished or was made before the reading room; `RealignNarration` or `RemakeCopy` makes it again.
-- The press makes the cover with ffmpeg, as `cover.jpg` no taller than 800 pixels, from the picture the EPUB names, or else the one the audio file carries. A copy made before covers has none until it is made again: `RealignNarration` each pair once. The shelf draws a plain binding with the title's first letter under every cover, so a missing one shows that.
-- A section's title in the contents is what the EPUB's own table of contents (its NCX) calls it, or else its first heading. Text the narrator would not read (a cover, the contents, an index) is left out of a text alone as well, so both kinds of copy mark the same sections.
-- The aligner runs NVIDIA's Parakeet CTC 0.6B (int8 ONNX) through `@huggingface/transformers`, and Whisper base.en for the spot check. The press image downloads both at pinned revisions into `/models` and runs offline; the bundle leaves `@huggingface/transformers` external, installed in the image's `/app`. Changing either model means a new image tag.
-- What the model heard is kept beside each reading copy as `heard-<size>.emissions`, so a realign never listens again. Change the emissions format and those files must be ignored or rebuilt.
-- `packages/aligner/bench` runs the aligner on saved emissions, outside the press: `run.ts` end to end, `align.ts` to try costs, `reorder.ts` and `unread.ts` for audio out of order or text not read.
+The press ([`packages/press`](../packages/press)) is the only service that touches book files, and it only ever adds copied files to the library ([ADR 0002](adr/0002-press-only-adds-to-the-library.md)).
+
+### Base image and user
+
+The press runs from [`packages/press/image/Dockerfile`](../packages/press/image/Dockerfile) as the UID in `PROSODY_UID` (default `1000`), which must own the library and copies folders on the host. The image bundles `ffmpeg`, `poppler-utils`, `@huggingface/transformers`, and pinned revisions of both speech models in `/models` so aligning runs offline ([ADR 0024](adr/0024-press-image-holds-its-models.md)). `@huggingface/transformers` is kept external in the service bundle (`Press.ts`) because it loads native libraries installed in `/app`.
+
+Because the image is slow to build, its tag is bumped by hand via `IMAGE` in [`packages/press/src/Press.ts`](../packages/press/src/Press.ts). Bump `IMAGE` whenever the Dockerfile or either model changes, or the press keeps running the old image ([ADR 0019](adr/0019-redeploy-by-fingerprint.md)). A UID other than `1000` gets its own tag (`<IMAGE>-uid<uid>`).
+
+### The walk, claims and titles
+
+The library has two halves (`HALVES` in [`packages/press/src/Stacks.ts`](../packages/press/src/Stacks.ts)):
+
+- `<PROSODY_LIBRARY>/ebooks/<Author>/<Title>/` (`.epub`, `.pdf`)
+- `<PROSODY_LIBRARY>/audiobooks/<Author>/<Title>/` (`.m4b`)
+
+On each walk, the press derives a deterministic `WorkId` (`w-` plus 12 hex characters of `sha256(shelfmark.normalize("NFC"))`) and sends `ClaimShelfmark`. The first work to claim a shelfmark owns it ([ADR 0004](adr/0004-first-claim-holds-a-folder.md)), so a folder shelved for a wanted book keeps the wanted work's id. When the walk first finds a wanted work that was catalogued without a shelfmark, `CatalogueWork` records it again with its shelfmark so it appears on the shelf.
+
+`CorrectTitle` can change a wanted work's title and author until it is shelved (`OnTheShelf` after), because its folder is named from them. For older works stored before `Work` kept titles, `Shelving` ([`packages/domain/src/Library/Shelving.policy.ts`](../packages/domain/src/Library/Shelving.policy.ts)) falls back to asking `Metadata` with the want's title and author to name the folder.
+
+The library may be a network share that hangs or appears empty; the walk skips unreadable folders rather than failing, and shelving checks both mounts answer within 8 seconds and that the library has both halves before copying ([ADR 0023](adr/0023-library-may-drop.md)).
+
+### The on-disk queue (`.pending`)
+
+Requests from the model are written to `/copies/.pending` and removed only after the press sends its answer ([`packages/press/src/Pending.ts`](../packages/press/src/Pending.ts), [ADR 0021](adr/0021-press-queue-on-disk.md)):
+
+| Filename | Queue | Purpose |
+|---|---|---|
+| `<work>.json` | `waiting` (1 at a time) | Align a pair |
+| `<work>.<attempt>.copy.json` | `waiting` (1 at a time) | Copy an edition alone |
+| `<grab>.shelve.json` | `shelving` (separate line) | Shelve a fetched book |
+
+Shelving runs in its own queue so it never waits behind a long alignment. On restart, `.pending` files are resumed in sorted filename order, so `<work>.<attempt>.copy.json` runs before `<work>.json` (which replaces it).
+
+### Edition-alone copies vs pairs
+
+A work with one edition is managed by the `Copy` aggregate (`packages/domain/src/Reading/Copy.aggregate.ts`):
+
+- On every walk, the press sends `CopyEdition` for works without both text and audio. Re-sending the same kind, filename and byte size records nothing.
+- Before calling the `Copier`, the `ReadingCopy` policy checks `editionToCopy` against `Work` (priority: `text`, then `pages`, then `audio`; `undefined` if both `text` and `audio` exist). Because `Work` never forgets an edition, a dropped mount hiding one half of a pair for a single walk cannot downgrade a synced copy or swap a text's copy for a PDF's ([ADR 0009](adr/0009-copy-from-one-edition.md)).
+- `Copy` has no deadline; the press retries `RecordCopy` and `RecordCopyFailed` every 10 seconds for up to 30 tries (~5 minutes, `persistently` in `Press.ts`) so answers survive an Api deploy ([ADR 0020](adr/0020-press-reconnects-and-repeats.md)).
+- A failed copy stays failed until either the file is replaced with a different size under the same filename (a different filename is rejected by `ShelveEdition` with `AlreadyShelved` before `CopyEdition` runs) or `RemakeCopy` is sent. On the shelf, a failed copy links to its reading room, which shows the failure reason and a retry button. An EPUB with no readable sentences fails with `its text has no sentences to read`.
+
+### Reading copy layout, covers and section titles
+
+The Api serves `/copies/<work>/` read-only ([`packages/server/src/Copies.ts`](../packages/server/src/Copies.ts)), exposing only `contents.json`, `timeline.json`, `cover.jpg`, `text/`, `pictures/` and `audio/` ([ADR 0022](adr/0022-copy-whole-once-contents-written.md)).
+
+- **`contents.json`** is written last; a folder without it is unfinished or predates the reading room, and the room offers `RealignNarration` or `RemakeCopy`. In the file, `audio` is `null` for text alone and pages; `sections` is encoded under the legacy key `pages` ([ADR 0007](adr/0007-stored-state-read-with-defaults.md)); `chapters` holds ffprobe chapters for audio alone (or one full-length chapter if none are embedded); `pictures` and `headings` hold PDF page images and outline entries. Only pairs have `timeline.json`.
+- **Covers** (`cover.jpg`) are extracted with `ffmpeg`, scaled to at most 800 px tall ([`packages/press/src/Covers.ts`](../packages/press/src/Covers.ts)), from the EPUB's cover image, else the audio's embedded art, or for a PDF from its first rendered page. Copies made before cover support have none until remade; the shelf draws a plain binding with the title's first letter behind every cover as a fallback.
+- **Section titles and filtering:** `Epub.open` reads the EPUB's NCX table of contents for section titles and falls back to the first `h1`–`h3` heading or `<title>` ([`packages/aligner/src/Epub.ts`](../packages/aligner/src/Epub.ts), [`packages/aligner/src/Sections.ts`](../packages/aligner/src/Sections.ts)). Non-narrated sections (covers, contents, indexes, colophons, etc.) are filtered out for both pairs and text alone so both kinds mark the same sections.
+
+### The aligner and emissions
+
+Alignment uses NVIDIA Parakeet CTC 0.6B (int8 ONNX) for acoustic emissions and Whisper `base.en` for the spot check ([ADR 0025](adr/0025-aligner-keeps-what-it-heard.md), [ADR 0028](adr/0028-second-model-listens.md)). The spot check must hear at least 75% of checked sentences (`4 * heard >= 3 * checked`, and `checked > 0`) or the alignment is refused ([`packages/press/src/ReadingCopies.ts`](../packages/press/src/ReadingCopies.ts)).
+
+Emissions are cached beside the copy as `heard-<size>.emissions` so realigning never runs the speech model again. If you change the emissions binary format, invalidate or rebuild existing `heard-*` files.
+
+`packages/aligner/bench/` runs the aligner outside the press on saved emissions: `run.ts` end to end, `emit.ts` to record emissions, `align.ts` to test alignment costs, `reorder.ts` and `unread.ts` for out-of-order audio or unread text, and `profile.ts` to benchmark inference.
 
 ## The reading room
 
-- A place is a sentence, or, in a work with its audio alone, a time in seconds, or, in a book of pages, a page counted from 1 (`PlaceAt`: `sentence`, `time` and `page`, each `null` when it is not that kind). A place kept before there were times or pages decodes with `null` for them. A book heard alone and paired later opens at the sentence read at its time. In audio alone the place is kept every fifteen seconds while it plays, on pause, and whenever the audio is moved while paused (a chapter, a skip, the lock screen).
-- The nightstand is `OpenBook` (sent once a room's book has opened, and again when the connection comes back until the model answers it), `FinishBook` and `SetAside` on `Reading`, and the `Nightstand` view, keyed like the shelf. `OpenBook` puts a finished book back on the nightstand, so it is sent only for an open you made: finishing a book or setting it aside puts the shelf's address in place of the room's, or reloading the room, or going back to it, would open it again. A `Reading` stored before stages existed decodes as `unopened`, and goes on the nightstand when it is next opened.
-- The lock screen shows the book, its author, the chapter and its cover (the app's icon for a copy with none), and its play, pause, skip and seek buttons move the audio element itself (`Player.ts`, `LockScreen.ts`). A text alone has no player and puts nothing there.
-- A PDF is a work's third kind of edition, its `pages`, found as the first `.pdf` in its ebooks folder. A work with no pair is copied from one edition alone, picked by `editionToCopy`: its text if it has one (a text is marked sentence by sentence, so it wins over the pages of the same book), else its pages, else its audio; the `ReadingCopy` policy asks the press only for that one, so a walk that misses a folder can't swap a text's copy for its pages'. The press draws the pages with poppler (`pdftoppm`, in its image since `pages-1`) as JPEGs 1600 pixels on their longer side, about 250 KB each, in `pictures/`; takes the chapters at the top of the PDF's outline (`pdftohtml -xml`) as the contents' `headings`, each with the page it begins on; and makes the cover from the first page. A PDF that can't be drawn fails the copy with the reason. The room shows one page at a time, as tall as the window allows; a tap on its left third or a swipe to the right turns back, a tap elsewhere or a swipe to the left turns on, and so do the arrow and page keys. A page zoomed in by a pinch moves under the finger and turns nothing (touches are read from touch events, which come while the browser pans). The page on show is your place, kept once it has stayed a second (the `Leaf` mount in `Pages.ts`), so leafing through keeps only where you stop; nothing is kept before your place is known, or where it is already. "Keep on this device" keeps every picture, six at a time, skipping those already kept (a book of 324 pages is 85 MB). A MOBI is not read, and nor is a comic (CBZ).
+### Places
+
+`PlaceAt` ([`packages/domain/src/Reading/Sentence.ts`](../packages/domain/src/Reading/Sentence.ts)) has three nullable fields: `sentence` (for pairs and text alone), `time` in seconds (for audio alone) and `page` counted from 1 (for pages). Fields added later decode as `null` for older events ([ADR 0007](adr/0007-stored-state-read-with-defaults.md), [ADR 0008](adr/0008-a-place-is-a-sentence.md)).
+
+- A book heard as audio alone and later paired opens at the sentence spoken at its kept `time` (`goToPlace` in [`packages/web/src/Steps.ts`](../packages/web/src/Steps.ts)).
+- While audio plays (paired or audio alone), the place is kept every 15 seconds (`KEEP_EVERY` in [`packages/web/src/Places.ts`](../packages/web/src/Places.ts)) and on pause. In audio alone, moving the audio by more than 1 second while paused (chapter jump, skip or lock-screen seek) also keeps the place (`isMovedByHand` in [`packages/web/src/Rooms.ts`](../packages/web/src/Rooms.ts)).
+
+### The nightstand
+
+The nightstand is driven by `OpenBook`, `FinishBook` and `SetAside` on `Reading` and projected by the `Nightstand` view (keyed by `SHELF`, like `Shelf`).
+
+`OpenBook` puts a finished or set-aside book back on the nightstand, so it is sent once a room's copy has opened (and retried on reconnect until `SucceededOpenBook`, tracked by `room.hasOpened`). Finishing a book or setting it aside navigates to the shelf with `replaceUrl` (`CloseRoom` in [`packages/web/src/Main.ts`](../packages/web/src/Main.ts)), never `pushUrl`, so reloading or pressing Back cannot land in the room and send `OpenBook` again ([ADR 0038](adr/0038-opening-is-something-you-did.md)). Readings stored before stages existed decode as `unopened` and join the nightstand the next time they are opened.
+
+### Lock screen
+
+[`packages/web/src/LockScreen.ts`](../packages/web/src/LockScreen.ts) sets `navigator.mediaSession.metadata` (title, author, current chapter and cover, falling back to `/icon-512.png`), and [`packages/web/src/Player.ts`](../packages/web/src/Player.ts) wires `play`, `pause`, `seekbackward` (15 s), `seekforward` (30 s) and `seekto` directly to the `<audio>` element. Works without audio (text alone and pages) render no player and touch nothing in `mediaSession`.
+
+### Pages (PDF)
+
+A work's `pages` edition is the first `.pdf` in its `ebooks/<Author>/<Title>/` folder. MOBI and CBZ files are ignored.
+
+- **Press rendering** ([`packages/press/src/Pages.ts`](../packages/press/src/Pages.ts)): `pdftoppm` renders every page to `pictures/` as JPEG (quality 80, 1600 px on the longer side, roughly 250 KB per page; a 324-page book is about 82 MB on disk and 85 MB in the Cache API), and `pdftohtml -xml` extracts top-level outline entries as `headings`. The first page becomes `cover.jpg`. Any failure in `pdftoppm` fails the copy with its reason.
+- **Navigation and zoom** ([`packages/web/src/Pages.ts`](../packages/web/src/Pages.ts)): One page is shown at a time. Tapping the left third or swiping right turns back; tapping elsewhere or swiping left turns on; `ArrowLeft`, `ArrowRight`, `PageUp` and `PageDown` also turn. Touch handling reads `touchstart`/`touchend` directly and ignores multi-touch or any touch while `visualViewport.scale > 1`, so a pinch-zoomed page pans without turning.
+- **Keeping a page place:** The `Leaf` mount waits 1 second before emitting `ShowedPage`, so flipping through pages only records where you stop. Nothing is kept before `room.knowsPlace` is true or if the page matches the last kept page (`showedPage` in [`packages/web/src/Rooms.ts`](../packages/web/src/Rooms.ts)).
+- **Keeping offline:** Page pictures are cached 6 at a time, skipping any picture already in the work's cache (`keepText` in [`packages/web/src/DeviceCopies.ts`](../packages/web/src/DeviceCopies.ts)).
 
 ## Offline
 
-- The service worker is `packages/web/src/Worker.ts`, built apart from the page, with none of its plugins, by the `worker` plugin in `vite.config.ts`, which writes in the paths of the page, the lock screen's icon and every built file so it keeps them all when it installs. It answers a load of the app's own pages (`/` and `/read/<work>`) from the network and, when the network fails or has not begun to answer in three seconds, from the kept page; a built file from the device; a reading copy's file the same way as a page, from a kept copy; and `?kept` audio from a kept copy's pieces. Any other address goes to the network untouched. Only a build registers it; the dev server has none.
-- Offline is queued intent. Your place in each work is kept on the device (`localStorage`, `prosody:places`) with the command id that carries it, sent with that id whenever the model can be reached, and waits no longer once the model answers, kept or `StalePlace`. A lost answer marks the page offline, and it asks the server (`HEAD /`) every five seconds until it answers; the browser's `online` event also brings it back. An open book waits three seconds for the model's word on your place, then opens at the device's own.
-- "Keep on this device" puts a work's copy in the Cache API, one cache per work (`copy-<work>`, see `OnDevice.ts`): its contents, timeline, cover, sections and pictures, the audio in 8 MiB pieces as the Api sent them, and a record written last. A copy with audio counts as big as its audio; a text alone as big as what the cache holds for it (Caddy compresses text, so a response carries no length to add up). A copy without its record is not whole, and keeping it again fetches only what is missing. A room plays a kept copy from its own address, `<audio>?kept`, chosen as the room opens: a media element fails when one address gives it bytes from both the network and the device.
+### Service worker
+
+[`packages/web/src/Worker.ts`](../packages/web/src/Worker.ts) is built separately from the app bundle by the `worker` plugin in [`packages/web/vite.config.ts`](../packages/web/vite.config.ts), which injects `SHELL` (`/`, `/icon-512.png` and every file under `/assets/`). Only production builds register it (`import.meta.env.PROD` in [`packages/web/src/entry.ts`](../packages/web/src/entry.ts)); the dev server has none ([ADR 0035](adr/0035-service-worker-network-first.md)).
+
+| Request | Strategy |
+|---|---|
+| Navigation to `/`, `/desk`, `/read/<work>` | Network first with a 3-second timeout, then cached `/` |
+| URLs in `SHELL` | Cache first, then network |
+| `/copies/<work>/...` (excluding `/audio/`) | Network first with a 3-second timeout, then any matching cache entry |
+| `/copies/<work>/audio/...?kept` | Served from cached 8 MiB pieces (synthesising `200`/`206`/`416` byte ranges) |
+| Everything else (including unkept audio and `/api`) | Untouched; goes straight to the network |
+
+### Queued places and connectivity
+
+Offline writes are queued intent ([ADR 0037](adr/0037-offline-is-queued-intent.md)):
+
+- Each kept place is saved in `localStorage` under `prosody:places` along with its `commandId` ([`packages/web/src/Places.ts`](../packages/web/src/Places.ts)). When online, it is sent immediately; on reconnect or reload, every entry with a non-null `commandId` is resent. The `commandId` clears once the model accepts it or rejects it (for example with `StalePlace`).
+- An `Unknown` transport failure marks the app offline and starts polling `HEAD /` every 5 seconds until a 2xx response returns; the browser's `online` event also triggers reconnection ([`packages/web/src/Connection.ts`](../packages/web/src/Connection.ts)).
+- When opening a book online, the room waits up to 3 seconds (`WaitForPlace`) for the model's `Place` snapshot before settling on the device's own saved place.
+
+Desk commands (wants, title corrections, grabs) are not queued offline ([issue 0011](issues/0011-desk-commands-lost-offline.md)).
+
+### Kept copies
+
+"Keep on this device" stores a work in its own Cache API bucket (`copy-<work>`, [`packages/web/src/OnDevice.ts`](../packages/web/src/OnDevice.ts), [`packages/web/src/DeviceCopies.ts`](../packages/web/src/DeviceCopies.ts), [ADR 0036](adr/0036-kept-copy-in-pieces.md)):
+
+- It fetches `contents.json`, `timeline.json` (if synced), `cover.jpg`, text sections and their referenced assets, page pictures (6 at a time, skipping cached ones), and audio in 8 MiB range requests stored under `<audio>?piece=<n>` (skipping cached pieces).
+- It writes `/copies/<work>/kept.json` last. A cache without `kept.json` is treated as incomplete, and keeping the work again resumes without re-downloading cached audio pieces or page pictures.
+- Reported size is the audio byte length for works with audio, or the sum of cached blob sizes when `contents.audio === null` (text alone and pages, because Caddy compresses text responses and omits uncompressed lengths).
+- When a room opens for a kept work, `<audio>` uses `<audio>?kept` (`Listening.ts`) for the whole visit. Mixing network and cache bytes on one media URL breaks browser media elements.
 
 ## The site
 
-- `packages/site` is rendered twice: `vite build` renders every address `prerenderPaths` names (`src/entry.server.ts`) to a file, and the browser hydrates that file with the same `view`. A page that renders differently in the two is rebuilt in the browser, so keep `view` free of anything only one side knows.
-- A page is a Markdown file with a title and a summary at its top; docs are ordered by `order`, posts by `date`. `@foldkit/markdown` checks each file as it is built: raw HTML, a footnote or an unknown field fails the build with the file and line. `test/Content.test.ts` fails on a link to a page that does not exist.
-- Cloudflare serves the built files, and `htmlHandling: "drop-trailing-slash"` makes `/docs/installing` the file `docs/installing/index.html`. `vite preview` does not do that: it answers an address with no slash with the front page, which the browser then rebuilds, so judge a nested page's first paint from the deployed site or with a slash at its end.
-- The fonts are the reader's, read from `packages/web/src/fonts` by a relative path in `src/style.css`.
+`packages/site` is the public landing page, docs and blog, deployed to Cloudflare by its own Alchemy stack (`packages/site/alchemy.run.ts`, [ADR 0045](adr/0045-the-site-is-its-own-stack.md)).
+
+- **Prerender and hydrate:** `vite build` prerenders every path in `prerenderPaths` ([`packages/site/src/entry.server.ts`](../packages/site/src/entry.server.ts)) to static HTML, and the browser hydrates it with the same `view`. Keep `view` free of browser-only values or hydration will discard and rebuild the DOM.
+- **Markdown content:** Docs (`packages/site/content/docs/`, ordered by `order`) and blog posts (`packages/site/content/blog/`, ordered newest-first by `date`) require non-empty `title` and `summary` frontmatter ([`packages/site/src/Frontmatter.ts`](../packages/site/src/Frontmatter.ts)). `@foldkit/markdown` validates frontmatter and Markdown during the build, and [`packages/site/test/Content.test.ts`](../packages/site/test/Content.test.ts) fails on broken internal links or em dashes.
+- **Trailing slashes in preview:** Cloudflare serves `packages/site` with `htmlHandling: "drop-trailing-slash"`, mapping `/docs/installing` to `docs/installing/index.html`. `vite preview` does not do that: without a trailing slash it serves the root `index.html`, which the browser then reroutes. Judge a nested page's first paint on the deployed site or with a trailing slash.
+- **Shared fonts:** [`packages/site/src/style.css`](../packages/site/src/style.css) loads the reader's font files via relative paths from `packages/web/src/fonts/`.
 
 ## Known limits
 
-- Audio is one `.m4b` a book, AAC-LC. xHE-AAC audio once aligned wrongly without an error; the aligner now fails when ffmpeg does not decode a whole file, but check the codec before trusting a new kind of audio.
-- Phone audio was tested on an iPhone, on runs of one to four minutes. Long sessions are untested.
-- On a phone, choosing a chapter from the folded contents in the reading room leaves you at the top of the page.
-- Remaking a copy (`freshFolder` in `packages/press/src/ReadingCopies.ts`) empties it before remaking it, so the book can't be read during a realign. It keeps `heard-*`.
+- **Audio format:** The press only scans for one `.m4b` per book (`Stacks.ts`). For alignment, `isDecodable` ([`packages/aligner/src/Audio.ts`](../packages/aligner/src/Audio.ts)) allows only `mp3` or `aac` (`LC` profile), rejecting codecs like xHE-AAC up front with `UndecodableAudio`, and `Aligner.ts` also checks decoded length against container duration (`AudioCutShort`, unless the container states no duration; see [issue 0009](issues/0009-no-stated-length-skips-check.md)). Audio-alone copies skip `isDecodable` and rely on browser playback.
+- **Reading copies over 4 GB:** The EPUB writer in `packages/aligner/src/Overlay.ts` does not write ZIP64, so pairs whose combined copy exceeds 4 GB fail ([issue 0008](issues/0008-copies-over-4-gb.md)).
+- **Remaking empties the copy first:** `freshFolder` in [`packages/press/src/ReadingCopies.ts`](../packages/press/src/ReadingCopies.ts) deletes the work's copy folder (keeping only `heard-<size>.emissions` when aligning, or `heard-*` when copying) before rebuilding, so the book cannot be opened while it is being remade ([issue 0002](issues/0002-remaking-a-copy-empties-it.md)).
+- **Queue time counts toward the alignment deadline:** An alignment's 6-hour window starts when requested rather than when the press begins work, so a large batch of new pairs can expire in the queue ([issue 0006](issues/0006-deadline-counts-queue-time.md)).
+- **Phone audio is only lightly tested:** Background playback, lock-screen controls and offline playback were only verified on an iPhone in a prototype for runs of one to four minutes. Long sessions, interruptions (calls, other apps, Bluetooth) and iOS cache eviction are untested.
+- **Chapter jump on narrow screens:** Choosing a chapter from the folded contents in a text or synced book calls `ToTop()`, which scrolls to the top of the document (above the folded leaf on a phone) rather than to the text itself. Pages books scroll the page into view (`Show({ id: PRINTED })`).
