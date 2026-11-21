@@ -1,3 +1,17 @@
-# Stored state is read with defaults and stored names never change
+# Read stored state with defaults and keep persisted field names
 
-Nothing in the event history or on disk is migrated. A field added later decodes with a default when it is missing (a place kept before there were pages has no page; a grab kept before shelving has no note), and a name that was stored keeps its name: a reading copy's contents still say `pages` for a text's sections, mapped by `Schema.encodeKeys`. This keeps every old event, view and reading copy readable without a migration step.
+## Decision
+
+Prosody does not run data migrations on its event store, views or on-disk `contents.json` files. Instead:
+
+- **New fields** decode with `Schema.withDecodingDefaultKey(...)` when absent in older records (for example `page` and `time` on `PlaceAt`, `stage` on `Reading`, `note` on `Grab`, and `chapters`/`cover`/`pictures`/`headings` on `Contents`).
+- **Renamed fields** keep their stored wire name with `Schema.encodeKeys`. In `Contents` (`packages/domain/src/Reading/Copy.ts`), `sections` is still encoded as `pages` in `contents.json`.
+
+## Why
+
+The event log, view snapshots and `/copies/*/contents.json` files outlive deploys. Decoding missing fields with defaults and preserving persisted key names keeps every historical event, view and reading copy readable without offline migration scripts or downtime.
+
+## What breaks if you change this
+
+- Adding a required field to an aggregate state, view state, event or `Contents` without `Schema.withDecodingDefaultKey` causes decoding failures when reading existing Postgres state or `/copies/*/contents.json`.
+- Renaming a persisted field without `Schema.encodeKeys` breaks existing reading copies on disk and previously stored events or views.

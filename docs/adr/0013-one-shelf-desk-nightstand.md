@@ -1,3 +1,20 @@
-# There is one shelf, one desk and one nightstand, and the app joins their parts
+# Keep one singleton instance for Shelf, Wanted and Nightstand, with separate maps per aggregate
 
-The `Shelf`, `Wanted` and `Nightstand` views are each one instance under one key, fed by several aggregates. Events from different aggregates have no order between them, so each view keeps its parts apart (works, syncs and copies; wants, catalogue entries and grabs) and the app joins them when it draws.
+## Decision
+
+Three views each exist as a single instance keyed by `SHELF` (`ShelfName.make("main")`):
+
+- `Shelf` (`packages/domain/src/Library/Shelf.view.ts`): fed by `Work`, `Narration` and `Copy`, storing `works`, `syncs` and `copies` as separate records.
+- `Wanted` (`packages/domain/src/Acquisition/Wanted.view.ts`): fed by `Want`, `Work` and `Grab`, storing `wants`, `catalogue` and `grabs` as separate records.
+- `Nightstand` (`packages/domain/src/Reading/Nightstand.view.ts`): fed by `Reading`, storing `works` (each work's `Standing`).
+
+The web app joins these records when rendering (`packages/web/src/Shelf.ts`, `packages/web/src/Desk.ts`, `packages/web/src/Main.ts`).
+
+## Why
+
+Events emitted by different aggregates have no guaranteed delivery order relative to one another. For example, `AlignmentStarted` from `Narration` can arrive at `Shelf` before `WorkCatalogued` from `Work`. Keeping each aggregate's slice in its own record lets every `evolve` handler write its slice unconditionally without dropping updates that arrive early.
+
+## What breaks if you change this
+
+- Merging `syncs` or `copies` into `Shelf.works[id]` (or `catalogue` into `Wanted.wants[id]`) causes out-of-order events to be silently ignored when the parent entry does not exist yet.
+- Changing the singleton key `SHELF` (`"main"`) orphans existing persisted view snapshots in Postgres.
