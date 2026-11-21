@@ -1,235 +1,235 @@
-# Prosody
+# Glossary
 
-The words Prosody uses for the route a book travels: wanted, shelved, aligned, and read or heard. One model, in `packages/domain`, speaks all of them.
+Every word below has one meaning in Prosody's code, app text, and documentation. Most live in [`packages/domain/src`](packages/domain/src); the rest name parts of the web app, the press, or the deployed stack.
 
-## Language
+Each entry gives the word, what it means in the code, and the words to avoid in its place. The separate vocabulary for fetching a wanted book at the desk is in [`docs/acquiring/GLOSSARY.md`](docs/acquiring/GLOSSARY.md).
 
-### The library
+## Books, editions, and the library
 
 **Work**:
-One book as the model knows it, whatever its editions. Everything else is keyed by its work.
+A book's identity in the model, independent of which files exist for it (`Work` aggregate in `packages/domain/src/Library/Work.aggregate.ts`). Its `WorkId` (`w-<hex>`) keys the work itself as well as its `Narration`, `Copy`, `Reading`, `Place`, and `Want`.
 _Avoid_: Title, item, record
 
 **Book**:
-What a reader calls it: the thing you want, open and finish. The model knows each book as a work.
-_Avoid_: Using it for an identity; that is a work
+The reader-facing word used in the app and in reader commands (`WantBook`, `OpenBook`, `FinishBook`). The model represents each book as a work.
+_Avoid_: Using it for a domain identifier; that is a work
 
 **Edition**:
-One file of a work, of one kind: its text, its audio or its pages. A work has at most one edition of each kind.
+One file belonging to a work, of one `EditionKind` (`"text"`, `"audio"`, or `"pages"` in `packages/domain/src/Library/ShelveEdition.command.ts`). A work holds at most one shelved edition of each kind.
 _Avoid_: File, format, version
 
 **Text**:
-The edition of a work that is read sentence by sentence: an EPUB.
+A work's `"text"` edition: an `.epub` file, read sentence by sentence.
 _Avoid_: Ebook (for the edition)
 
 **Audio**:
-The edition of a work that is heard: one audiobook file.
+A work's `"audio"` edition: a single `.m4b` audiobook file.
 _Avoid_: Audiobook (for the edition), track
 
 **Pages**:
-The edition of a work as it was printed, shown a page at a time: a PDF. Only this edition has pages.
+A work's `"pages"` edition: a `.pdf` file, rendered as page images and shown one page at a time. Only this edition has pages.
 _Avoid_: Scan, document
 
 **Pair**:
-A work's text and audio together. Only a pair is aligned.
+A work's text and audio editions together (`Narration.pair` in `packages/domain/src/Narration/Narration.aggregate.ts`). Only a pair is aligned.
 _Avoid_: Match, sync pair
 
 **Edition alone**:
-The one edition a work with no pair is read or heard by: its text, else its pages, else its audio.
+The single edition used when a work has no pair. `editionToCopy` in `packages/domain/src/Reading/CopyEdition.command.ts` picks it in priority order: `"text"`, else `"pages"`, else `"audio"`.
 _Avoid_: Single, unpaired file
 
 **Library**:
-The book files on the host, in a folder for every author and, inside it, one for every title.
+The directory of book files on the host (`PROSODY_LIBRARY`). It has two top-level folders, `ebooks` (for `.epub` and `.pdf` files) and `audiobooks` (for `.m4b` files), each arranged as `<author>/<title>/<file>`.
 _Avoid_: Collection, media folder, shelf
 
 **Shelfmark**:
-Where a work sits in the library: its author's folder and its title's folder.
+A work's `<author>/<title>` folder path inside the library (`Shelfmark` in `packages/domain/src/Library/Shelfmark.ts`), shared across `ebooks` and `audiobooks` and sanitised for filesystem names by `shelfmarkOf`.
 _Avoid_: Path, folder name, location
 
 **Claim**:
-A work's hold on a shelfmark. The first work to claim a folder holds it, and every later one is told whose it is.
+A work's ownership of a shelfmark (`ShelfmarkClaim` aggregate in `packages/domain/src/Library/ShelfmarkClaim.aggregate.ts`). The first work to send `ClaimShelfmark` for a shelfmark holds it; any other work trying to claim the same shelfmark is rejected with `ShelfmarkTaken` and given the owning `WorkId`.
 _Avoid_: Lock, reservation
 
 **Catalogue**:
-The model's record of every work it knows, found in the library or wanted. To catalogue a work is to enter it there.
+The set of works recorded in the model via `CatalogueWork` (`packages/domain/src/Library/CatalogueWork.command.ts`). A work is catalogued either when the press finds it during a walk (with a shelfmark and no description) or when it is wanted (with no shelfmark and a `Metadata` description).
 _Avoid_: Database, index
 
 **Description**:
-What the catalogues outside know of a work beyond its title and author.
-_Avoid_: Metadata (for one work's), details
+Outside catalogue details for a work (`Description` in `packages/domain/src/Library/Metadata.external.ts`): first publication `year`, `openLibrary` work key, and `recording` if an audiobook match was found.
+_Avoid_: Metadata (for one work's details), details
 
-**Shelf**:
-Every catalogued work in the library, as the app shows them, each with how its reading copy stands.
-_Avoid_: Library (for the view), list, home
-
-**Walk**:
-One pass by the press over the whole library, reporting every work, edition, pair and edition alone it finds.
-_Avoid_: Scan, sync, import
+**Recording**:
+An audiobook entry returned by external catalogues (`Recording` in `packages/domain/src/Library/Metadata.external.ts`): its `asin`, `narrators`, length in `minutes`, and `chapters`. It is metadata about an audiobook, never an audio file on disk.
+_Avoid_: Audio, edition
 
 **Shelved**:
-An edition is shelved once it is in its work's folder in the library and the catalogue knows it. To shelve a book that was fetched is to copy its edition there; what was fetched stays where it is.
+The state of an edition that sits in its work's folder in the library and has been recorded by `ShelveEdition` (`packages/domain/src/Library/ShelveEdition.command.ts`). To shelve a fetched book is to copy its edition into the library while leaving the original fetched file untouched.
 _Avoid_: Import, move, file
 
-### Alignment and reading copies
+**Walk**:
+One pass by the press (`Stacks.walk` in `packages/press/src/Stacks.ts` and `Press.walk` in `packages/press/src/Press.ts`) over both halves of the library, running every 5 minutes and after shelving a fetched book. For each book found, the press claims its shelfmark, catalogues the work, records each edition, and sends `PairEditions` or `CopyEdition`.
+_Avoid_: Scan, sync, import
+
+**Shelf**:
+The `Shelf` view (`packages/domain/src/Library/Shelf.view.ts`) and main library screen (`packages/web/src/Shelf.ts`). It lists every catalogued work that has a shelfmark, together with its shelved editions and the state of its alignment or edition-alone reading copy.
+_Avoid_: Library (for the view), list, home
+
+## Alignment and reading copies
 
 **Narration**:
-A pair, and the timeline that joins its text to its audio.
+The `Narration` aggregate (`packages/domain/src/Narration/Narration.aggregate.ts`), keyed by `WorkId`. It holds a work's pair (`shelfmark`, `text`, `audio`), its alignment status (`"unpaired"`, `"aligning"`, `"aligned"`, or `"failed"`), and the current attempt number.
 _Avoid_: Sync, audiobook
 
 **Alignment**:
-Finding where each sentence of a pair's text is spoken in its audio.
-_Avoid_: Sync (for the act), matching, transcription
+Matching each sentence of a pair's text to the start and end times where it is spoken in the audio (`packages/aligner/src/Align.ts`). In the domain, `Alignment` (`packages/domain/src/Narration/Alignment.policy.ts`) is the policy that schedules a 6-hour `ExpireAlignment` deadline and dispatches an `AlignRequest` to `Aligner`.
+_Avoid_: Sync (for the process), matching, transcription
 
 **Synced**:
-What the shelf calls a work whose pair is aligned. While the press is aligning it, it is syncing.
+The shelf's label for a paired work whose alignment succeeded (`Sync.state` `"synced"` in `packages/domain/src/Library/Shelf.view.ts` and `packages/web/src/Shelf.ts`). While alignment is running, the shelf calls it `"syncing"`; if it fails, `"not synced"`.
 _Avoid_: Aligned (in the app's own text), matched
 
 **Try**:
-One go at an alignment or a reading copy. Each has its own number, its attempt, so a late answer to an old try is ignored.
+One attempt to align a pair or make a reading copy for an edition alone. Both `Narration` and `Copy` number each try with `attempt` (`Schema.Int`) and ignore any result whose `attempt` does not match the running one.
 _Avoid_: Job, run, retry
 
 **Request**:
-What the model asks of the press: to align a pair, to copy an edition alone, or to shelve a book that was fetched. It waits in the press's queue until it is answered.
+Work dispatched from the model to the press: `AlignRequest` (`Aligner.external.ts`), `CopyRequest` (`Copier.external.ts`), or `ShelveRequest` (`Stacks.external.ts`). The press persists each request under `.pending` (`packages/press/src/Pending.ts`) and queues it until finished.
 _Avoid_: Job, task, message
 
 **Timeline**:
-Every sentence of a work in reading order, each with its place in the audio, or none when it was not found there.
+The ordered list of every sentence in a paired work (`Timeline` in `packages/domain/src/Reading/Copy.ts`, written to `timeline.json`). Each entry is either `"aligned"` with `start` and `end` times in seconds, or `"unaligned"` when the sentence was not found in the audio.
 _Avoid_: Sync map, overlay
 
 **Spot check**:
-Listening to a spread of aligned sentences with a second speech model, to confirm the right words are there. An alignment that fails it is refused.
+Verifying an alignment with a second speech model (`SpotCheck` in `packages/aligner/src/SpotCheck.ts`), which transcribes up to 40 aligned sentences (3 to 15 seconds long) spread across the book. `ReadingCopies.make` (`packages/press/src/ReadingCopies.ts`) refuses the alignment if no sentences can be checked or fewer than three-quarters match.
 _Avoid_: Verification, QA
 
+**Heard**:
+The acoustic model's cached output for a work's audio (`heard-<size>.emissions`, kept in the reading copy folder by `packages/press/src/ReadingCopies.ts` and reused by `packages/aligner/src/Aligner.ts`), so re-aligning the same audio file skips listening to it again.
+_Avoid_: Transcript, cache
+
 **Reading copy**:
-What the press makes of a work for the reading room: its text marked sentence by sentence, its audio, the pictures of its pages, and its cover, as the work has them. A pair has one, and so does a work with an edition alone.
+The set of files the press builds for a work in the reading room (`packages/press/src/ReadingCopies.ts`): `contents.json`, a `cover.jpg` if available, and whichever of sentence-marked text, audio, `timeline.json`, an aligned `.epub`, or rendered page pictures the work requires. Both pairs and editions alone have reading copies (`Copy` aggregate and `ReadingCopy` policy handle editions alone).
 _Avoid_: Cache, transcode, derivative
 
 **Contents**:
-What a reading copy says it holds: the audio to play, the sections to read, the pictures of its pages, the chapters and the cover.
+The `Contents` schema (`packages/domain/src/Reading/Copy.ts`), written to `contents.json` in each reading copy. It lists the copy's `audio` file, text `sections`, audio `chapters`, `cover`, rendered page `pictures`, and PDF `headings`.
 _Avoid_: Manifest, index
 
 **Section**:
-One part of a work's text, as its EPUB divides it, with a title. A text is read a section at a time, and never has pages.
+One narrated HTML document from an EPUB, paired with a `title` (`Contents.sections` in `packages/domain/src/Reading/Copy.ts` and `packages/aligner/src/MarkedSections.ts`). Text editions are read one section at a time and do not have pages.
 _Avoid_: Page, document, file
 
 **Sentence**:
-One sentence of a work's text, and the unit of alignment and of place.
+One marked sentence in a work's text (`Sentence` branded string in `packages/domain/src/Reading/Sentence.ts`, identified as `<section-path>#<span-id>`). It is the unit of alignment and of place in text and paired works.
 _Avoid_: Span, segment, line
 
 **Chapter**:
-What a reading room's contents list, by title. In a text it is a section, in audio alone a stretch of the audio from its start to its end, and in pages a heading.
+An entry in the reading room's table of contents (`chaptersIn` in `packages/web/src/Steps.ts`): a `section` for text or paired works, a `Chapter` (`title`, `start`, `end` in `packages/domain/src/Reading/Copy.ts`) for audio alone, or a `Heading` for pages.
 _Avoid_: Track, part
 
 **Heading**:
-A chapter of a work's pages: its title, and the page it begins on.
+An outline entry from a pages edition (`Heading` in `packages/domain/src/Reading/Copy.ts`), holding a `title` and the 1-based `page` number where it begins.
 _Avoid_: Bookmark, outline entry
 
-**Recording**:
-An audiobook of a work as the catalogues outside describe it: its narrators, its length and its chapters. It is a description, never a file.
-_Avoid_: Audio, edition
-
-**Heard**:
-What the speech model heard of a work's audio, kept beside its reading copy so that aligning again never listens again.
-_Avoid_: Transcript, cache
-
-### Reading
+## Reading and devices
 
 **Reading room**:
-Where one work is read or heard, with the audio following the text.
+The web view where one work is opened to read or listen (`packages/web/src/Room.ts`): paired text with synchronised audio, text alone, audio alone, or printed pages.
 _Avoid_: Reader, player, viewer
 
-**Place**:
-Where you are in a work: a sentence, or a time in a work with its audio alone, or a page in a work of pages. There is one per work, whichever device kept it.
-_Avoid_: Position, progress, bookmark
-
-**Device**:
-One of your own machines, known by its name in the tailnet.
-_Avoid_: Client, user, account
-
 **Reading**:
-Your reading of one work: your place in it, and its stage.
+The `Reading` aggregate (`packages/domain/src/Reading/Reading.aggregate.ts`), keyed by `WorkId`. It stores a work's current `place` and its `stage`.
 _Avoid_: Progress, session
 
+**Place**:
+Your current spot in a work (`PlaceAt` and `KeptPlace` in `packages/domain/src/Reading/Sentence.ts`, exposed by the `Place` view in `packages/domain/src/Reading/Place.view.ts`): a `sentence` for text or paired works, a `time` for audio alone, or a `page` for pages, stamped with `at` and `device`. There is one place per work across all devices; older timestamps are rejected with `StalePlace`.
+_Avoid_: Position, progress, bookmark
+
 **Stage**:
-Where a work stands with you: unopened, reading, finished or set aside.
+Where a work stands in your reading (`Stage` in `packages/domain/src/Reading/Stage.ts`): `"unopened"`, `"reading"`, `"finished"`, or `"setAside"`.
 _Avoid_: Status, state
 
 **Standing**:
-A work's stage, with when it last changed and on which device.
+A work's `stage` together with `at` and `device` (`Standing` in `packages/domain/src/Reading/Nightstand.view.ts`). It updates when a work is opened, finished, or set aside, and also whenever a place is kept while the work is in `"reading"`.
 _Avoid_: Bedside, progress
 
 **Nightstand**:
-The works you are reading now, the newest first. The shelf opens on it.
+The `Nightstand` view (`packages/domain/src/Reading/Nightstand.view.ts`) and the top section of the shelf (`packages/web/src/Shelf.ts`). The view records the `Standing` of every opened work; the shelf displays those in stage `"reading"`, most recently read first, under "On the nightstand".
 _Avoid_: Continue reading, in progress, recents
 
 **Set aside**:
-To take a work off the nightstand without finishing it. Your place is kept, and opening it puts it back.
+Moving a work from `"reading"` to `"setAside"` (`SetAside` command in `packages/domain/src/Reading/SetAside.command.ts`). It removes the work from the nightstand without finishing it or clearing its `place`; sending `OpenBook` returns it to `"reading"`.
 _Avoid_: Archive, pause, hide
 
 **Kept copy**:
-A reading copy held whole on a device, to read or hear with no network.
+A reading copy stored in full in a device's browser Cache Storage (`packages/web/src/DeviceCopies.ts`) so the work can be opened offline.
 _Avoid_: Download, offline cache
 
-### Wanting
+**Device**:
+One of your own machines on your tailnet (`Device` request context in `packages/domain/src/Device.context.ts`), identified by its Tailscale `ComputedName` (`packages/server/src/Tailscale.ts`). Tagged nodes and nodes owned by other users are refused.
+_Avoid_: Client, user, account
+
+## Wanting books
 
 **Desk**:
-Where you want books, and follow each one to the shelf.
+The web view (`packages/web/src/Desk.ts`) backed by the `Wanted` view (`packages/domain/src/Acquisition/Wanted.view.ts`), where you record books you want, fetch them, and follow them to the shelf.
 _Avoid_: Requests, downloads page, queue
 
 **Want**:
-A book you want, keyed by the work it will be.
+The `Want` aggregate (`packages/domain/src/Acquisition/Want.aggregate.ts`), keyed by the `WorkId` the book will have.
 _Avoid_: Request, wishlist item
 
 **Withdraw**:
-To stop wanting a book. Its offers go with it.
+Stopping a want via `WithdrawWant` (`packages/domain/src/Acquisition/WithdrawWant.command.ts`). It marks the want inactive and removes it (and its catalogue entry on the desk) from the `Wanted` view; any fetch already started continues independently.
 _Avoid_: Cancel, remove
 
 The words for fetching a wanted book are in [`docs/acquiring/GLOSSARY.md`](docs/acquiring/GLOSSARY.md).
 
-### Who is asked
+## External systems
 
 **Metadata**:
-Whatever knows about books in general: the catalogues outside.
+The `Metadata` external system (`packages/domain/src/Library/Metadata.external.ts`) that looks up a work's title, author, and `Description` from external book and audiobook catalogues (`packages/server/src/OpenLibraryMetadata.ts`).
 _Avoid_: Scraper, provider
 
 **Stacks**:
-The library as the one thing that writes to it.
+The `Stacks` external system (`packages/domain/src/Library/Stacks.external.ts`) through which the model asks the press to shelve a fetched edition into the library, implemented by `packages/press/src/Stacks.ts`.
 _Avoid_: Storage, importer
 
 **Aligner**:
-Whatever aligns a pair and makes its reading copy.
+The `Aligner` external system (`packages/domain/src/Narration/Aligner.external.ts`) that aligns a pair and writes its reading copy, backed by `packages/aligner/src/Aligner.ts` inside the press.
 _Avoid_: Syncer, transcriber
 
 **Copier**:
-Whatever makes a reading copy from an edition alone.
+The `Copier` external system (`packages/domain/src/Reading/Copier.external.ts`) that makes a reading copy for an edition alone, handled by the press (`packages/press/src/ReadingCopies.ts`).
 _Avoid_: Converter, transcoder
 
-### The parts
+## Runtime parts
 
 **Model**:
-Everything Prosody knows and decides: what you want, the library, each narration, each reading copy and each reading.
+The `Prosody` domain model (`packages/domain/src/Prosody.model.ts`): its aggregates (`Want`, `Grab`, `Work`, `ShelfmarkClaim`, `Narration`, `Copy`, `Reading`), views (`Wanted`, `Shelf`, `Place`, `Nightstand`), and policies.
 _Avoid_: Backend, server, database
 
-**Press**:
-The one part that touches book files. It walks the library, makes reading copies and shelves what was fetched, and it plays Stacks, the Aligner and the Copier.
-_Avoid_: Worker, processor, scanner
-
-**Api**:
-The model's front door for your devices and for the press, and the server of the app itself.
-_Avoid_: Backend, gateway
-
-**Relay**:
-The one door from the host into the stack.
-_Avoid_: Proxy, ingress
-
 **Runner**:
-The container that hosts the model.
+The `Runners` container pool (`packages/server/src/ProsodyLive.ts`) that hosts the model's cluster entities and policies.
 _Avoid_: Worker, node
 
-**Host**:
-The machine Prosody is deployed to.
-_Avoid_: Server, box, any machine's own name
+**Api**:
+The `Api` service (`packages/server/src/Api.ts`): serves the web app, `/auth`, `ReaderApi` at `/api`, reading copy files at `/copies/` (mounted read-only), and `PressApi` at `/press` (refused if relayed via `x-forwarded-for`).
+_Avoid_: Backend, gateway
 
 **Session**:
-What admits a request and says which device sent it.
+The `Session` RPC middleware (`packages/domain/src/Session.middleware.ts`, implemented in `packages/server/src/Session.ts`) that checks incoming requests and provides `Device`, or fails with `SignedOut`. Together with `/auth`, it admits only same-site requests from your own tailnet devices.
 _Avoid_: Login, auth, account
+
+**Press**:
+The `Press` service (`packages/press/src/Press.ts`): the only part that mounts the library or writes reading copies. It walks the library, shelves fetched books, and builds reading copies, implementing `Stacks`, `Aligner`, and `Copier`.
+_Avoid_: Worker, processor, scanner
+
+**Relay**:
+The `Relay` Caddy container (`alchemy.run.ts`) that reverse-proxies `PROSODY_RELAY` on the host to `Api` inside the Docker network.
+_Avoid_: Proxy, ingress
+
+**Host**:
+The machine Prosody is deployed to, configured via `.env` and read by `packages/server/src/Host.ts`.
+_Avoid_: Server, box, any machine's own name
