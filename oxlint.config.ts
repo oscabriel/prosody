@@ -18,7 +18,6 @@ export default defineConfig({
 		...ultraciteIgnores,
 		".agents/**",
 		".claude/**",
-		"spikes/**",
 		"tools/oxlint/**",
 	],
 	jsPlugins: [

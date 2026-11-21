@@ -7,6 +7,4 @@ coverage/
 .env.*
 !.env.example
 .DS_Store
-# Spike inputs and outputs: book files, caches and measurements. Numbers that matter go in NOTES.md.
-spikes/*/runs/
 *.tsbuildinfo

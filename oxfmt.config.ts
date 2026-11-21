@@ -12,9 +12,8 @@ export default defineConfig({
 		...ultraciteIgnores,
 		".agents/**",
 		".claude/**",
-		// The notes are prose and the spikes are throwaway, so the formatter leaves both alone.
+		// The notes are prose, so the formatter leaves them alone.
 		"**/*.md",
-		"spikes/**",
 		"tools/oxlint/**",
 		"pnpm-lock.yaml",
 	],
