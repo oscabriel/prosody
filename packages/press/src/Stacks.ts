@@ -115,10 +115,10 @@ const lookInto = <A>(
 	});
 
 /**
- * The library, read through Effect's file system. `survey` never fails: a folder that
- * cannot be read is reported and skipped, and never stops the walk. A failing mount can also list
- * a folder as empty with no error; that costs nothing, because the press only ever adds what it
- * finds.
+ * The library, read through Effect's file system. It may be a network share, so `survey` never
+ * fails: a folder that cannot be read is reported and skipped, and never stops the walk. A failing
+ * mount can also list a folder as empty with no error; that costs nothing, because the press only
+ * ever adds what it finds.
  */
 export class Stacks extends Context.Service<
 	Stacks,

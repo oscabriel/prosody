@@ -19,7 +19,7 @@ import {
 import { Covers } from "./Covers.ts";
 import { Pages } from "./Pages.ts";
 
-/** Where the press's container sees the library and the reading copies (on the host's own disk). */
+/** Where the press's container sees the library and the reading copies. */
 export const LIBRARY = "/library";
 
 export const COPIES = "/copies";
@@ -64,10 +64,11 @@ const reasonOf = (error: AlignFailed | Schema.SchemaError): string =>
 	});
 
 /**
- * Makes reading copies on the host's own disk, one at a time. For a pair, both files are copied out of the library,
- * and the aligner marks every sentence, finds it in the audio, writes the copy and listens to a
- * spread of sentences with a second speech model. A text alone is marked the same way; an audio
- * alone is copied, with the chapters its file marks; a book's pages are drawn, one picture each.
+ * Makes reading copies on the host's own disk, one at a time. For a pair, both files are copied out
+ * of the library, and the aligner marks every sentence, finds it in the audio, writes the copy and
+ * listens to a spread of sentences with a second speech model. A text alone is marked the same way;
+ * an audio alone is copied, with the chapters its file marks; a book's pages are drawn, one picture
+ * each.
  *
  *   /copies/<work>/<work>.epub          a pair's reading copy: marked text, its overlays, the audio
  *   /copies/<work>/audio/               the audio, kept to play from

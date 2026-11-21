@@ -6,7 +6,8 @@ import { NotDownloading } from "./AbandonGrab.command.ts";
 import { GrabId } from "./Grab.id.ts";
 
 /**
- * What a tracker asks of every payload: seeded 72 hours within 30 days of its download.
+ * What your tracker asks of every payload: here, seeded 72 hours within 30 days of its download.
+ * Change it to your own tracker's rule; `hours: 0` lets every payload go as soon as it has come.
  */
 export const OBLIGATION = { hours: 72, days: 30 };
 
