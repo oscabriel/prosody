@@ -1,0 +1,8 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"lib": ["ESNext", "DOM", "DOM.Iterable"],
+		"types": ["node", "vite/client", "@foldkit/markdown/content"]
+	},
+	"include": ["src", "test", "vite.config.ts", "alchemy.run.ts"]
+}

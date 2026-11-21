@@ -45,6 +45,7 @@ If you work with a coding agent, point it at `AGENTS.md` and `docs/hosting.md` a
 | `packages/press` | The one service that touches book files: it walks the library, makes reading copies and shelves new books. |
 | `packages/aligner` | The aligner: Parakeet CTC finds each sentence in the audio, Whisper spot-checks the result. |
 | `packages/web` | The app, in Foldkit, with its service worker. |
+| `packages/site` | The landing page, docs and blog, in Foldkit, built to static pages. |
 
 The model runs on [Alchemy](https://github.com/alchemy-run/alchemy)'s domain framework and Effect Cluster, with Postgres, as Docker swarm services declared in `alchemy.run.ts`. Everything is written in TypeScript on [Effect](https://effect.website).
 

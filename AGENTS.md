@@ -9,7 +9,7 @@ The repository is public and names no real machine. Everything about one host is
 - A host's facts are settings in `.env`, read by `packages/server/src/Host.ts`; `.env.example` lists them all. A new fact about the host becomes a setting there, never a constant in the source.
 - `docs/hosting.md` is the guide for putting Prosody on other hardware. Its "Where each assumption lives" table names the file to change for everything that is not a setting. Keep both in step with the source.
 - Committed files write the host as "the host" and its domain as `example.com`. Machine names, addresses, user names, home folders and other services on the machine stay out of files, comments, tests and commit messages.
-- What the desk fetches books through is named only under `docs/acquiring/`, in the code, and in settings. This file, `README.md`, `GLOSSARY.md`, `docs/hosting.md` and `docs/how-it-works.md` say only that the desk can fetch a book, and point there.
+- What the desk fetches books through is named only under `docs/acquiring/`, in the code, and in settings. This file, `README.md`, `GLOSSARY.md`, `docs/hosting.md`, `docs/how-it-works.md` and the site in `packages/site` say only that the desk can fetch a book, and point there.
 - If `CLAUDE.local.md` exists at the root, read it: it holds this checkout's own machine, names and working notes, and git does not track it.
 - Commit only when the user asks.
 
@@ -31,9 +31,12 @@ Code carries no comments, of any kind: a doc comment, a note, a `TODO` and a dir
 - "The press": the walk, reading copies, its queue, covers, the aligner.
 - "The reading room": places, the nightstand, the lock screen, pages.
 - "Offline": the service worker, a place kept offline, a kept copy.
+- "The site": the landing page, docs and blog in `packages/site`.
 - "Known limits": the bugs, and what is untested.
 
 `docs/acquiring/` holds everything about fetching a book at the desk: setting it up, its words, and how it works. Read it before changing anything in `packages/domain/src/Acquisition`, the desk, or shelving.
+
+`packages/site` is the public landing page, docs and blog: a Foldkit app built to static pages, with each page a Markdown file in `packages/site/content`. `pnpm --filter @prosody/site dev` serves it, and `pnpm --filter @prosody/site run deploy` publishes it to Cloudflare, apart from the host's stack. Its pages are for readers: they say what the app does in the glossary's words, and name nothing the desk fetches through. When the app's behaviour changes, change the page that describes it in the same commit.
 
 `docs/adr/` records why the code is as it is, one decision to a file, and `docs/issues/` the hacks still to fix. Read the titles in both before changing a part, and the ADRs that touch it.
 

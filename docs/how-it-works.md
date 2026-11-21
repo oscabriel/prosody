@@ -50,6 +50,13 @@ What the source does not say about each part: why it is built as it is, and what
 - Offline is queued intent. Your place in each work is kept on the device (`localStorage`, `prosody:places`) with the command id that carries it, sent with that id whenever the model can be reached, and waits no longer once the model answers, kept or `StalePlace`. A lost answer marks the page offline, and it asks the server (`HEAD /`) every five seconds until it answers; the browser's `online` event also brings it back. An open book waits three seconds for the model's word on your place, then opens at the device's own.
 - "Keep on this device" puts a work's copy in the Cache API, one cache per work (`copy-<work>`, see `OnDevice.ts`): its contents, timeline, cover, sections and pictures, the audio in 8 MiB pieces as the Api sent them, and a record written last. A copy with audio counts as big as its audio; a text alone as big as what the cache holds for it (Caddy compresses text, so a response carries no length to add up). A copy without its record is not whole, and keeping it again fetches only what is missing. A room plays a kept copy from its own address, `<audio>?kept`, chosen as the room opens: a media element fails when one address gives it bytes from both the network and the device.
 
+## The site
+
+- `packages/site` is rendered twice: `vite build` renders every address `prerenderPaths` names (`src/entry.server.ts`) to a file, and the browser hydrates that file with the same `view`. A page that renders differently in the two is rebuilt in the browser, so keep `view` free of anything only one side knows.
+- A page is a Markdown file with a title and a summary at its top; docs are ordered by `order`, posts by `date`. `@foldkit/markdown` checks each file as it is built: raw HTML, a footnote or an unknown field fails the build with the file and line. `test/Content.test.ts` fails on a link to a page that does not exist.
+- Cloudflare serves the built files, and `htmlHandling: "drop-trailing-slash"` makes `/docs/installing` the file `docs/installing/index.html`. `vite preview` does not do that: it answers an address with no slash with the front page, which the browser then rebuilds, so judge a nested page's first paint from the deployed site or with a slash at its end.
+- The fonts are the reader's, read from `packages/web/src/fonts` by a relative path in `src/style.css`.
+
 ## Known limits
 
 - Audio is one `.m4b` a book, AAC-LC. xHE-AAC audio once aligned wrongly without an error; the aligner now fails when ffmpeg does not decode a whole file, but check the codec before trusting a new kind of audio.

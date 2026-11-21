@@ -1,0 +1,3 @@
+# The site is its own stack
+
+The landing page, docs and blog are `packages/site`: a Foldkit app like the reader, rendered to static pages when it is built and hydrated in the browser, with its pages written as Markdown in `packages/site/content`. It is deployed to Cloudflare by a stack of its own, `packages/site/alchemy.run.ts`, and never by `pnpm run deploy`: a host that runs Prosody has no reason to publish a website, and the site needs a Cloudflare account that a host does not. Its domain is the setting `PROSODY_SITE_DOMAIN`, so the repository names no one's address. The site speaks of the books a reader owns; what the desk can fetch through is named only in `docs/acquiring`.

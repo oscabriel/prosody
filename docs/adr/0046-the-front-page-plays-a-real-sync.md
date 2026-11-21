@@ -1,0 +1,3 @@
+# The front page plays a real sync
+
+A recording of the reading room would show a library, and a reader's books are their own. So the front page plays the real thing on a book that is everyone's: the first paragraph of Moby-Dick, Project Gutenberg's text and Stewart Wills's reading for LibriVox, both in the public domain. The press's own aligner placed the sentences, run from `packages/aligner/bench/run.ts` on the first seven minutes of the recording, and the times in `packages/site/src/Passage.ts` are its output less the 28.7 seconds cut from the front of the audio. To change the passage, align again and replace both the times and `public/demo/loomings.m4a`; never adjust a time by hand, or the page stops being evidence.

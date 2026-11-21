@@ -2,14 +2,18 @@ packages:
   - "packages/*"
 
 allowBuilds:
+  esbuild: false
   onnxruntime-node: false
   protobufjs: false
+  workerd: false
 
 catalog:
   alchemy: 2.0.0-beta.87
+  "@alchemy.run/cloudflare": 2.0.0-beta.87
   "@alchemy.run/docker": 2.0.0-beta.87
   "@alchemy.run/domain": 2.0.0-beta.87
   "@alchemy.run/effect-cluster": 2.0.0-beta.87
+  "@alchemy.run/frontend-frameworks": 2.0.0-beta.87
   effect: 4.1.4
   "@effect/platform-bun": 4.1.4
   "@effect/platform-browser": 4.1.4
@@ -17,6 +21,7 @@ catalog:
   "@effect/sql-pg": 4.1.4
   "@effect/vitest": 4.1.4
   foldkit: 0.170.0
+  "@foldkit/markdown": 0.15.1
   "@foldkit/vite-plugin": 0.29.0
   vite: 8.3.8
   "@types/node": 26.6.6
