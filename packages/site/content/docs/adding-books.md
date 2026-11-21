@@ -1,12 +1,14 @@
 ---
 title: Adding books
-summary: The library is folders by author and title. Put a book in the right folder and it appears on the shelf.
+summary: How to organise your library folders so Prosody discovers, pairs and shelves your books.
 order: 5
 ---
 
-## The layout
+Prosody discovers books by walking your library directory. There is no upload form and no import button: place a file in the right folder and it appears on the shelf.
 
-Prosody reads one folder, your library, shaped like this:
+## Folder layout
+
+Point `PROSODY_LIBRARY` at a directory with two top-level folders, `ebooks` and `audiobooks`, each nested two levels deep by author and title:
 
 ```
 library/
@@ -20,40 +22,41 @@ library/
         moby-dick.m4b
 ```
 
-There is one rule: **a book is its author's folder and its title's folder.** The same two names under `ebooks` and under `audiobooks` make a pair, and a pair is synced.
+A book's identity in the library (its shelfmark) is `<Author>/<Title>`. When the exact same `<Author>/<Title>` exists under both `ebooks` and `audiobooks`, Prosody pairs the text and audio and starts syncing them.
 
-The files themselves can have any name.
+The filenames inside each title folder do not matter. If a folder holds more than one file of the same type, Prosody picks the first one alphabetically.
 
-## What each folder may hold
+## Supported editions
 
-| Edition | File | Where |
+| Edition | File type | Folder |
 |---|---|---|
-| Text | one `.epub` | `ebooks/<Author>/<Title>/` |
-| Audio | one `.m4b`, in AAC-LC | `audiobooks/<Author>/<Title>/` |
-| Printed pages | one `.pdf` | `ebooks/<Author>/<Title>/` |
+| Text | `.epub` | `ebooks/<Author>/<Title>/` |
+| Audio | `.m4b` (AAC-LC) | `audiobooks/<Author>/<Title>/` |
+| Pages | `.pdf` | `ebooks/<Author>/<Title>/` |
 
-- A book with only one of these opens too: an EPUB reads, an audiobook plays by its chapters, a PDF opens a page at a time.
-- A book with an EPUB and a PDF reads from the EPUB.
-- MOBI files and comics are not read.
+- **Single editions work on their own.** An EPUB opens to read, an M4B plays by its chapters, and a PDF opens one page at a time.
+- **EPUB beats PDF.** If a title folder under `ebooks/` contains both an `.epub` and a `.pdf` (with no audiobook), Prosody uses the EPUB.
+- **Unsupported formats.** MOBI files, comic archives (CBZ/CBR) and loose folders of MP3s are ignored.
 
-## When a book appears
+## Discovery and syncing
 
-The press walks the whole library as it starts, and every five minutes after. A new folder is on the shelf within one walk. There is no button to press and nothing to import.
+The press walks the entire library when it starts and every five minutes after that. Any new folder appears on the shelf on the next walk:
 
-A new pair starts [syncing](/docs/syncing-a-book) on its own. Until it is done, the shelf says the press is at work on it.
+- A **pair** (EPUB + M4B) starts syncing automatically. On the shelf it shows `syncing` until the press finishes. See [Syncing a book](/docs/syncing-a-book).
+- An **edition alone** is copied into a reading copy automatically. On the shelf it shows `copying`, then `to read` (EPUB or PDF) or `to hear` (M4B).
 
-## What Prosody does to your files
+## Your files stay untouched
 
-Nothing. It never moves, renames or rewrites a book. What it makes, the reading copies, it keeps in a folder of its own, and it can make them again from your files at any time.
+For books already in your library, Prosody never moves, renames or modifies them. Everything it generates (marked text, rendered PDF pages, covers, timelines and audio copies) is written to `PROSODY_COPIES`, separate from your library.
 
-A library on a network share is fine. If the share drops out for a while, the shelf keeps what it knew, and the next walk that can read the share catches up.
+A library on a network share (such as NFS or SMB) is supported. If the share is temporarily unavailable during a walk, the press logs the unreadable folders and the shelf keeps what it already knows until the next successful walk.
 
-## Names that differ
+## Mismatched folder names
 
-If the author or title is spelled differently under `ebooks` and `audiobooks`, Prosody sees two books, each with one edition. Rename one folder to match the other, and the next walk pairs them.
+If the author or title folder is spelled differently under `ebooks/` and `audiobooks/`, Prosody treats them as two separate single-edition books. Rename one folder so both shelfmarks match exactly, and the next walk pairs them.
 
 ## The desk
 
-The desk is a list of the books you want next. Name a title and its author, and Prosody looks the book up in the public catalogues and keeps it on the list until it is on your shelf.
+**The desk** (linked from the shelf) lets you keep a list of books you want. Enter a title and author and click **Want it**; Prosody looks up the book's details in Open Library and keeps it on the desk until you click **Withdraw**.
 
-The desk can also be wired to fetch a book through services you already run. That is optional and off unless you set it up; the repository's `docs/acquiring` covers it.
+The desk can also be configured to fetch books through external services you run yourself. That integration is optional and disabled by default; see `docs/acquiring/README.md` in the repository if you want to enable it.

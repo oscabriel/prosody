@@ -1,43 +1,45 @@
 ---
 title: Words
-summary: The words Prosody uses, in the app and in these pages.
+summary: Definitions for the terms Prosody uses across the app and documentation.
 order: 13
 ---
 
-Prosody uses a small set of words, and uses each for one thing. The full list, with the words the code uses, is `GLOSSARY.md` in the repository.
+Prosody uses a small, consistent vocabulary throughout the app and these docs. The full developer glossary lives in `GLOSSARY.md` in the repository.
 
-## Your books
+## Library and editions
 
-| Word | What it means |
+| Word | Meaning |
 |---|---|
-| Work | One book, whatever its editions. |
-| Edition | One file of a work: its text, its audio or its pages. |
-| Text | The edition that is read sentence by sentence: an EPUB. |
-| Audio | The edition that is heard: one audiobook file. |
-| Pages | The edition as it was printed, shown a page at a time: a PDF. |
-| Pair | A work's text and audio together. Only a pair is synced. |
-| Library | Your book files on the host, in folders by author and title. |
-| Shelf | Every work in the library, as the app shows them. |
+| Work | One book as Prosody knows it, regardless of how many editions you have. |
+| Edition | One file of a work: its text (`.epub`), its audio (`.m4b`) or its pages (`.pdf`). |
+| Text | The `.epub` edition of a work, read sentence by sentence. |
+| Audio | The `.m4b` audiobook edition of a work. |
+| Pages | The `.pdf` edition of a work, displayed one page at a time. |
+| Pair | A work that has both text and audio. Only a pair is synced. |
+| Edition alone | The single edition used when a work is not a pair: text first, otherwise pages, otherwise audio. |
+| Library | Your book folders on the host (`ebooks/` and `audiobooks/`, by author and title). |
+| Shelfmark | A work's `<Author>/<Title>` folder path in the library. |
+| Shelf | Every catalogued work in your library, as displayed in the app. |
 
-## Syncing
+## Syncing and the press
 
-| Word | What it means |
+| Word | Meaning |
 |---|---|
-| Synced | A pair whose every read sentence has a place in the audio. |
-| Press | The part of Prosody that touches book files: it walks the library and makes reading copies. |
-| Walk | One pass by the press over the whole library. |
-| Reading copy | What the press makes of a work for the reading room: marked text, audio, pictures and a cover. |
-| Spot check | Listening to a spread of synced sentences with a second speech model. A sync that fails it is refused. |
+| Press | The service that touches book files: it walks the library, aligns pairs and builds reading copies. |
+| Walk | One pass by the press over the entire library to discover works and editions. |
+| Synced | A pair whose narrated sentences have been aligned to its audio and passed the spot check. |
+| Spot check | Re-listening to a spread of aligned sentences with a second speech model (Whisper) to confirm the right words are there. |
+| Reading copy | The files the press builds for the reading room: marked text, audio, rendered PDF pages, timeline and cover, stored in `PROSODY_COPIES`. |
 
-## Reading
+## Reading and wanting
 
-| Word | What it means |
+| Word | Meaning |
 |---|---|
-| Reading room | Where one work is read or heard. |
-| Place | Where you are in a work: a sentence, a time or a page. One per work. |
-| Nightstand | The works you are reading now, the newest first. |
-| Set aside | To take a work off the nightstand without finishing it. Your place is kept. |
-| Kept copy | A reading copy held whole on a device, to read with no network. |
-| Device | One of your own machines, known by its name in your tailnet. |
-| Desk | Where you list the books you want. |
-| Want | A book on that list. |
+| Reading room | The screen where you read or listen to a single work. |
+| Place | Where you are in a work: a sentence, an audio timestamp or a page number. One per work across all devices. |
+| Nightstand | The works you are currently reading, shown newest first at the top of the shelf. |
+| Set aside | Taking a work off the nightstand without finishing it; your place is kept and reopening it puts it back. |
+| Kept copy | A reading copy stored whole in a device's browser cache for offline use. |
+| Device | One of your own machines, identified by its Tailscale name. |
+| Desk | Where you list books you want and follow them to the shelf. |
+| Want | A book on your desk list. |

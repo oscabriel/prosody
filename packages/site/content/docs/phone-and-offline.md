@@ -1,42 +1,45 @@
 ---
 title: On your phone, and offline
-summary: Prosody installs from the browser, plays from the lock screen, and reads with no network.
+summary: Installing Prosody to a phone home screen, lock-screen playback, offline reading and keeping books on a device.
 order: 8
 ---
 
-## Installing it on a phone
+Prosody is a web app that installs directly from your browser. Once installed, it opens full screen, shows playback controls on the lock screen and works without a network connection.
 
-There is no app store. Open Prosody in the phone's browser, with Tailscale on, and add it to the home screen:
+## Installing on a phone
 
-- **iPhone or iPad:** in Safari, Share, then "Add to Home Screen".
-- **Android:** in Chrome, the menu, then "Add to Home screen" or "Install app".
+There is no app store listing. Make sure Tailscale is running on your phone, open your Prosody address in the browser and add it to the home screen:
 
-It then opens like any other app, full screen, from its own icon.
+- **iPhone or iPad (Safari):** Tap Share, then **Add to Home Screen**.
+- **Android (Chrome):** Open the browser menu, then tap **Add to Home screen** or **Install app**.
 
-## The lock screen
+## Lock-screen playback
 
-While a book plays, the lock screen shows its title, author, chapter and cover, with play, pause, skip and seek.
+While audio is playing, Prosody publishes the book's title, author, current chapter and cover to the system media controls, along with play, pause, skip back 15 seconds, skip forward 30 seconds and scrub controls.
 
-## With no network
+## Reading without a network
 
-The app itself opens offline: the shelf shows the books kept on the device, and each opens at your place.
+A service worker caches the app shell so Prosody opens even when your device is offline. When it cannot reach your host:
 
-A place you reach while offline is kept on the device and sent when Prosody can next be reached. Nothing is lost by reading on a plane.
+- The side panel displays **Offline**: `Your place is kept on this device, and sent when you are back.`
+- The shelf shows the books you have kept on that device under `Can't reach the shelf. These are the books kept on this device.`
+- Every place you reach while offline is stored in local browser storage and sent to the host as soon as the connection returns.
 
-## Keeping a book on the device
+## Keeping a book on a device
 
-"Keep on this device", in a book's reading room, stores its whole reading copy on the device: the text, the audio, the cover and the timings.
+To read or listen offline, open a book while online and click **Keep on this device** in its side panel. Prosody downloads the book's entire reading copy into browser cache storage: its text, timeline, cover, rendered PDF pages and audio (fetched in 8 MB pieces).
 
-| Book | About how big |
+While downloading, the side panel shows progress and a **Stop** button. Once stored, the shelf displays the total space used (`Kept on this device: <n> books, <size>.`).
+
+| Edition type | Typical size on device |
 |---|---|
-| A synced book | The size of its audiobook |
-| Text alone | A few megabytes |
-| A PDF of 324 pages | 85 MB |
+| Synced book or audio alone | Roughly the size of its `.m4b` file |
+| Text alone (EPUB) | A few megabytes |
+| Printed pages (PDF) | Depends on page count; each page is stored as a 1600 px JPEG |
 
-The shelf says how much is kept. "Remove it" frees the space, and does not touch your place or the copy on the host.
+To free space, open the book and click **Remove it**. Removing a kept copy deletes only the browser cache on that device; your reading place and the copy on your host are untouched.
 
-## What is not yet known
+## Limits to keep in mind
 
-- Phone audio has been tested on an iPhone, in runs of a few minutes. Hours-long sessions with the screen locked are untested, and so is Android.
-- A browser may clear a site's storage when the device runs short of space. A kept book is then fetched again the next time you keep it.
-- There is no native app yet. One for iOS is the next piece of work.
+- **Browser storage eviction.** Prosody requests persistent storage when keeping a book, but a mobile browser may still evict site caches when the device runs low on space. If that happens, keep the book again when you are back online.
+- **Native app.** There is no native mobile app yet; a native iOS app is planned next.

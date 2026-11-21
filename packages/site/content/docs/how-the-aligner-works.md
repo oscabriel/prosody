@@ -1,88 +1,94 @@
 ---
 title: How the aligner works
-summary: How Prosody finds where each sentence of a book is spoken in its audiobook, and how it knows when it is wrong.
+summary: Inside Prosody's aligner: how it listens to an audiobook, anchors and aligns every sentence, trims boundaries and spot-checks the result.
 order: 9
 ---
 
-The aligner is Prosody's own, in `packages/aligner`. It runs inside the press, on the processor, with no Python and no GPU. This page follows one book through it.
+Prosody includes its own aligner in `packages/aligner`. It runs inside the press container on the CPU, written in TypeScript with ONNX speech models and no Python runtime or GPU. Here is what happens to a pair from start to finish.
 
-## 1. Read the audio
+## 1. Probe and decode the audio
 
-ffmpeg decodes the audiobook to plain sound, and the aligner reads it as a stream, so a 20-hour book never sits in memory at once.
+`ffprobe` checks the audiobook's codec, profile and stated duration. Only AAC-LC (or MP3) audio is accepted; codecs that `ffmpeg` cannot decode whole, such as xHE-AAC, are refused immediately.
 
-If ffmpeg cannot decode the whole file, the sync stops here with the reason. A file that decodes to less than its stated length is refused too: that is how a codec ffmpeg half-understands shows itself.
+`ffmpeg` then decodes the audio as a 16 kHz mono stream, so long audiobooks do not need to sit uncompressed in memory. If the decoded duration disagrees with the stated duration beyond a small tolerance (1 second plus 0.1%), the sync stops with an error.
 
-## 2. Listen
+## 2. Listen with Parakeet CTC
 
-A speech model, NVIDIA's Parakeet CTC, hears the audio in 30-second windows that overlap by a few seconds, so nothing is lost at a seam.
+An int8-quantised ONNX model (`onnx-community/parakeet-ctc-0.6b-ONNX`) processes the audio stream in 30-second windows with 2 seconds of context on each side, so speech at window boundaries is not cut off.
 
-It does not write a transcript. For each 80 milliseconds of sound it says how likely each of about a thousand word-pieces is. Those likelihoods are the raw material for everything after, and they are kept beside the reading copy. A second sync of the same audio starts from them and skips the listening.
+Rather than producing a plain transcript, the model emits word-piece log-probabilities every 80 milliseconds (1280 samples at 16 kHz). For each frame, Prosody keeps the top 16 word-piece scores and the blank score, plus an audio loudness track sampled every 10 milliseconds.
 
-## 3. Mark the sentences
+Those emissions are saved beside the reading copy (`heard-<bytes>.emissions`). If the same audio file is ever aligned again, Prosody reloads the saved emissions and skips listening completely.
 
-The EPUB is opened, and the sections a narrator would read are split into sentences. Each sentence is wrapped in a marker of its own without disturbing the book's formatting: emphasis, links and footnote marks stay as they were.
+## 3. Mark the EPUB's sentences
 
-Covers, title pages, contents, indexes and reference lists are left out. They are not counted as text the narrator missed.
+The aligner unpacks the EPUB and filters out sections narrators do not read: covers, title pages, copyright pages, tables of contents, indexes, glossaries, bibliographies, colophons and notes.
 
-## 4. Say it as a narrator would
+In every remaining section, sentences are wrapped in numbered markers without altering inline formatting such as emphasis or footnote markers.
 
-A narrator does not say "Dr." or "1984". Each sentence is rewritten as it is spoken, "doctor" and "nineteen eighty four", and then broken into the same word-pieces the speech model uses.
+## 4. Rewrite text into spoken form
 
-## 5. Find the anchors
+Narrators say "doctor" for "Dr." and "nineteen eighty four" for "1984". Each sentence is normalised into spoken English words (expanding abbreviations, cardinals, ordinals, years, decades, clock times, decimals, currencies and common symbols) and encoded into Parakeet's word-pieces.
 
-The aligner first looks for runs of six words that appear exactly once in the text and exactly once in what was heard. The longest chain of those, in the same order in both, pins the book to the recording.
+## 5. Anchor text to audio
 
-Between two anchors there are three cases:
+From the best-scoring tokens in the emissions, the aligner builds a rough heard-word sequence and searches for 5-word runs that appear exactly once in the book and exactly once in the audio. The longest monotonic chain of steady matches pins the book's prose to the recording.
 
-- **Text and audio both.** This stretch goes on to the next step.
-- **Text with almost no audio.** The narrator did not read it. Its sentences are left unplaced.
-- **Audio with no text.** Credits, "end of chapter one", a publisher's introduction. It stays in the audio, attached to no sentence.
+If a chapter was recorded out of order relative to the EPUB, stray clusters of matching anchors are extracted recursively and aligned in their own chains.
 
-Chapters recorded out of order become chains of their own, and still line up.
+## 6. Forced alignment with skips
 
-## 6. Place each sentence
+Between consecutive anchors, Viterbi forced alignment finds the highest-scoring path through the Parakeet emissions that matches the text's word-pieces in order. If a stretch is too large for a single lattice (over 60 million cells), it is subdivided first using 3-word anchors.
 
-Within each stretch, the aligner finds the best path through the model's likelihoods that says the text's word-pieces in order. This is forced alignment, and it is exact where a transcript is approximate: it does not ask what was said, only when.
+Two escape transitions handle real-world differences between print and audio:
 
-Prosody's version allows two escapes. The path may skip a whole sentence, at a cost, and it may pass through a state that soaks up sound belonging to no sentence. So whether a caption or a code listing was read is decided here, by the audio, and not guessed afterwards.
+- **Skip transitions** let the path skip an unread phrase or sentence (such as a table or caption) at a fixed penalty.
+- **Garbage states** absorb spoken audio that does not belong to any sentence (such as opening credits or "end of chapter").
 
-## 7. Trim the edges
+Whether a sentence was read aloud is therefore decided directly from the acoustic evidence, not guessed afterwards.
 
-A sentence starts at the first frame of its first word-piece. It ends at the last frame of its last, stretched only through the quiet that follows, and never past the start of the next sentence.
+## 7. Refine sentence boundaries
 
-Nothing is interpolated. A sentence the path skipped has no time at all, and is not highlighted.
+Rough sentence timestamps are shifted 40 milliseconds early and then refined against the 10-millisecond loudness track:
 
-## 8. Check the work
+- Each start is pulled backward through speech (up to 0.3 seconds) without crossing the previous sentence's rough end.
+- Each end is extended forward through speech (up to 0.45 seconds, bridging silent gaps up to 0.06 seconds) without crossing the next sentence's rough start.
+- If two neighbouring clips still overlap after settling, they are split at the quietest point between them.
 
-A model cannot be trusted to mark its own homework, so a different one does it. Whisper listens to forty of the placed sentences, spread through the book, and the words it hears are compared with the words on the page.
+Unaligned sentences are left with no timestamps at all; nothing is interpolated.
 
-If fewer than three in four are right, the whole sync is refused.
+## 8. Spot-check with Whisper
+
+A second model (`onnx-community/whisper-base.en`) checks the first model's work. The aligner selects up to 40 aligned sentences between 3 and 15 seconds long, evenly spaced through the book, decodes each audio clip and transcribes it with Whisper.
+
+Each clip passes if the word likeness between the page text and Whisper's transcript is at least 80%. If fewer than three in four checked sentences pass (or if no sentence was long enough to check), the entire sync is refused.
 
 ## 9. Write the reading copy
 
-The marked text, the audio, the cover and a timeline of every sentence's start and end are written to the reading copy. The reading room needs nothing else to follow the narrator.
+Finally, the press writes the reading copy to `PROSODY_COPIES`: the marked XHTML sections, a copy of the audio, an EPUB 3 file with SMIL media overlays, `timeline.json`, `contents.json` and the extracted cover image.
 
-## How well it does
+## Measured accuracy and speed
 
-Measured on five books, 72 hours of audio, on an eight-core x86-64 machine with no GPU:
+Evaluated across five real books (three novels and two technical books, 72 hours of audio in total) on a CPU-only Linux host:
 
 | Measure | Result |
 |---|---|
-| Where a sentence starts, typical error | 0.08 to 0.12 seconds |
-| Where a sentence ends, typical error | 0.12 to 0.17 seconds |
-| Ends running more than half a second long | none, in any book |
-| Sentences placed, in three novels | 97.1% to 99.3% |
-| Sentences placed, in two technical books | 62.0% and 83.7% |
-| Speed of listening | 13 to 23 times faster than the book plays |
-| Speed of everything after listening | under a minute a book |
+| Typical start error (median) | 0.08 to 0.12 seconds |
+| Typical end error (median) | 0.12 to 0.17 seconds |
+| Sentence ends running over 0.5 s long | 0 across all five books |
+| Sentences placed in three novels | 97.1% to 99.3% |
+| Sentences placed in two technical books | 62.0% and 83.7% |
+| Spot checks passed | 37 to 40 of 40 per book |
+| Listening speed | 13× to 23× real time (19× overall) |
+| Alignment + reading copy + spot check (from saved emissions) | Under 35 seconds per book (1 to 3 s for alignment itself) |
 
-The starts and ends were judged against a third model's word timings, on about 75 sentences a book. That method cannot tell errors smaller than a tenth of a second apart, so read the first two rows as "about a tenth of a second".
+Start and end errors were measured against faster-whisper `small.en` word timestamps on roughly 75 sentences per book; because Whisper's own word timestamps are accurate to about 0.1 seconds, treat the boundary figures as "within roughly a tenth of a second".
 
-The technical books place fewer sentences because more of them is never read aloud: code, tables, captions and references. Among the hardest sentences in those two books, ones an earlier aligner had left out, a listening check found the right words in 26 and 28 of 30 sampled.
+The two technical books placed fewer sentences because much of their content (code blocks, tables, captions and reference lists) is not narrated. When a listening check sampled 30 sentences per book that Prosody placed and an earlier aligner had missed, the words were confirmed in 26 and 28 of 30.
 
-## What it does not do well
+## Known limitations
 
-- **Short dialogue tags.** "I asked." after a line of speech is sometimes left unplaced, though it was read. About thirty in one long novel.
-- **Abridged or re-translated recordings.** The text and the audio must be the same words.
-- **Codecs beyond AAC-LC.** They are refused, not guessed at.
-- **Languages other than English.** The speech models and the rewriting of numbers are English only.
+- **Short dialogue tags.** Very short tags such as `"I asked."` after dialogue are occasionally skipped even when spoken (about 30 times in one 13.5-hour novel). Lowering the skip penalty recovers some of them at the cost of placing more unread sentences wrongly.
+- **Abridged or different editions.** The EPUB and audiobook must share the same text.
+- **Audio codecs.** Codecs other than AAC-LC (or MP3) are refused rather than partially decoded.
+- **English only.** Both speech models and the spoken-text normalisation rules are English only.

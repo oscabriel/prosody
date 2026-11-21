@@ -1,10 +1,12 @@
 ---
 title: Updating and backing up
-summary: How to move to a new version, and which three things on the host are worth keeping.
+summary: How to upgrade Prosody, which files and volumes to back up, how to migrate hosts and how to tear down the stack.
 order: 11
 ---
 
-## Updating
+## Updating Prosody
+
+From the repository root on the host:
 
 ```sh
 git pull
@@ -13,44 +15,46 @@ pnpm check
 pnpm run deploy --yes
 ```
 
-- `pnpm run plan` first, if you want to see what will change.
-- A deploy replaces the services. The app may say "Offline" for a few seconds while it does.
-- When an update changes the aligner, books you have already synced stay as they were. "Align it again" in a book's reading room syncs it with the new one, in under a minute.
-- Release notes, on the [blog](/blog), say when an update needs anything more than this.
+- Run `pnpm run plan` before deploying if you want to inspect the changes first.
+- Services are replaced during a deploy, so connected devices may briefly show **Offline** for a few seconds before reconnecting automatically.
+- Existing reading copies stay untouched after an aligner update.
+- Check the [blog](/blog) for release notes if an update requires extra steps.
 
-## What to keep
+## What to back up
 
-| Thing | Where | If you lose it |
+| What | Where it lives | What happens if you lose it |
 |---|---|---|
-| Your books | Your library | They are gone. Prosody never held the only copy of anything, and backing up your library is yours to do. |
-| What Prosody knows | Its Postgres volume | Your places, what you finished, and your list of wants start again. The shelf rebuilds itself from the library. |
-| Your settings | `.env` and `.alchemy/` in the repository | You fill in `.env` again. Without `.alchemy/` the deploy tool no longer knows what it deployed, and you remove the old services by hand. |
+| Your book files | `PROSODY_LIBRARY` | Gone permanently. Prosody treats your library as your responsibility to back up. |
+| Prosody's database | Docker's Postgres volume | You lose reading places, nightstand history, finished states and your desk list. The shelf itself rebuilds from your library on the next walk. |
+| Deployment config and state | `.env` and `.alchemy/` in the repository | Without `.env`, recreate your paths. Without `.alchemy/`, Alchemy loses track of deployed services and you must remove them manually in Docker. |
 
-The reading copies are not on the list. They can be made again from your books. It takes as long as syncing did the first time, unless you kept the copies folder, which also holds what the speech model heard.
+You do not need to back up `PROSODY_COPIES` to avoid data loss: the press can regenerate every reading copy from your library. Keeping it, however, preserves the saved `heard-*.emissions` files so you do not have to re-listen to your audiobooks.
 
 ## Backing up Postgres
 
-There is no built-in backup yet. Until there is, the volume can be saved like any other Docker volume:
+Prosody does not include a built-in backup job yet. Find the Postgres volume in Docker:
 
 ```sh
 docker volume ls | grep -i prosody
 ```
 
-Stop the stack or use `pg_dump` from inside the Postgres container, and store the result with your other backups.
+Either run `pg_dump` inside the Postgres container or back up the volume while the stack is stopped, and store the backup alongside your other host backups.
 
-## Moving to another machine
+## Moving to a new host
 
-This has not been rehearsed end to end, so keep the old machine until the new one is right.
+Keep the old host running until you have verified the new one:
 
-1. Install on the new machine, with the same library.
-2. Restore the Postgres volume, if you want your places.
-3. Copy the reading copies folder across, to skip syncing everything again.
-4. Point the app's name at the new machine's tailnet address.
+1. Follow [Installing](/docs/installing) on the new host using the same library.
+2. Restore your Postgres backup if you want to preserve reading places, finished books and wants.
+3. Copy `PROSODY_COPIES` to the new host to avoid re-syncing every book.
+4. Update DNS so your app's hostname points to the new host's tailnet IP.
 
-## Taking it down
+## Removing the stack
+
+To tear down all deployed Docker services and volumes created by Alchemy:
 
 ```sh
 pnpm run destroy
 ```
 
-This removes the services, and with them what Prosody knows. Back up Postgres first if you want your places. Your library, the reading copies folder and `.env` are left alone.
+Back up Postgres first if you want to keep your reading places. Your library (`PROSODY_LIBRARY`), reading copies (`PROSODY_COPIES`) and `.env` are left untouched on disk.

@@ -1,41 +1,45 @@
 ---
 title: Where books come from
-summary: Prosody reads books you already own, as plain files without DRM. These are places that sell or give them that way.
+summary: DRM-free sources for ebooks and audiobooks that work with Prosody, and how to prepare matching editions.
 order: 12
 ---
 
-## What Prosody can read
+Prosody reads plain, DRM-free files that you own:
 
-- An **EPUB** without DRM.
-- An **M4B** audiobook in AAC-LC, without DRM, one file a book.
-- A **PDF**.
+- **Ebooks:** `.epub`
+- **Audiobooks:** `.m4b` encoded in AAC-LC (one file per book)
+- **PDFs:** `.pdf`
 
-Prosody does not remove DRM, and cannot read a file that has it. A book bought inside a locked app usually cannot be taken out of it.
+Prosody does not strip DRM and cannot open DRM-locked files. Books locked inside a proprietary app generally cannot be exported into your library.
 
-## Audiobooks
+## DRM-free audiobooks
 
-| Where | What you get |
+| Source | Notes |
 |---|---|
-| [Libro.fm](https://libro.fm) | Audiobooks without DRM, to download as M4B or MP3. Purchases support a bookshop of your choosing. |
-| [Downpour](https://www.downpour.com) | Audiobooks without DRM, as M4B or MP3. |
-| [LibriVox](https://librivox.org) | Free recordings of books in the public domain, read by volunteers. |
-| Your own CDs | Ripped and joined into one M4B. |
+| [Libro.fm](https://libro.fm) | Sells DRM-free audiobooks downloadable as M4B or MP3, with purchases supporting a local bookshop of your choice. |
+| [Downpour](https://www.downpour.com) | Sells DRM-free audiobooks as M4B or MP3. |
+| [LibriVox](https://librivox.org) | Free public-domain audiobooks read by volunteers. |
+| Your own CDs | Rip and combine into a single AAC-LC `.m4b`. |
 
-## Ebooks
+## DRM-free ebooks
 
-| Where | What you get |
+| Source | Notes |
 |---|---|
-| [Standard Ebooks](https://standardebooks.org) | Free, carefully made EPUBs of books in the public domain. |
-| [Project Gutenberg](https://www.gutenberg.org) | Free EPUBs of more than 70,000 books in the public domain. |
-| [Kobo](https://www.kobo.com) | Sells some titles without DRM. A title's details say which. |
-| Publishers that sell directly | Several sell their own EPUBs without DRM. |
+| [Standard Ebooks](https://standardebooks.org) | Free, carefully typeset public-domain EPUBs. |
+| [Project Gutenberg](https://www.gutenberg.org) | Free public-domain EPUBs. |
+| [Kobo](https://www.kobo.com) | Offers selected titles without DRM (listed on each title's store page). |
+| Direct from publishers | Several independent and technical publishers sell DRM-free EPUBs directly. |
 
-## Making a pair
+## Choosing editions that pair well
 
-A pair needs the same words in both editions: the same translation, unabridged. Check before buying a second edition of a book you already have.
+For Prosody to sync a book, the EPUB and the audiobook must share the same text: unabridged, and the same translation for translated works. Check edition details before buying a second format.
 
-The opening of Moby-Dick on this site's front page is such a pair. The text is Project Gutenberg's and the recording is LibriVox's, read by Stewart Wills. Both are free, and they make a good first book to try.
+To try Prosody quickly with a free pair, the opening of *Moby-Dick* on the front page uses a public-domain text paired with Stewart Wills's LibriVox recording.
 
-## If your audiobook is MP3s
+## Converting MP3 chapters to M4B
 
-Prosody reads one M4B a book. A folder of MP3 chapters needs joining first. ffmpeg can do it, and so can several free tools made for the job. Convert to AAC-LC, keep the chapter marks if you can, and put the result in the book's folder.
+Prosody expects one `.m4b` file per audiobook. If you download an audiobook as a folder of MP3 tracks, join them into a single AAC-LC `.m4b` (preserving chapter markers if your tool supports it) using `ffmpeg` or a dedicated audiobook joiner, then place the `.m4b` in `audiobooks/<Author>/<Title>/`.
+
+## Optional fetching from the desk
+
+If you already run external services for fetching books, the desk can optionally be wired to them. That feature is off unless configured; see `docs/acquiring` in the repository for setup details.

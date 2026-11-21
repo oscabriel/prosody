@@ -1,63 +1,63 @@
 ---
 title: When something is wrong
-summary: What you see, why, and what to do about it.
+summary: How to check logs and resolve common problems with deploying, signing in, library discovery, syncing and reading.
 order: 10
 ---
 
-## Where to look first
+## Check the press logs first
 
-The press says what it is doing in its log. Find the service, and follow it:
+Most library and syncing issues are explained in the press service's logs:
 
 ```sh
-docker service ls | grep press
-docker service logs --follow <the press service>
+docker service ls | grep -i press
+docker service logs --follow <press-service-name>
 ```
 
-Each walk of the library is logged, with how many works it found and any folder it could not read, and so is each book as it is synced.
+Every library walk logs how many works it found and any folders it could not read, and every alignment logs its start, result or refusal reason.
 
 ## Installing and deploying
 
-| What you see | Why, and what to do |
+| Problem | Cause and fix |
 |---|---|
-| The plan stops with "`PROSODY_LIBRARY` is not set" | `.env` is missing at the repository's root, or lacks that line. |
-| `pnpm deploy` does something unexpected | That is a pnpm command of its own. Prosody's is `pnpm run deploy`. |
-| The first deploy seems stuck | It is building the press's image, which downloads about a gigabyte of speech models. Give it several minutes. |
+| Deploy fails with `PROSODY_LIBRARY is not set. Copy .env.example to .env and fill it in.` | `.env` is missing from the repository root, or `PROSODY_LIBRARY` is blank or commented out. |
+| `pnpm deploy` behaves unexpectedly | `pnpm deploy` is a built-in pnpm command. Always run `pnpm run deploy --yes`. |
+| First deploy appears to hang | Docker is building the press image and downloading the Parakeet and Whisper ONNX models. Wait several minutes for the build to complete. |
 
 ## Signing in
 
-| What you see | Why, and what to do |
+| Problem | Cause and fix |
 |---|---|
-| 403 on every page | The request did not come from a tailnet address you own. Check the name resolves to the host's tailnet address, and that the device is yours and untagged. |
-| 403 from the host itself | Expected, if the name resolves to the host's home-network address there. Sign-in admits tailnet addresses only. |
-| 401 "Signed out" | The request skipped Caddy's `forward_auth`. Check the Caddy block. |
+| `403` `"Prosody admits only your own devices."` | The request did not come from an untagged Tailscale device owned by the host's user. Verify that `prosody.example.com` resolves to the host's tailnet IP (not a LAN IP) and that the client device has no Tailscale tags. |
+| `403` when browsing from the host itself | Expected if the hostname resolves to a local LAN or loopback address on the host. Requests must arrive over Tailscale. |
+| `401` `"Signed out"` | The request reached Prosody without `X-Prosody-Device`. Check that Caddy's `forward_auth` block is in place and includes `copy_headers X-Prosody-Device`. |
 
 ## The shelf
 
-| What you see | Why, and what to do |
+| Problem | Cause and fix |
 |---|---|
-| The shelf is empty | The press could not read the library, or it is not laid out by author and title. The log names each folder it could not read. |
-| A book is missing | Its folder is not two levels deep: `ebooks/<Author>/<Title>/`. |
-| A book shows twice, once as text and once as audio | The author or title is spelled differently under `ebooks` and `audiobooks`. Rename one to match. |
-| Books vanish and come back | A network share dropped out for a walk. Nothing is forgotten, and the next good walk catches up. |
-| A cover is a plain binding with a letter | Neither the EPUB nor the audio file carries a picture. |
+| The shelf says `Nothing on the shelf yet` | Either the press cannot read `PROSODY_LIBRARY` (check `PROSODY_UID` permissions and the press logs) or folders are not nested as `ebooks/<Author>/<Title>/` and `audiobooks/<Author>/<Title>/`. |
+| A specific book is missing | Its folder is not two levels deep under `ebooks/` or `audiobooks/`, or it contains no `.epub`, `.pdf` or `.m4b` file. |
+| A book appears twice, once as text and once as audio | The `<Author>` or `<Title>` folder name differs between `ebooks/` and `audiobooks/`. Rename one so they match character for character; the next walk pairs them. |
+| A network share dropped out | The press logs the unreadable folders and the shelf keeps its existing entries. Once the share returns, the next walk (every five minutes) catches up. |
+| A book shows a plain initial instead of a cover | Neither the EPUB nor the audiobook contained a cover image that `ffmpeg` could extract. |
 
 ## Syncing
 
-| What you see | Why, and what to do |
+| Problem | Cause and fix |
 |---|---|
-| A book stays "syncing" for an hour | Likely fine: a long audiobook takes about that. The log shows it at work. |
-| A book is "not synced" | Its reading room gives the reason. [Syncing a book](/docs/syncing-a-book) lists what each one means. |
-| The highlight drifts from the voice | Report it, with the book and the place. In the meantime, "Align it again" after an update may fix it. |
-| Many sentences are never highlighted | In a technical book that is expected: code, tables and captions are not read aloud. |
+| A book stays `syncing` for an hour | Normal for a long audiobook on CPU. Check the press logs to confirm it is progressing; each attempt has a six-hour timeout. |
+| A book is marked `not synced` | Read the reason printed directly below the author on the shelf, and look it up in [Syncing a book](/docs/syncing-a-book). |
+| Many sentences are never highlighted | Expected in technical books where code listings, tables and captions are skipped by the narrator. |
+| The highlight drifts from the voice | Open an issue on the repository noting the book and where the drift starts. |
 
 ## Reading
 
-| What you see | Why, and what to do |
+| Problem | Cause and fix |
 |---|---|
-| "Offline", when you are not | The app lost its connection to the host and is asking again every few seconds. It comes back on its own. |
-| A book opens at an old place | Another device read further while offline and has not sent its place yet. Open the book on that device, with a connection. |
-| The book cannot be opened during "Align it again" | Expected. It opens when the new sync is done. |
+| The app shows `Offline` while you have internet | The app lost contact with your host (for example during a deploy or when Tailscale disconnected). It checks again every five seconds and reconnects automatically. |
+| A book opens at an older place | Another device read further while offline and has not synced yet. Open Prosody on that device while online so it sends its saved place. |
+| Opening a book shows `Align it again →` or `Make it now →` | Its reading copy is missing or predates the reading room format. Click the button; the room opens automatically when the press finishes. |
 
-## Asking for help
+## Reporting a bug
 
-Open an issue on the repository, with what you did, what you saw, and the press's log from around that time. Leave out your domain and your paths if you would rather not share them.
+Open an issue on the repository with what you did, what you saw and the relevant lines from the press logs. Leave out your domain name and local paths if you prefer not to share them.

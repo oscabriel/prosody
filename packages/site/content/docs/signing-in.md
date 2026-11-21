@@ -1,21 +1,24 @@
 ---
 title: Signing in
-summary: There are no accounts. Being on your tailnet, on a device you own, is the sign-in.
+summary: How Prosody uses Caddy and Tailscale to admit your own devices without accounts or passwords.
 order: 4
 ---
 
-## How it works
+Prosody has no user accounts and no login form. Instead, it relies on Tailscale to verify which device made each request.
 
-1. A device asks Caddy for a page.
-2. Caddy asks Prosody about the request, passing on the address it came from.
-3. Prosody asks the host's Tailscale whose machine that address is.
-4. If it is an untagged machine of the host's owner, the request goes through, carrying the machine's name. Anything else is refused.
+## How a request is checked
 
-So a device is known by its name in your tailnet, and that name is what the shelf shows beside "last read on". There is nothing to register and no password to set.
+1. Your browser connects to Caddy over your tailnet.
+2. Caddy sends a `forward_auth` subrequest to Prosody's `/auth` endpoint with the client's IP address in `X-Prosody-Peer`.
+3. Prosody asks the host's Tailscale daemon (`tailscaled.sock`) which node owns that address.
+4. If the node is an untagged machine owned by the same Tailscale user as the host, Prosody returns `200` with the machine's Tailscale name in `X-Prosody-Device`. Otherwise it returns `403`.
+5. Caddy copies `X-Prosody-Device` onto the proxied request and forwards it to the app.
 
-## The Caddy block
+That device name is what appears under **On the nightstand** beside `Last read on <device>, <date>`.
 
-Run Caddy on the host itself, or with host networking: it must reach the host's loopback address.
+## Caddy configuration
+
+Run Caddy directly on the host (or with host networking) so it can reach the relay on loopback:
 
 ```
 prosody.example.com {
@@ -28,27 +31,31 @@ prosody.example.com {
 }
 ```
 
-- `X-Prosody-Peer` carries the address the request came from.
-- `copy_headers X-Prosody-Device` puts the device's name on the request, replacing anything a browser sent. Prosody refuses a request without it.
-- Give the app no second name that skips `forward_auth`. A browser could then claim to be any device.
+If you changed `PROSODY_RELAY` in `.env`, replace `127.0.0.1:3023` with your value.
 
-## The name
+- `X-Prosody-Peer` tells Prosody which client address to look up in Tailscale.
+- `copy_headers X-Prosody-Device` overwrites any header a browser might have sent. Requests without it are rejected.
+- Do not expose the relay on a second hostname or port that bypasses `forward_auth`, as anything reaching it directly could forge `X-Prosody-Device`.
 
-`prosody.example.com` must resolve to the host's tailnet address, the one Tailscale gave it. A request that reaches Caddy over your home network comes from an address the tailnet does not know, and is refused.
+## DNS and TLS
 
-The name needs a certificate. For a name that only resolves inside your tailnet, a DNS challenge works: Caddy proves it controls the domain through your DNS provider, with no port open to the internet.
+Point `prosody.example.com` at the host's Tailscale IP address, not its LAN IP. Requests arriving over a local network come from non-tailnet addresses and are refused.
 
-## Who is let in
+Because the hostname only needs to resolve inside your tailnet, a DNS-01 challenge lets Caddy obtain a TLS certificate without opening any ports to the public internet.
 
-- Machines in your tailnet that belong to the host's owner.
-- Not tagged machines, and not machines shared in from another tailnet.
+## Who is admitted
 
-If you want to let someone else read, that is a change to the source: `docs/hosting.md` in the repository names the file that decides who is admitted.
+Prosody admits requests that meet both conditions:
 
-## When it refuses
+- The device belongs to the same Tailscale user as the host.
+- The device has no Tailscale tags.
 
-| What you see | Why |
+Tagged nodes, devices shared from another tailnet and cross-site subrequests are refused. If you want to change who is admitted, `docs/hosting.md` in the repository points to the file that implements the rule.
+
+## Common refusal responses
+
+| What you see | Cause and fix |
 |---|---|
-| 403 on every page | The request did not come from a tailnet address you own. Check the name resolves to the host's tailnet address, and that the device is yours and untagged. |
-| 401 "Signed out" | The request reached the app without passing through Caddy's `forward_auth`. |
-| It worked, then stopped after Tailscale restarted | Expected, and brief: the Api is replaced so it can reach Tailscale again. |
+| `403` `"Prosody admits only your own devices."` | The request did not come from an untagged tailnet device owned by the host's user. Check that `prosody.example.com` resolves to the host's Tailscale IP (not its LAN IP) and that the client device is untagged. |
+| `401` `"Signed out"` | The request reached the Api without `X-Prosody-Device`, meaning Caddy's `forward_auth` block was bypassed or misconfigured. |
+| Refusals right after restarting Tailscale on the host | Brief and expected. The Api container checks `/var/run/tailscale/tailscaled.sock` every 10 seconds and Docker swarm replaces it automatically once the socket changes. |

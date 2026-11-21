@@ -1,25 +1,25 @@
 ---
 title: What you need
-summary: A Linux machine with Docker, Tailscale and Caddy, and your books in folders. No GPU.
+summary: The host hardware, supporting software, build tools and book formats required to run Prosody.
 order: 2
 ---
 
+Prosody runs on a single Linux machine with no GPU. Alignment runs on the CPU, and the rest of the stack is light enough to share the host with other services.
+
 ## The host
 
-| Thing | What for |
+| Requirement | Why it is needed |
 |---|---|
-| A Linux machine with Docker | Prosody runs as Docker swarm services: Postgres, the model, the Api, the press and a relay. One node is enough. |
-| Eight processor cores, or about that | Syncing runs on the processor, with a thread for every core. Fewer cores work, and take longer. |
-| Disk for the reading copies | A local folder. A synced book takes about twice the size of its audiobook. |
-| About 3 GB for the press's image | It holds ffmpeg, poppler and two speech models, downloaded once as the image is built. |
+| Linux with Docker (swarm mode) | Prosody runs Postgres, the model runner, the Api and the press as Docker swarm services, alongside a Caddy relay container. A single-node swarm is enough. |
+| Multi-core CPU | The speech model runs on the CPU using one thread per physical core by default. More cores shorten the initial listen; no GPU is used. |
+| Local disk for reading copies | The press writes reading copies to a local folder. Each synced book takes roughly twice the size of its audiobook (an audio copy plus an EPUB containing the audio, alongside the saved speech emissions). |
+| About 3.2 GB for the press image | The press container image (3.15 GB) bundles ffmpeg, poppler and both speech models, downloaded once during the first build. |
 
-Prosody was built and is run on an x86-64 machine with eight cores and no GPU. Other architectures are untested.
+## Syncing speed
 
-## How long a sync takes
+Listening to an audiobook is the slow step, and it happens only once per audio file. Measured across five real books (72 hours of audio in total) on a CPU-only Linux host:
 
-Listening is the slow part, and it happens once per audiobook.
-
-| Audiobook | Time to listen to it |
+| Audiobook length | Time to listen |
 |---|---|
 | 9.9 hours | 33 minutes |
 | 11.5 hours | 32 minutes |
@@ -27,31 +27,31 @@ Listening is the slow part, and it happens once per audiobook.
 | 16.2 hours | 48 minutes |
 | 20.9 hours | 56 minutes |
 
-These are five real books on an eight-core x86-64 machine with no GPU. The rest of a sync, from what was heard to a book you can open, takes under a minute.
+Across those five books, listening ran 13 to 23 times faster than real time (19 times overall). Once listening finishes, aligning the text, building the reading copy and running the spot check takes under 35 seconds. Because the speech model's output is saved beside the reading copy, re-aligning the same audio skips listening altogether.
 
-Across 72 hours of audio the speech model ran 19 times faster than the books play, and between 13 and 23 times for any one book. What it heard is kept, so syncing the same book again takes seconds.
+## Networking and sign-in
 
-## Beside the host
-
-| Thing | What for |
+| Requirement | Why it is needed |
 |---|---|
-| Tailscale on the host | Signing in asks the host's Tailscale whose device each request came from. |
-| Tailscale on each device you read with | Only your own devices are let in. |
-| Caddy on the host | It is the one way in, and checks every request before passing it on. |
-| A name for the app | Something like `prosody.example.com`, resolving to the host's tailnet address, with a certificate Caddy can serve. |
+| Tailscale on the host | The Api queries the host's Tailscale daemon over `/var/run/tailscale/tailscaled.sock` to identify each device. |
+| Tailscale on every reading device | Only your own untagged Tailscale devices are admitted. |
+| Caddy on the host | Caddy terminates TLS, checks every request via `forward_auth`, and proxies to the relay on loopback. |
+| A domain name for the app | For example `prosody.example.com`, pointing to the host's tailnet address, with a TLS certificate Caddy can serve. |
 
-## To install and update
+## Tools for installing and updating
 
-| Thing | What for |
+Run these on the host where you deploy:
+
+| Tool | Version / notes |
 |---|---|
-| Node 26.11 or newer | To check and deploy. |
-| pnpm 12 | `corepack enable` gives you the right one. |
-| Bun | The deploy tool runs on it. |
+| Node.js | 26.11.0 or newer |
+| pnpm | 12 (`corepack enable` activates the pinned version) |
+| Bun | Required by the Alchemy deploy tool |
 
-## Your books
+## Your book files
 
-- **Ebooks** as EPUB, without DRM.
-- **Audiobooks** as one M4B file a book, in AAC-LC, without DRM.
-- **PDFs** open too, a page at a time.
+- **Ebooks:** DRM-free `.epub` files.
+- **Audiobooks:** DRM-free `.m4b` files encoded in AAC-LC, one file per book.
+- **PDFs:** Plain `.pdf` files, displayed one page at a time.
 
-[Where books come from](/docs/where-books-come-from) lists places that sell or give books in these forms, and [adding books](/docs/adding-books) says how to lay them out.
+See [Where books come from](/docs/where-books-come-from) for DRM-free sources, and [Adding books](/docs/adding-books) for the folder layout.

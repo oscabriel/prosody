@@ -1,12 +1,12 @@
 ---
 title: Installing
-summary: From a clone of the repository to a running app, one step at a time.
+summary: Step-by-step instructions to clone, configure and deploy Prosody on a Linux host.
 order: 3
 ---
 
-This page assumes the host has what [What you need](/docs/what-you-need) lists. Every command runs on the host.
+This guide assumes your host meets the requirements in [What you need](/docs/what-you-need). Run every command on the host.
 
-## 1. Get the code
+## 1. Clone and install dependencies
 
 ```sh
 git clone https://github.com/oscabriel/prosody.git
@@ -15,63 +15,67 @@ corepack enable
 pnpm install
 ```
 
-## 2. Turn on swarm mode
+## 2. Enable Docker swarm mode
 
-Prosody's services are Docker swarm services. One node is enough, and this is run once:
+Prosody deploys its services onto Docker swarm. On a single machine, initialise it once:
 
 ```sh
 docker swarm init
 ```
 
-## 3. Make a folder for the reading copies
+## 3. Create the reading copies folder
 
-The press makes a reading copy of each book, and keeps them on a local disk:
+The press stores reading copies on a local disk, separate from your library:
 
 ```sh
 sudo install -d -o "$USER" /srv/prosody/copies
 ```
 
-Without sudo, make a folder you own anywhere, and name it in the next step.
+If you prefer a different location, create any directory owned by the user that will run the press and set `PROSODY_COPIES` in the next step.
 
-## 4. Say where your books are
+## 4. Configure `.env`
 
-Copy the example settings, and fill them in:
+Copy the example file and fill in your host's paths:
 
 ```sh
 cp .env.example .env
 ```
 
-| Setting | Needed | What it is |
-|---|---|---|
-| `PROSODY_LIBRARY` | yes | Your library: the folder that holds `ebooks/` and `audiobooks/`. |
-| `PROSODY_COPIES` | no, `/srv/prosody/copies` | The folder from step 3. |
-| `PROSODY_UID` | no, `1000` | The user the press runs as. It must be able to write the library and the copies folder. `id -u` prints yours. |
-| `PROSODY_RELAY` | no, `127.0.0.1:3023` | Where the app listens on the host. Keep it on a loopback address. |
+| Setting | Required | Default | Purpose |
+|---|---|---|---|
+| `PROSODY_LIBRARY` | Yes | None | Root folder containing `ebooks/` and `audiobooks/`. |
+| `PROSODY_COPIES` | No | `/srv/prosody/copies` | Local folder where the press writes reading copies. |
+| `PROSODY_UID` | No | `1000` | Numeric user ID the press runs as (`id -u`). Must be able to write to `PROSODY_LIBRARY` and `PROSODY_COPIES`. |
+| `PROSODY_RELAY` | No | `127.0.0.1:3023` | Host address and port for the relay. Keep this on loopback so Caddy is the only way in. |
 
-Git ignores `.env`, so your paths stay on your machine.
+`.env` is ignored by git, so your local paths stay off the repository.
 
-## 5. Check, then deploy
+Optional settings for fetching books through the desk are listed in `.env.example` and documented in `docs/acquiring/README.md` in the repository. Leave them commented out if you only want to read books already in your library.
+
+## 5. Run checks and deploy
 
 ```sh
 pnpm check
 pnpm run deploy --yes
 ```
 
-- The first deploy builds the press's image, speech models and all, and takes several minutes. Later ones take under a minute.
-- `pnpm run plan` shows what a deploy would change, and changes nothing.
-- `pnpm run deploy` is not `pnpm deploy`, which is a different command built into pnpm.
-- `.alchemy/` in the repository is the record of what is deployed. Keep it for as long as the stack is up.
+A few things to know about deploying:
+
+- **First build time.** The first deploy builds the press image and downloads both speech models, which takes several minutes. Subsequent deploys are much faster.
+- **Preview changes first.** Run `pnpm run plan` to see what a deploy will change without applying it.
+- **Use `pnpm run deploy`.** Plain `pnpm deploy` is a different, built-in pnpm command.
+- **Keep `.alchemy/`.** Alchemy records deployed resources in `.alchemy/` inside the repository. Do not delete that folder while the stack is running.
 
 ## 6. Put Caddy in front
 
-The app now listens on the host's loopback address, where nothing outside can reach it. [Signing in](/docs/signing-in) gives it a name and lets your devices in.
+After deploying, Prosody listens only on `PROSODY_RELAY` (`127.0.0.1:3023` by default). Follow [Signing in](/docs/signing-in) to expose it over Tailscale through Caddy.
 
-## Now what?
+## Next steps
 
-- [Add books](/docs/adding-books), if your library is not yet laid out by author and title.
-- Open the app. The shelf fills as the press walks your library, which it does as it starts and every five minutes after.
-- A book with both an EPUB and an audiobook starts [syncing](/docs/syncing-a-book) on its own.
+- Arrange your files according to [Adding books](/docs/adding-books).
+- Open Prosody in a browser. The press walks your library on startup and every five minutes after, populating the shelf automatically.
+- Any book with both an EPUB and an audiobook begins [syncing](/docs/syncing-a-book) on its own.
 
-## If your machine differs
+## Adapting to a different setup
 
-Everything about a host is a setting. For what a setting does not cover, such as another layout for the library or another way to sign in, the repository's `docs/hosting.md` names the one file to change for each assumption. It is written to be handed to a coding agent along with a description of your machine.
+Host-specific paths and addresses live in `.env`. If you need to change something that is not a setting, such as the library layout or the sign-in mechanism, see `docs/hosting.md` in the repository for the exact file behind each assumption.
