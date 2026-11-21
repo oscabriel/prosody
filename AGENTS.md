@@ -1,70 +1,75 @@
 # Prosody
 
-One self-hosted app for the whole route a book travels: wanting it, shelving it, syncing its audiobook to its ebook, and reading or listening. `README.md` says what it does. The next work is a native iOS app.
+Prosody is a self-hosted app for the full lifecycle of a book: wanting it, shelving it, aligning its audiobook to its ebook, and reading or listening. See `README.md` for what it does. The next planned work is a native iOS app.
 
-## Any host
+If `CLAUDE.local.md` exists at the repository root, read it first. It is untracked and holds local machine names, paths and working notes for this checkout.
 
-The repository is public and names no real machine. Everything about one host is a setting, or in a file git ignores.
+## Non-negotiable rules
 
-- A host's facts are settings in `.env`, read by `packages/server/src/Host.ts`; `.env.example` lists them all. A new fact about the host becomes a setting there, never a constant in the source.
-- `docs/hosting.md` is the guide for putting Prosody on other hardware. Its "Where each assumption lives" table names the file to change for everything that is not a setting. Keep both in step with the source.
-- Committed files write the host as "the host" and its domain as `example.com`. Machine names, addresses, user names, home folders and other services on the machine stay out of files, comments, tests and commit messages.
-- What the desk fetches books through is named only under `docs/acquiring/`, in the code, and in settings. This file, `README.md`, `GLOSSARY.md`, `docs/hosting.md`, `docs/how-it-works.md` and the site in `packages/site` say only that the desk can fetch a book, and point there.
-- If `CLAUDE.local.md` exists at the root, read it: it holds this checkout's own machine, names and working notes, and git does not track it.
-- Commit only when the user asks.
+- **Commit only on request.** Never commit unless the user asks.
+- **Pass the gate first.** `pnpm check` must pass before any commit.
+- **Keep the repository host-neutral.** This is a public repository and names no real machine. Write the server as "the host" and its domain as `example.com`. Keep machine names, IP addresses, user names, home directories and other host services out of committed files, tests and commit messages.
+- **Put host facts in `.env`.** Every host-specific fact is a setting in `.env`, read by `packages/server/src/Host.ts` and documented in `.env.example`. Never hardcode a host fact in source code. Keep `docs/hosting.md` and its "Where each assumption lives" table in step with the source.
+- **Keep acquisition details inside `docs/acquiring/`.** What the desk fetches books through is named only in `docs/acquiring/`, code and settings. This file, `README.md`, `GLOSSARY.md`, `docs/hosting.md`, `docs/how-it-works.md` and `packages/site` say only that the desk can fetch a book, and point to `docs/acquiring/`.
+- **Treat book files as read-only.** Only the press writes to the library, and it only ever adds copied files. Tests and experiments must copy what they need and work on the copy.
+- **Never move or delete downloads.** Leave every file in the downloads folder untouched; `docs/acquiring/` explains why.
+- **Expect network shares to drop.** Before running anything that reads a library on a network share, check that the mount answers (`timeout 8 ls <path>`). Treat a failure as an outage to report, not something to repair.
+- **Do not test the desk on live.** Test against stand-ins or an isolated stage (`ALCHEMY_STAGE`). On the live stack, a want runs real searches and fetches real books.
+- **Deploy carefully.** Run `pnpm run deploy --yes` (`pnpm deploy` is a different, built-in pnpm command). Never delete `.alchemy/` while the stack is up; it is Alchemy's record of what is deployed.
 
-## Words
+## Vocabulary
 
-`GLOSSARY.md` defines the project's words: a work and its editions, a pair, a shelfmark, a reading copy, a place, a want, the press. The words for fetching a book are in `docs/acquiring/GLOSSARY.md`. Use each as it is defined there, in code, comments, tests, the app's text and commit messages, and add a word there when the model gains one.
+`GLOSSARY.md` defines Prosody's domain terms (work, edition, pair, shelfmark, reading copy, place, want, the press, and others). Terms specific to fetching a book live in `docs/acquiring/GLOSSARY.md`. Use every term as defined across code, tests, UI copy and commit messages, and add a new entry whenever the model gains a concept.
 
-## Comments
+## No comments in code
 
-Code carries no comments, of any kind: a doc comment, a note, a `TODO` and a directive to a tool are all refused. A decision is an ADR in `docs/adr/`, a hack is an issue in `docs/issues/`, and a word is in `GLOSSARY.md`; write each there as you make it. `pnpm check` fails on a comment: the lint rule `prosody/no-comments` (`tools/oxlint/prosody`) reports each one in TypeScript, and `pnpm comments` catches one hidden behind a disable directive, or in CSS, HTML, a Dockerfile or YAML. So an error is fixed in the code or the config, never silenced in place. `/delete-comment` sorts and clears comments in bulk.
+Code carries no comments of any kind: no doc comments, inline notes, `TODO`s, shebangs or tool directives (`oxlint-disable`, `@ts-expect-error`, etc.). Put the information where it stays maintained instead:
 
-## How each part works
+| What you wanted to write | Where it goes |
+|---|---|
+| Why a design choice was made | An ADR in `docs/adr/` |
+| A hack, workaround or known shortcut | An issue in `docs/issues/` |
+| A domain term | `GLOSSARY.md` (or `docs/acquiring/GLOSSARY.md`) |
 
-`docs/how-it-works.md` holds what the source does not say about each part: why it is built as it is, and what breaks when it changes. Read the section for the part you are about to change:
+`pnpm check` fails on any comment. The `prosody/no-comments` rule (`tools/oxlint/prosody`) reports comments in linted JavaScript and TypeScript, and `pnpm comments` catches comments hidden behind disable directives as well as comments in CSS, HTML, `Dockerfile`, YAML and `.dockerignore`. Fix errors in the code or config rather than silencing them inline. Run `/delete-comment` to triage and strip comments in bulk.
 
-- "Deploying": a deploy, a service's settings or image, Alchemy, the cluster.
-- "Signing in": Caddy, the relay, Tailscale, the `Session`.
-- "The model": a policy or a view in `packages/domain`.
-- "The press": the walk, reading copies, its queue, covers, the aligner.
-- "The reading room": places, the nightstand, the lock screen, pages.
-- "Offline": the service worker, a place kept offline, a kept copy.
-- "The site": the landing page, docs and blog in `packages/site`.
-- "Known limits": the bugs, and what is untested.
+## Where to read before changing a part
 
-`docs/acquiring/` holds everything about fetching a book at the desk: setting it up, its words, and how it works. Read it before changing anything in `packages/domain/src/Acquisition`, the desk, or shelving.
+Before changing any area, scan the titles in `docs/adr/` and `docs/issues/` and read the ADRs that touch it.
 
-`packages/site` is the public landing page, docs and blog: a Foldkit app built to static pages, with each page a Markdown file in `packages/site/content`. `pnpm --filter @prosody/site dev` serves it, and `pnpm --filter @prosody/site run deploy` publishes it to Cloudflare, apart from the host's stack. Its pages are for readers: they say what the app does in the glossary's words, and name nothing the desk fetches through. When the app's behaviour changes, change the page that describes it in the same commit.
+`docs/how-it-works.md` covers what the source alone does not explain: why each part is built as it is and what breaks if it changes. Read the relevant section before editing:
 
-`docs/adr/` records why the code is as it is, one decision to a file, and `docs/issues/` the hacks still to fix. Read the titles in both before changing a part, and the ADRs that touch it.
+| Section in `docs/how-it-works.md` | Read before changing |
+|---|---|
+| "Deploying" | Deploy config, service settings or images, Alchemy, the cluster |
+| "Signing in" | Caddy, the relay, Tailscale, `Session` |
+| "The model" | Policies or views in `packages/domain` |
+| "The press" | The walk, reading copies, its queue, covers, the aligner |
+| "The reading room" | Places, the nightstand, the lock screen, pages |
+| "Offline" | The service worker, offline places, kept copies |
+| "The site" | The landing page, docs and blog in `packages/site` |
+| "Known limits" | Known bugs and untested behaviour |
 
-## Rules
+Additional area docs:
 
-- `pnpm check` must pass before a commit. `pnpm run deploy` deploys; `pnpm deploy` is a different, built-in pnpm command.
-- Deploy with `pnpm run deploy --yes`, and never delete `.alchemy/` while the stack is up: it is Alchemy's record of what is deployed.
-- `packages/domain` imports only `effect` and `@alchemy.run/domain`. The linter enforces it.
-- Book files are read-only everywhere but to the press, which only ever adds a copied file to the library. Tests and experiments copy what they need and work on the copy.
-- A file in the downloads folder is never moved or deleted; `docs/acquiring/` says why.
-- A library on a network share can drop out. Check the mount answers (`timeout 8 ls <path>`) before a run that needs it, and treat a failure as an outage to report, not to repair.
-- Test the desk against stand-ins, or a stage of its own (`ALCHEMY_STAGE`). On the live stack a want is really searched for, and a book really fetched.
+- **Acquiring (`docs/acquiring/`):** Read before changing `packages/domain/src/Acquisition`, the desk or shelving.
+- **Public site (`packages/site`):** A Foldkit app built to static pages from Markdown files in `packages/site/content`. Serve it locally with `pnpm --filter @prosody/site dev` and deploy it to Cloudflare (independently of the host stack) with `pnpm --filter @prosody/site run deploy`. Pages are written for readers in the glossary's terms and never name what the desk fetches through. When app behaviour changes, update the matching page in the same commit.
 
-## Before using an API
+## Architecture and APIs
 
-- Alchemy's domain framework (`@alchemy.run/domain`) and its Effect Cluster host are weeks old. Read the installed `node_modules` source, and Alchemy's own docs for its domain, cluster and docker packages, before writing against them.
-- Read `node_modules/effect/AGENTS.md` before writing Effect code. Effect 4 differs from what you remember.
-- Alchemy stays on the newest release.
+- **Pure domain package.** `packages/domain/src/**` may import only `effect` and `@alchemy.run/domain`, enforced by `no-restricted-imports` in `oxlint.config.ts`.
+- **Effect 4.** Read `node_modules/effect/AGENTS.md` before writing Effect code; Effect 4 differs significantly from v3. Before using an Effect module marked unstable, add it to `allowedUnstableApis` in `tsconfig.base.json`.
+- **Effect service shape.** Follow the conventions encoded in `tools/oxlint/anti-slop/effect`. Where those rules disagree with `node_modules/effect/AGENTS.md`, Effect's guide wins.
+- **Alchemy.** `@alchemy.run/domain` and `@alchemy.run/effect-cluster` are pre-release betas (`2.0.0-beta.87`). Read the installed source in `node_modules` and Alchemy's docs for its domain, cluster and docker packages before writing against them. Keep Alchemy on the newest release.
 
-## The checks
+## Checks and tooling
 
-`pnpm check` is the gate: format, type-aware lint, typecheck, tests. Warnings fail it. `pnpm fix` applies the safe lint fixes and formats.
+`pnpm check` runs the full gate: `oxfmt --check`, `pnpm lint` (`oxlint && pnpm comments`), `pnpm typecheck` (`tsc --noEmit && pnpm -r typecheck`) and `pnpm test` (`vitest run --passWithNoTests`). Warnings fail the build (`denyWarnings: true`). Run `pnpm fix` (`oxlint --fix && oxfmt`) for safe lint fixes and formatting.
 
-- One TypeScript everywhere: `typescript` and `tsrs` are both 7.1 beta, and Oxlint runs its type-aware rules on tsrs, Oxc's Rust port of the checker, which it picks over `oxlint-tsgolint` when both are installed. `prepare` patches both with Effect's rules (`effect-tsgo patch --oxlint --tsrs`), so plain `oxlint` in the scripts, the editor and the agents' hook all lint the same way. Move `typescript`, `tsrs` and `@effect/tsgo` together, to versions `@effect/tsgo`'s README lists as supported; an unpatched tsrs fails with `unknown rule: effecttsgo/...`.
-- The lint has three layers: Ultracite's presets, Effect's own rules (`@effect/tsgo`, patched in by `prepare`), and anti-slop, copied into `tools/oxlint/anti-slop` (its `UPSTREAM.md` names the commit). The anti-slop copy is ours: change a rule there rather than turning it off file by file.
-- Effect's `recommended` preset, plus eleven of its rules beyond it, named in `oxlint.config.ts`: inside an Effect, use Effect's `Config`, `Clock`, `Schema`, `HttpClient`, `Console` and `Random` rather than the globals, and say what an error becomes, how much runs at once (`concurrency`) and where layers are provided. `strict-effect-provide` is off only in the entry points listed there. The rest of Effect's rules are style, for library authors, or for the browser, and stay off.
-- Where Effect's style and Ultracite's disagree, Effect's wins: barrel imports (`import { Schema } from "effect"`), `Array<A>`, PascalCase module files. Each exception is named in `oxlint.config.ts`.
-- Before using an Effect module that Effect marks unstable, add it to `allowedUnstableApis` in `tsconfig.base.json`.
-- Not turned on: anti-slop's code-smell rules (they warn) and its model-judged and diff rules (they send source to a paid model on every run).
-- Shape Effect services as anti-slop's policy does, the one its Effect rules encode. Where it disagrees with `node_modules/effect/AGENTS.md`, Effect's wins.
-- `.claude/settings.json` runs `oxlint --fix` and `oxfmt` on every file an agent edits.
+- **TypeScript and type-aware lint.** `typescript` and `tsrs` are both on 7.1 beta, and Oxlint runs its type-aware rules through `tsrs`. The `prepare` script runs `effect-tsgo patch --oxlint --tsrs` so `oxlint` behaves the same in scripts, editors and hooks. Upgrade `typescript`, `tsrs`, `oxlint` and `@effect/tsgo` together to versions listed as supported in `node_modules/@effect/tsgo/README.md`.
+- **Lint layers (`oxlint.config.ts`):**
+  1. **Ultracite** (`ultracite/oxlint/core`, `ultracite/oxlint/vitest`). Where Ultracite and Effect conventions conflict, Effect wins: barrel imports from `effect`, `Array<A>` generics, and kebab-case or PascalCase filenames. Each override is listed in `oxlint.config.ts`.
+  2. **Effect** (`@effect/tsgo` `recommended` preset with `effecttsgo/schema-class-missing-brand` off, plus twelve extra rules): barrel imports from `effect`; using Effect's `Config`, `Clock`/`DateTime`, `Schema`, `HttpClient`, `Effect.log`/`Logger` and `SecureRandom` (`effect/crypto`) inside Effects rather than globals; requiring catch handlers on `Effect.try`/`Effect.tryPromise`; forbidding direct `extends Error`; requiring explicit `concurrency` on `Effect.all`/`Effect.forEach`; using the array form of `Effect.provide`; and `strict-effect-provide` (disabled only in the four entry points listed in `oxlint.config.ts`).
+  3. **Anti-slop** (`tools/oxlint/anti-slop`, provenance in `tools/oxlint/anti-slop/UPSTREAM.md`). All core and Effect rules are enabled as errors. We own this copy: adjust a rule there instead of turning it off file by file. Its `martinfowler/` code-smell rules (intended as warnings) and LLM-judged `jev/` and `diff-rules/` suites are intentionally disabled.
+  4. **Prosody** (`tools/oxlint/prosody`): enforces `prosody/no-comments`.
+- **Edit hook.** `.claude/settings.json` runs `oxlint --fix` and `oxfmt` automatically after every `Edit` or `Write` tool call.
