@@ -1,7 +1,16 @@
-# `PROSODY_SOURCE` works around the platform missing code-only changes
+# `PROSODY_SOURCE` works around Alchemy missing code-only changes
 
-**Where**: `sourceFingerprint` in `packages/server/src/Source.ts`, and the Api's and the press's settings
+**Where:** `sourceFingerprint` in `packages/server/src/Source.ts`, `Api` in `packages/server/src/Api.ts`, and `Press` in `packages/press/src/Press.ts`
 
-Alchemy 2.0.0-beta.87 does not redeploy a service whose code alone changed when its settings depend on other resources, so every service carries a hash of the source as a setting. Every new service must remember to do the same.
+## What is wrong
 
-**To fix**: Check each Alchemy release; when a code-only change is picked up on its own, remove the fingerprint and the setting.
+In Alchemy `2.0.0-beta.87`, a `Docker.Service` whose settings depend on other resources (such as Docker networks) is not redeployed when only its bundled TypeScript source changes. To force a redeploy, `sourceFingerprint` hashes every file under `packages/domain/src`, `packages/server/src`, and `packages/press/src`, and both `Api` and `Press` pass that hash as the `PROSODY_SOURCE` environment variable.
+
+## What it costs
+
+- Any new service must wire `PROSODY_SOURCE: yield* sourceFingerprint` into its environment or code-only changes will silently fail to deploy.
+- Because one fingerprint covers all three packages, a change in `packages/press/src` redeploys `Api` and a change in `packages/server/src` redeploys `Press`.
+
+## How to fix
+
+After upgrading Alchemy, verify whether a code-only change to `Api` and `Press` triggers a redeploy without `PROSODY_SOURCE`. Once Alchemy detects bundled source changes on its own, remove `PROSODY_SOURCE` from `packages/server/src/Api.ts` and `packages/press/src/Press.ts`, and delete `sourceFingerprint` from `packages/server/src/Source.ts` (keep `fingerprintOf`, which `packages/server/src/Page.ts` still uses).
