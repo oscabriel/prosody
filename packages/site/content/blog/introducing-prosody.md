@@ -1,53 +1,50 @@
 ---
 title: Introducing Prosody
-summary: One self-hosted app for the ebooks and audiobooks you own, with the audio synced to the text on your own machine.
+summary: A self-hosted app that shelves DRM-free ebooks, audiobooks and PDFs, aligns pairs sentence by sentence on your CPU, and keeps one place per book across devices.
 date: 2026-11-20
 ---
 
-**In short:** Prosody is a self-hosted app that shelves your ebooks and audiobooks, syncs each audiobook to its ebook sentence by sentence, and keeps one place per book across your devices. It is open source under the MIT licence, it runs on a machine with no GPU, and there is a live example on the [front page](/).
+I built Prosody to handle ebooks, audiobooks and sentence-level alignment in a single self-hosted app. It is open source under the MIT licence, runs on a CPU with no GPU, and you can test a real aligned passage on the [front page](/).
 
-## Why it exists
+## Why one app
 
-Reading and listening to the same book at home has usually taken three programs: an audiobook server, an ebook reader, and a separate tool to line the two up.
+Self-hosting both ebooks and audiobooks usually means running separate tools: one server for ebooks, another for audiobooks, and a third step to align the two. That splits a single book across multiple libraries, leaves reading progress in whichever app was used last, and turns alignment into a manual job.
 
-Each is good at its job. Together they are a chore. A new book is added three times. Your place lives in whichever program you used last. And the tool that syncs the audio to the text is run by hand, one book at a time, so most books never get synced at all.
+Prosody treats each book as one work in one catalogue, whether it has an EPUB, an M4B audiobook, a PDF, or an EPUB and M4B pair.
 
-Prosody is those three jobs done by one app, with one idea of what a book is.
+## What Prosody does
 
-## What it does
+- **Reads your folders as they are.** Point Prosody at a library organised by author and title (`ebooks/<Author>/<Title>/` and `audiobooks/<Author>/<Title>/`). The press walks the library every five minutes and catalogues what it finds without moving, renaming or modifying your files.
+- **Aligns pairs automatically.** When a work has both an EPUB and an M4B audiobook, Prosody aligns them sentence by sentence without being asked. On 8 CPU cores, a 21-hour audiobook takes about an hour.
+- **Opens single editions too.** A book does not need to be a pair. An EPUB alone opens to read, an M4B alone plays by its embedded chapters, and a PDF opens a page at a time.
+- **Syncs text and audio in the reading room.** While audio plays, the current sentence highlights in the text. Tapping any sentence jumps the audio directly to it.
+- **Keeps one place per book.** Your place is stored per work (as a sentence, a timestamp or a page) and follows you across devices. If you listen to an audiobook alone and add its ebook later, it opens at the sentence spoken at your saved timestamp.
+- **Works from a phone browser.** The web app installs to a home screen, integrates with lock-screen media controls, opens offline, and lets you keep a whole reading copy on the device.
 
-- **It shelves what you have.** Point it at a library of folders by author and title. EPUBs, M4B audiobooks and PDFs appear on the shelf within five minutes. Nothing is imported, moved or renamed.
-- **It syncs a pair on its own.** A book with both an EPUB and an audiobook is aligned without being asked. A 21-hour audiobook takes about an hour on eight cores.
-- **It reads and listens together.** In the reading room the sentence being read is marked, and a tap on a sentence moves the audio there.
-- **It keeps one place per book.** A sentence, a time or a page, whichever the book has, and the same on every device.
-- **It works on a phone.** It installs from the browser, plays from the lock screen, opens offline, and keeps a whole book on the device when asked.
+## Design choices
 
-## What makes it different
+**Self-checking alignment.** After placing every sentence, a second offline speech model (Whisper `base.en`) listens to up to 40 aligned sentences and compares what it hears with the text. If fewer than three quarters pass, the alignment is rejected and the shelf marks the book `not synced` instead of serving a drifted timeline. [How the aligner works](/docs/how-the-aligner-works) explains the pipeline, and [Measuring the aligner](/blog/measuring-the-aligner) has the benchmark numbers.
 
-**The aligner checks itself.** After a book is synced, a second speech model listens to forty of its sentences and compares what it hears with the page. A sync that fails is refused: "not synced" is better than a highlight that drifts. [How the aligner works](/docs/how-the-aligner-works) has the steps and the numbers.
+**Tailscale authentication.** Prosody has no user accounts, login page or passwords. Caddy checks every request against the host's `tailscaled` daemon and admits only untagged Tailscale devices belonging to the host's owner, passing the device name to the app.
 
-**Signing in is your tailnet.** There are no accounts. A request from one of your own Tailscale devices is let in and known by the device's name. Anything else is refused. There is no login page to attack and no password to leak.
+**Offline models, local files.** Both speech models are downloaded once into the container image and run locally on your CPU. Your books and audio are never sent to an external service, and reading copies are written into a separate directory from your library.
 
-**The web app is the app.** Offline reading, lock-screen controls and a kept copy of a whole book all work from the browser today. A native iOS app is next, for the things a browser cannot do.
+**One TypeScript codebase.** Everything from the domain model and aligner to the web app lives in one TypeScript repository, structured so you (or a coding agent) can adjust its assumptions for your own hardware.
 
-**It is yours.** Your books stay files in your folders. The speech models run on your own processor. The code is one TypeScript codebase that you can read, change and host, and that is written so a coding agent can remodel it for your hardware.
+## Current limits
 
-## What it needs
+- **No native app yet.** Offline reading, lock-screen controls and kept copies work in the browser today, though long listening sessions with a phone screen locked are not yet well tested. A native iOS app is next.
+- **Single reader.** Every admitted device on your tailnet shares one reading place per book.
+- **English only.** Both speech models and the text-normalisation rules (for numbers, dates and abbreviations) are English only.
+- **Audio format.** One M4B file per book, encoded in AAC-LC.
+- **No built-in backup.** Backing up your library, reading copies and database is left to your host setup.
 
-A Linux machine with Docker, Tailscale, Caddy, and your books without DRM. [What you need](/docs/what-you-need) has the detail, and [where books come from](/docs/where-books-come-from) lists shops and libraries that sell or give books as plain files.
+## Getting started
 
-## What it does not do yet
-
-- There is no native app. The web app is good on a phone, and long sessions with the screen locked are not yet well tested.
-- It is for one reader. Everyone on your tailnet who is you shares one place per book.
-- It reads English. The speech models, and the way numbers are read aloud, are English only.
-- Audio is one M4B a book, in AAC-LC.
-- There is no built-in backup.
+You need a Linux host with Docker in swarm mode, Tailscale, Caddy and DRM-free book files. See [What you need](/docs/what-you-need) for the full list, [Where books come from](/docs/where-books-come-from) for sources of DRM-free files, and [Installing](/docs/installing) to deploy it.
 
 ## Thanks
 
-Prosody owes a great deal to [Storyteller](https://storyteller-platform.dev), which showed that syncing your own audiobooks to your own ebooks at home was possible at all, and whose aligner Prosody ran on before it had its own. If Prosody's shape does not suit you, try it.
+Prosody owes a lot to [Storyteller](https://storyteller-platform.dev), which proved self-hosted ebook and audiobook alignment works and whose aligner Prosody used before I wrote a dedicated one.
 
-It is built on [Effect](https://effect.website), [Alchemy](https://github.com/alchemy-run/alchemy) and [Foldkit](https://foldkit.dev), and the voice on the front page is Stewart Wills, reading Moby-Dick for [LibriVox](https://librivox.org).
-
-[Install it](/docs/installing), and say what breaks.
+Prosody is built with [Effect](https://effect.website), [Alchemy](https://github.com/alchemy-run/alchemy) and [Foldkit](https://foldkit.dev). The passage on the front page uses Stewart Wills's reading of *Moby-Dick* for [LibriVox](https://librivox.org).

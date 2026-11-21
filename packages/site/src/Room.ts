@@ -30,7 +30,7 @@ export const roomView = (listening: Listening, h: HtmlBuilder<Message>): Html =>
 			h.div(
 				[h.Class("room-head")],
 				[
-					h.p([h.Class("label")], ["Moby-Dick · Chapter 1, Loomings"]),
+					h.p([h.Class("label")], ["Moby-Dick · Chapter 1: Loomings"]),
 					h.p(
 						[h.Class("label clock")],
 						[`${clockOf(listening.time)} of ${clockOf(LENGTH)}`]
@@ -64,7 +64,7 @@ export const roomView = (listening: Listening, h: HtmlBuilder<Message>): Html =>
 					),
 					h.p(
 						[h.Class("hint")],
-						["Or tap any sentence, and the audio goes there."]
+						["Tap any sentence to jump straight to that point in the audio."]
 					),
 				]
 			),
@@ -80,7 +80,7 @@ export const roomView = (listening: Listening, h: HtmlBuilder<Message>): Html =>
 			h.figcaption(
 				[],
 				[
-					"This is the real thing. Stewart Wills read Moby-Dick for LibriVox; Prosody’s aligner found each sentence in his recording. The book and the recording are in the public domain.",
+					"Live output from Prosody’s aligner on public-domain sources: Project Gutenberg’s text of Moby-Dick and Stewart Wills’s LibriVox recording.",
 				]
 			),
 		]

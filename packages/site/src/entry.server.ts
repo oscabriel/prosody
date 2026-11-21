@@ -7,7 +7,7 @@ import { init, routeOf, view } from "./Main.ts";
 import { AppRoute, blogRouter, homeRouter } from "./Route.ts";
 
 const ABOUT =
-	"Prosody is a self-hosted app for the ebooks and audiobooks you own. It syncs the audio to the text sentence by sentence, on your own machine, and keeps one place per book.";
+	"Prosody is a self-hosted app for DRM-free ebooks, audiobooks and PDFs. It aligns audiobooks to ebooks sentence by sentence on your own machine and keeps one place per book across your devices.";
 
 const HEAD = [
 	`<meta name="description" content="${ABOUT}" />`,

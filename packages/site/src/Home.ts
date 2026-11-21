@@ -12,46 +12,46 @@ const NEEDS = docRouter({ slug: "what-you-need" });
 
 const DOES: ReadonlyArray<readonly [string, string]> = [
 	[
-		"Reads and listens together",
-		"A book with both an EPUB and an audiobook is synced sentence by sentence. In the reading room the audio follows the text, and a tap on a sentence moves the audio there.",
+		"Text and audio in step",
+		"When a book has both an EPUB and an M4B audiobook, Prosody aligns them sentence by sentence. The current sentence highlights as it plays, and tapping any sentence jumps the audio there.",
 	],
 	[
-		"Keeps one place per book",
-		"Your place follows you between devices, as a sentence, a time or a page. Stop listening on your phone, and the text opens at that sentence on your laptop.",
+		"One place across devices",
+		"Your place follows you between devices as a sentence, a timestamp or a page. Pause an audiobook on your phone, and your laptop opens the ebook at that same sentence.",
 	],
 	[
-		"Works in your pocket",
-		"The app installs on a phone from the browser, plays from the lock screen, opens with no network, and keeps a whole book on the device when you ask.",
+		"Built for a phone browser",
+		"Install it to your home screen, control playback from the lock screen, open books offline and keep whole reading copies on the device when you need them.",
 	],
 	[
-		"Opens what you have",
-		"An EPUB alone reads, an audiobook alone plays by its chapters, and a PDF opens a page at a time. Nothing has to be a pair.",
+		"Works with single editions too",
+		"Not every book needs a pair. EPUBs open to read, M4B audiobooks play by chapter, and PDFs open a page at a time.",
 	],
 ];
 
 const YOURS: ReadonlyArray<readonly [string, string]> = [
 	[
-		"Your files stay files",
-		"Prosody reads a library of folders by author and title. It never moves, renames or rewrites a book, and what it makes it keeps in a folder of its own.",
+		"Plain folders, untouched",
+		"Point Prosody at folders organised by author and title. It never moves, renames or modifies your book files; reading copies live in a separate folder.",
 	],
 	[
-		"The syncing is done at home",
-		"The speech models are downloaded once and then run offline, on your own processor. Your audio and your text are never sent anywhere.",
+		"Offline speech models",
+		"Both speech models are baked into the container image and run on your CPU. Your books and audio never leave your machine.",
 	],
 	[
-		"No accounts",
-		"Signing in is being on your tailnet. Only your own Tailscale devices can reach the app, and each is known by its name. There is no password to keep or to leak.",
+		"Tailscale instead of accounts",
+		"There are no logins or passwords. Only untagged Tailscale devices belonging to the host’s owner are admitted, identified by device name.",
 	],
 	[
-		"Free to read and to change",
-		"The whole of it is one TypeScript codebase under the MIT licence, written so that you, or an agent working for you, can remodel it for your own hardware.",
+		"One TypeScript codebase",
+		"Licensed under MIT and structured so you, or a coding agent, can adapt its assumptions to your own hardware.",
 	],
 ];
 
 const FIGURES: ReadonlyArray<readonly [string, string]> = [
-	["about 20×", "faster than the book plays, on eight cores and no GPU"],
-	["0.1 s", "is how close a sentence’s start typically lands"],
-	["40", "sentences heard again by a second model before a sync is shown"],
+	["19×", "faster than real time across 72 hours of audio, on 8 CPU cores"],
+	["~0.1 s", "median sentence start error across five measured books"],
+	["Up to 40", "sentences checked by a second model before a sync is accepted"],
 ];
 
 const pairsView = (
@@ -72,18 +72,18 @@ export const homeView = (
 	h.section(
 		[h.Class("hero")],
 		[
-			h.p([h.Class("label")], ["Self-hosted · open source"]),
-			h.h1([], ["Your audiobook and your ebook, as one book."]),
+			h.p([h.Class("label")], ["Self-hosted · open source · MIT"]),
+			h.h1([], ["Read and listen to the same book, in sync."]),
 			h.p(
 				[h.Class("lede")],
 				[
-					"Prosody is a self-hosted app for the books you own. It syncs an audiobook to its ebook sentence by sentence, on your own machine, so you can read, listen or do both, and pick up on any device where you left off.",
+					"Prosody is a self-hosted app for DRM-free books you own. It aligns each audiobook to its ebook sentence by sentence on your own machine, and keeps one place per book across your devices.",
 				]
 			),
 			h.p(
 				[h.Class("calls")],
 				[
-					h.a([h.Href(INSTALLING), h.Class("call")], ["Host it yourself"]),
+					h.a([h.Href(INSTALLING), h.Class("call")], ["Install Prosody"]),
 					h.a([h.Href(docsRouter())], ["Read the docs →"]),
 				]
 			),
@@ -97,11 +97,11 @@ export const homeView = (
 	h.section(
 		[h.Class("band")],
 		[
-			h.h2([], ["How the sync is made"]),
+			h.h2([], ["How alignment works"]),
 			h.p(
 				[h.Class("lede")],
 				[
-					"A speech model listens to the audiobook once. Every sentence of the text is then placed in what it heard, and a second model listens to a spread of them to confirm the right words are there. A sync that fails that check is refused, not shown.",
+					"An offline speech model listens to the audiobook once and maps every sentence of the text onto the audio. A second model then checks a spread of aligned sentences against the page; if too few match, the alignment is rejected rather than shown.",
 				]
 			),
 			h.dl(
@@ -110,12 +110,12 @@ export const homeView = (
 					h.div([], [h.dt([], [figure]), h.dd([], [means])])
 				)
 			),
-			h.p([], [h.a([h.Href(ALIGNER)], ["How the aligner works →"])]),
+			h.p([], [h.a([h.Href(ALIGNER)], ["Read how the aligner works →"])]),
 		]
 	),
 	h.section(
 		[h.Class("band")],
-		[h.h2([], ["Yours, start to finish"]), pairsView(YOURS, h)]
+		[h.h2([], ["Built to stay yours"]), pairsView(YOURS, h)]
 	),
 	h.section(
 		[h.Class("band")],
@@ -126,14 +126,26 @@ export const homeView = (
 				[
 					h.li(
 						[],
-						["A Linux machine with Docker. Eight cores is comfortable."]
+						[
+							"A Linux host running Docker in swarm mode (benchmarked on 8 CPU cores, no GPU required).",
+						]
 					),
-					h.li([], ["Tailscale on it, and on each device you read with."]),
-					h.li([], ["Caddy, and a name for the app."]),
 					h.li(
 						[],
 						[
-							"Your books: EPUBs and M4B audiobooks without DRM, in folders by author and title.",
+							"Tailscale on the host and on every device you read or listen with.",
+						]
+					),
+					h.li(
+						[],
+						[
+							"Caddy as the reverse proxy, with a domain name pointing to the host’s tailnet address.",
+						]
+					),
+					h.li(
+						[],
+						[
+							"DRM-free books (EPUB, M4B or PDF) in folders organised by author and title.",
 						]
 					),
 				]
@@ -142,7 +154,7 @@ export const homeView = (
 				[h.Class("calls")],
 				[
 					h.a([h.Href(INSTALLING), h.Class("call")], ["Install Prosody"]),
-					h.a([h.Href(NEEDS)], ["What you need, in full →"]),
+					h.a([h.Href(NEEDS)], ["Full requirements →"]),
 				]
 			),
 		]
