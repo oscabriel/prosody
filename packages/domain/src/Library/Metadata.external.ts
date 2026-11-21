@@ -32,5 +32,8 @@ export class Metadata extends Domain.ExternalSystem(
 			},
 		},
 	},
-	{ description: "Open Library for a work, and Audnexus for its audiobook." }
+	{
+		description:
+			"Open Library for a work, and Audible and Audnexus for its audiobook.",
+	}
 ) {}
