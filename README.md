@@ -49,6 +49,8 @@ If you work with a coding agent, point it at `AGENTS.md` and `docs/hosting.md` a
 
 The model runs on [Alchemy](https://github.com/alchemy-run/alchemy)'s domain framework and Effect Cluster, with Postgres, as Docker swarm services declared in `alchemy.run.ts`. Everything is written in TypeScript on [Effect](https://effect.website).
 
+[`GLOSSARY.md`](GLOSSARY.md) defines the project's words, and [`docs/how-it-works.md`](docs/how-it-works.md) says why each part is built as it is.
+
 `pnpm check` formats, lints, typechecks and tests. It must pass before a commit.
 
 ## Licence
