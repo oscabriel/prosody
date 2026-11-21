@@ -8,10 +8,6 @@ import { Listen, PLAYER, SKIP_AHEAD, SKIP_BACK } from "./Player.ts";
 import { chapterOf, titleOf } from "./Steps.ts";
 import { heardOf, leftInSection } from "./Timeline.ts";
 
-// What the reading room shows of the audio: the player at the foot of every page that has audio,
-// and, for a work with its audio alone, the page where the text would be.
-
-/** A length of audio as a clock shows it: 4:05, or 1:02:09. */
 export const clockOf = (seconds: number): string => {
 	const whole = Math.max(0, Math.floor(seconds));
 	const hours = Math.floor(whole / 3600);
@@ -23,10 +19,6 @@ export const clockOf = (seconds: number): string => {
 		: `${minutes}:${rest}`;
 };
 
-/**
- * The chapter playing, which of how many, the cover, how far into the chapter the audio is, and
- * buttons to go back a little or on a little.
- */
 export const listeningView = (
 	room: Room,
 	contents: Contents,
@@ -81,7 +73,6 @@ export const listeningView = (
 	];
 };
 
-/** Minutes, said the way a reader would. */
 const minutes = (seconds: number): string => {
 	const whole = Math.round(seconds / 60);
 
@@ -92,7 +83,6 @@ const minutes = (seconds: number): string => {
 	return whole === 1 ? "1 minute" : `${whole} minutes`;
 };
 
-/** The seconds of audio left in the chapter you are in. */
 const leftInChapter = (
 	room: Room,
 	contents: Contents,
@@ -109,10 +99,6 @@ const leftInChapter = (
 	return leftInSection(heardOf(timeline), section, room.time);
 };
 
-/**
- * The player at the foot of the page: play or pause, the speed, and the time left in the chapter.
- * A text alone has none.
- */
 export const playerView = (
 	room: Room,
 	contents: Contents,

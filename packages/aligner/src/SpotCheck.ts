@@ -5,21 +5,16 @@ import type { PlatformError } from "effect";
 import { Audio } from "./Audio.ts";
 import type { DecodeFailed } from "./Audio.ts";
 
-/** A second speech model, of a different family from the aligner's, so it does not share its mistakes. */
 export const CHECK_MODEL = "onnx-community/whisper-base.en";
 
-/** How many sentences a check listens to. Spike 1 found 40 enough to tell a good book from a bad one. */
 const CLIPS = 40;
 
-/** Shorter is too short to judge; longer is likely a sentence whose end ran on. */
 const SHORTEST = 3;
 
 const LONGEST = 15;
 
-/** How alike a sentence and what was heard must be to count as heard right. */
 const ALIKE = 0.8;
 
-/** One aligned sentence to listen to: its text, and where it is in one audio file. */
 export interface Sighting {
 	readonly text: string;
 	readonly file: string;
@@ -27,7 +22,6 @@ export interface Sighting {
 	readonly end: number;
 }
 
-/** What a spot check found: how many sentences it listened to, and how many it heard right. */
 export interface Heard {
 	readonly checked: number;
 	readonly heard: number;
@@ -38,14 +32,12 @@ export class CheckFailed extends Schema.TaggedError<CheckFailed>()(
 	{ reason: Schema.String }
 ) {}
 
-/** The words of a text, lower case, with curly apostrophes made straight. */
 export const wordsOf = (text: string): Array<string> =>
 	text
 		.toLowerCase()
 		.replaceAll("’", "'")
 		.match(/[a-z0-9']+/gu) ?? [];
 
-/** How alike two lists of words are, from 0 to 1: twice their longest common run over their lengths. */
 export const likeness = (
 	said: ReadonlyArray<string>,
 	heard: ReadonlyArray<string>
@@ -76,7 +68,6 @@ export const likeness = (
 	return (2 * (previous.at(-1) ?? 0)) / (said.length + heard.length);
 };
 
-/** `count` items spread evenly through `items`, so a check hears the whole book. */
 export const spread = <A>(items: ReadonlyArray<A>, count: number): Array<A> =>
 	items.length <= count
 		? [...items]
@@ -85,11 +76,6 @@ export const spread = <A>(items: ReadonlyArray<A>, count: number): Array<A> =>
 				(_, index) => items[Math.floor((index * items.length) / count)]
 			).filter((item): item is A => item !== undefined);
 
-/**
- * Listens to a spread of aligned sentences with Whisper and counts those it heard right. The aligner
- * finishes cleanly even when it is wrong; this is how a wrong alignment is caught without anyone
- * listening.
- */
 export class SpotCheck extends Context.Service<
 	SpotCheck,
 	{
@@ -104,7 +90,6 @@ export class SpotCheck extends Context.Service<
 	make: Effect.gen(function* () {
 		const audio = yield* Audio;
 
-		// Whisper loads on first use, like the aligner's model, and reads where it is kept then.
 		const whisper = yield* Effect.cached(
 			Config.String("PROSODY_ALIGNER_MODELS").pipe(
 				Effect.mapError(
@@ -157,7 +142,6 @@ export class SpotCheck extends Context.Service<
 					catch: (error) => new CheckFailed({ reason: String(error) }),
 				});
 
-				// One clip in, one transcript out: the pipeline returns a list only for a list.
 				heard +=
 					likeness(wordsOf(sighting.text), wordsOf(result.text)) >= ALIKE
 						? 1

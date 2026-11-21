@@ -12,7 +12,6 @@ import { roomOf } from "../src/Steps.ts";
 
 const at = (span: string) => Sentence.make(`OEBPS/ch1.xhtml#${span}`);
 
-/** A place at a sentence, kept at `when`. */
 const place = (span: string, when: number) => ({
 	sentence: at(span),
 	time: null,
@@ -20,7 +19,6 @@ const place = (span: string, when: number) => ({
 	at: when,
 });
 
-/** A page with these places on its device. */
 const withPlaces = (places: Places) =>
 	Model.make({
 		route: AppRoute.Shelf(),

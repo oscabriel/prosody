@@ -1,31 +1,24 @@
 packages:
   - "packages/*"
 
-# Neither needs its install script: onnxruntime-node's fetches GPU files we don't use, and
-# protobufjs's only checks versions.
 allowBuilds:
   onnxruntime-node: false
   protobufjs: false
 
-# Versions that must move together are pinned here once. A package asks for one with "catalog:".
 catalog:
-  # Alchemy, one release for every package.
   alchemy: 2.0.0-beta.87
   "@alchemy.run/docker": 2.0.0-beta.87
   "@alchemy.run/domain": 2.0.0-beta.87
   "@alchemy.run/effect-cluster": 2.0.0-beta.87
-  # Effect and every @effect/* package.
   effect: 4.1.4
   "@effect/platform-bun": 4.1.4
   "@effect/platform-browser": 4.1.4
   "@effect/platform-node": 4.1.4
   "@effect/sql-pg": 4.1.4
   "@effect/vitest": 4.1.4
-  # Foldkit and the web build.
   foldkit: 0.170.0
   "@foldkit/vite-plugin": 0.29.0
   vite: 8.3.8
-  # Toolchain.
   "@types/node": 26.6.6
   oxfmt: 0.78.0
   oxlint: 1.94.0
@@ -36,8 +29,6 @@ catalog:
   typescript: 7.1.0-beta
   vitest: 5.1.0
 
-# pnpm holds a release back for a day after it is published. @effect/tsgo 0.73.2 was a day old
-# less a few hours when it was installed; once it is older, these lines can go.
 minimumReleaseAgeExclude:
   - "@effect/tsgo-darwin-arm64@0.73.2"
   - "@effect/tsgo-darwin-x64@0.73.2"
@@ -48,6 +39,5 @@ minimumReleaseAgeExclude:
   - "@effect/tsgo-win32-x64@0.73.2"
   - "@effect/tsgo@0.73.2"
 
-# One copy of Effect in the whole tree, whatever a dependency asks for.
 overrides:
   effect: 4.1.4

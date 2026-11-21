@@ -5,7 +5,6 @@ import { Shelfmark } from "../Library/Shelfmark.ts";
 import { EditionKind } from "../Library/ShelveEdition.command.ts";
 import { WorkId } from "../Library/Work.id.ts";
 
-/** One try at copying a work's one edition, as the press receives it. */
 export const CopyRequest = Schema.Struct({
 	work: WorkId,
 	attempt: Schema.Int,
@@ -16,10 +15,6 @@ export const CopyRequest = Schema.Struct({
 
 export type CopyRequest = typeof CopyRequest.Type;
 
-/**
- * Whatever makes a reading copy from one edition of a work with no pair. Asking queues the work
- * and returns; the answer comes back later as `RecordCopy` or `RecordCopyFailed`.
- */
 export class Copier extends Domain.ExternalSystem(
 	"Copier",
 	{ copy: { args: CopyRequest.fields } },

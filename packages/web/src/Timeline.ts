@@ -6,7 +6,6 @@ import type {
 } from "@prosody/domain/Reading/Copy";
 import { Sentence } from "@prosody/domain/Reading/Sentence";
 
-/** A sentence the audio holds: its place, start and end in seconds. */
 export interface Heard {
 	readonly sentence: Sentence;
 	readonly start: number;
@@ -18,7 +17,6 @@ const isHeard = (entry: Entry): entry is Entry & Heard =>
 
 const heardCache = new WeakMap<Timeline, ReadonlyArray<Heard>>();
 
-/** The sentences the audio holds, in the order it plays them. Worked out once per timeline. */
 export const heardOf = (timeline: Timeline): ReadonlyArray<Heard> => {
 	const cached = heardCache.get(timeline);
 
@@ -33,22 +31,15 @@ export const heardOf = (timeline: Timeline): ReadonlyArray<Heard> => {
 	return heard;
 };
 
-/** The section a sentence is in. */
 export const sectionOf = (sentence: string): string =>
 	sentence.split("#")[0] ?? "";
 
-/** The span a sentence is marked with in its section. */
 export const spanOf = (sentence: string): string =>
 	sentence.split("#")[1] ?? "";
 
-/** A section's index in the contents, or -1. */
 export const indexOf = (contents: Contents, path: string): number =>
 	contents.sections.findIndex((section) => section.path === path);
 
-/**
- * The sentence being read at `time`: the last one to start at or before it. Between two sentences
- * it is still the one before, so the underline does not flicker in a pause.
- */
 export const sentenceAt = (
 	heard: ReadonlyArray<Heard>,
 	time: number
@@ -72,10 +63,6 @@ export const sentenceAt = (
 	return found?.sentence;
 };
 
-/**
- * Where to play `sentence` from: its own start, or, for text the narrator did not read, the start
- * of the next sentence that was read.
- */
 export const startOf = (
 	timeline: Timeline,
 	sentence: string
@@ -89,7 +76,6 @@ export const startOf = (
 	return timeline.slice(at).find(isHeard)?.start;
 };
 
-/** The seconds of audio left in a section from `time`, or 0 when its audio is behind. */
 export const leftInSection = (
 	heard: ReadonlyArray<Heard>,
 	path: string,
@@ -100,14 +86,12 @@ export const leftInSection = (
 	return last === undefined ? 0 : Math.max(0, last.end - time);
 };
 
-/** The first sentence in a section, read or not. */
 export const firstOn = (
 	timeline: Timeline,
 	path: string
 ): Sentence | undefined =>
 	timeline.find((entry) => sectionOf(entry.sentence) === path)?.sentence;
 
-/** The chapter of the audio playing at `time`: the last to start at or before it. */
 export const chapterAt = (
 	chapters: ReadonlyArray<Chapter>,
 	time: number
@@ -117,6 +101,5 @@ export const chapterAt = (
 		chapters.findLastIndex((chapter) => chapter.start <= time)
 	);
 
-/** `ps-12` on `path`, as a place. */
 export const sentenceOf = (path: string, span: string): Sentence =>
 	Sentence.make(`${path}#${span}`);

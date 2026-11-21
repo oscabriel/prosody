@@ -1,0 +1,3 @@
+# The aligner listens once and keeps what it heard
+
+The speech model is NVIDIA's Parakeet CTC 0.6B as int8 ONNX: it hears 30 seconds at a time with 2 seconds of context either side, and scores 1,024 tokens and a blank for every 80 ms. Kept whole, 20 hours would be 3.7 GB, so each frame keeps its best few tokens and the blank, which is all alignment needs, and the result is saved beside the copy, named by the audio's size, so a retry never listens again. The models load on first use so one that will not load fails one alignment, not the press. It runs a thread for every core, not every logical processor: 30 times real time against 24 on 8 cores.

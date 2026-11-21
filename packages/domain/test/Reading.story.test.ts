@@ -30,8 +30,6 @@ import {
 
 const { given, provide, rejected, then, view, when } = Story;
 
-// The model's policies call the Aligner and the Copier. Nothing here starts a try, so neither is
-// called.
 const story = Story.make(Prosody, {
 	layer: ProsodyHandlers,
 	stub: [Indexer, Downloads, Metadata, Stacks, Aligner, Copier],
@@ -39,13 +37,11 @@ const story = Story.make(Prosody, {
 
 const carl = Reading.ref("w-carl");
 
-/** A work with its audio alone. */
 const alice = Reading.ref("w-alice");
 
 const sentence = (id: string) =>
 	Sentence.make(`OEBPS/Text/part0007.xhtml#${id}`);
 
-/** A place as a device sends it: the sentence and when. */
 const place = (id: string, at: number) => ({
 	sentence: sentence(id),
 	time: null,
@@ -53,7 +49,6 @@ const place = (id: string, at: number) => ({
 	at,
 });
 
-/** A place in a work with its audio alone: seconds into the audio, and when. */
 const heard = (time: number, at: number) => ({
 	sentence: null,
 	time,
@@ -61,10 +56,8 @@ const heard = (time: number, at: number) => ({
 	at,
 });
 
-/** A work made of pages. */
 const evans = Reading.ref("w-evans");
 
-/** A place in a work made of pages: the page, and when. */
 const turned = (page: number, at: number) => ({
 	sentence: null,
 	time: null,
@@ -72,7 +65,6 @@ const turned = (page: number, at: number) => ({
 	at,
 });
 
-/** The same place as the model keeps it, with the device the Session said sent it. */
 const kept = (id: string, at: number, device: string) => ({
 	...place(id, at),
 	device,

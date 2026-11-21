@@ -27,11 +27,6 @@ import { Place, PlaceLive } from "./Reading/Place.view.ts";
 import { Reading } from "./Reading/Reading.aggregate.ts";
 import { ReadingCopy, ReadingCopyLive } from "./Reading/ReadingCopy.policy.ts";
 
-/**
- * Everything Prosody knows and decides: the books you want and the releases you grab, the library
- * and who holds each of its folders, each pair's narration, the copy of each work with one edition,
- * and your reading of each work.
- */
 export class Prosody extends Domain.Model("Prosody", {
 	aggregates: [Want, Grab, Work, ShelfmarkClaim, Narration, Copy, Reading],
 	views: [Wanted, Shelf, Place, Nightstand],
@@ -47,10 +42,6 @@ export class Prosody extends Domain.Model("Prosody", {
 	],
 }) {}
 
-/**
- * Implementations of policies, queries and view guards. ReleaseSearch needs an Indexer, Downloading and
- * Releasing Downloads, Cataloguing Metadata, Shelving Stacks, Alignment an Aligner, and ReadingCopy a Copier.
- */
 export const ProsodyHandlers = Layer.mergeAll(
 	ReleaseSearchLive,
 	GrabbingLive,

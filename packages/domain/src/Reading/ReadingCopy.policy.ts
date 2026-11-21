@@ -6,12 +6,6 @@ import { Copier } from "./Copier.external.ts";
 import { Copy } from "./Copy.aggregate.ts";
 import { CopyStarted, editionToCopy } from "./CopyEdition.command.ts";
 
-/**
- * Whenever a try starts, ask the press to make the copy, unless the work by now has an edition the
- * copy should be made from instead: both its text and its audio, so the Narration makes its copy,
- * or its text, which wins over its pages. A share that drops a folder from one walk can make a work
- * look as if it had one edition, and that must not replace a better copy.
- */
 export class ReadingCopy extends Domain.Policy(
 	"ReadingCopy",
 	{ from: Copy, on: [CopyStarted] },

@@ -4,10 +4,6 @@ import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 
 import { PRESS_ALIAS } from "./Front.ts";
 
-/**
- * The Copier, played by the press, as the PressAligner is: the press queues the edition and answers
- * at once, and a press that can't be reached is a failure, so the ReadingCopy policy runs again.
- */
 export const PressCopier = Copier.toLayer(
 	Effect.gen(function* () {
 		const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);

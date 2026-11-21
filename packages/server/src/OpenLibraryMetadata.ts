@@ -8,26 +8,18 @@ import {
 	HttpClientResponse,
 } from "effect/http";
 
-/** Who is asking, as Open Library asks every client to say. Nothing in it names you. */
 const AGENT = "Prosody (a self-hosted book catalogue)";
 
 const OPEN_LIBRARY = "https://openlibrary.org/search.json";
 
-/** Audible's catalogue, which has no account to sign in to. Audnexus has no search of its own. */
 const AUDIBLE = "https://api.audible.com/1.0/catalog/products";
 
 const AUDNEXUS = "https://api.audnex.us/books";
 
-/**
- * How long Open Library may take. A policy that fails within ten seconds is run again by the
- * platform; one that fails later is not, so Open Library has to be given up on before then.
- */
 const OPEN_LIBRARY_TIME = "8 seconds";
 
-/** How long Audible and Audnexus may take, together, to find the audiobook. */
 const RECORDING_TIME = "30 seconds";
 
-/** The part of an Open Library search that Prosody reads: the works found, the likeliest first. */
 const Works = Schema.Struct({
 	docs: Schema.Array(
 		Schema.Struct({
@@ -39,7 +31,6 @@ const Works = Schema.Struct({
 	),
 });
 
-/** Audiobooks Audible sells, the likeliest first. */
 const Products = Schema.Struct({
 	products: Schema.Array(
 		Schema.Struct({
@@ -49,7 +40,6 @@ const Products = Schema.Struct({
 	),
 });
 
-/** The part of an audiobook in Audnexus that Prosody reads. */
 export const Audiobook = Schema.Struct({
 	asin: Schema.String,
 	narrators: Schema.optionalKey(
@@ -60,7 +50,6 @@ export const Audiobook = Schema.Struct({
 
 export type Audiobook = typeof Audiobook.Type;
 
-/** An audiobook's chapters in Audnexus, in milliseconds. */
 export const Chapters = Schema.Struct({
 	chapters: Schema.Array(
 		Schema.Struct({
@@ -73,7 +62,6 @@ export const Chapters = Schema.Struct({
 
 export type Chapters = typeof Chapters.Type;
 
-/** A title as titles are compared: lower case, letters and digits, no accents. */
 export const comparable = (title: string): string =>
 	title
 		.normalize("NFKD")
@@ -81,10 +69,6 @@ export const comparable = (title: string): string =>
 		.replaceAll(/[^\p{L}\p{N}]+/gu, " ")
 		.trim();
 
-/**
- * Whether a name found has every word of the name asked for. Open Library may complete what you
- * gave ("weir" is Andy Weir), never replace it (Homer is not Ὅμηρος).
- */
 export const completes = (asked: string, found: string): boolean => {
 	const words = new Set(comparable(found).split(" "));
 
@@ -93,7 +77,6 @@ export const completes = (asked: string, found: string): boolean => {
 		.every((word) => words.has(word));
 };
 
-/** An audiobook as Audnexus describes it, with its chapters in seconds. */
 export const recordingOf = (
 	audiobook: Audiobook,
 	{ chapters }: Chapters
@@ -108,12 +91,6 @@ export const recordingOf = (
 	})),
 });
 
-/**
- * Metadata, from Open Library for the work and from Audnexus for its audiobook, found through
- * Audible's catalogue. None of them needs an account, and none is sent anything but a title and an
- * author. Open Library not answering in time is a defect, so the Cataloguing policy runs again; an
- * audiobook that can't be found or read in time is no audiobook.
- */
 export const OpenLibraryMetadata = Metadata.toLayer(
 	Effect.gen(function* () {
 		const client = HttpClient.filterStatusOk(
@@ -127,7 +104,6 @@ export const OpenLibraryMetadata = Metadata.toLayer(
 				.get(url, { urlParams: params })
 				.pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(schema)));
 
-		/** The audiobook of exactly this title, if Audible sells one, with its chapters if known. */
 		const recording = Effect.fn("Metadata.recording")(function* (
 			title: string,
 			author: string

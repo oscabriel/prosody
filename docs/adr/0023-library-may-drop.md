@@ -1,0 +1,3 @@
+# The library may be a network share that drops
+
+A share that has dropped hangs, or reads as an empty folder with no error. So the walk never fails: a folder that cannot be read is reported and skipped, and a folder that reads empty costs nothing because the press only adds what it finds. Before shelving, the library and the downloads must answer within 8 seconds and the library must not be empty, or nothing is written. An edition is copied under a hidden `.part` name and renamed when whole, so a walk never finds half a file, and a file with the same name and size is taken as the copy a restart cut short.

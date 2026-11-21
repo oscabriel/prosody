@@ -1,17 +1,9 @@
-/**
- * List the sentences a timeline left unaligned although the speech model's own transcript has their
- * words in the gap between their placed neighbours: likely false skips. A proxy for a listener, from
- * the same model the aligner used, so the count is a floor and Whisper is the judge of a sample.
- *
- *   bun bench/unread.ts <book.emissions> <timeline.json> [--list]
- */
 import { readFileSync } from "node:fs";
 
 import { Schema } from "effect";
 
 import { decode, transcriptOf } from "../src/Emissions.ts";
 
-/** The rows of a timeline that `bench/align.ts` wrote. */
 const Rows = Schema.Array(
 	Schema.Struct({
 		said: Schema.String,
@@ -50,7 +42,6 @@ for (let index = 0; index < rows.length; index += 1) {
 	}
 
 	unplaced += 1;
-	// The gap between the placed sentences on either side.
 	let before = index - 1;
 
 	while (before >= 0 && rows[before]?.start === undefined) {

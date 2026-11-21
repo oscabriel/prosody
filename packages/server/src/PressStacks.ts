@@ -4,10 +4,6 @@ import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 
 import { PRESS_ALIAS } from "./Front.ts";
 
-/**
- * The Stacks, played by the press, the one writer of the library: it queues the payload and answers
- * at once, and a press that can't be reached is a failure, so the Shelving policy runs again.
- */
 export const PressStacks = Stacks.toLayer(
 	Effect.gen(function* () {
 		const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);

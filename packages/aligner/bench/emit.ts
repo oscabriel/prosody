@@ -1,9 +1,3 @@
-/**
- * Listen to one book with the speech model and save what it heard, so the alignment can be run and
- * tuned again without the model.
- *
- *   PROSODY_ALIGNER_MODELS=<dir> bun bench/emit.ts <out.emissions> <audio>...
- */
 import { BunRuntime, BunServices } from "@effect/platform-bun";
 import { Console, Effect, FileSystem, Layer } from "effect";
 

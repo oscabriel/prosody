@@ -1,29 +1,19 @@
 import type { Emissions } from "./Emissions.ts";
 import { scoreOf } from "./Emissions.ts";
 
-/** A run of text to place in the audio: the model's tokens for one sentence, or part of one. */
 export interface Unit {
 	readonly tokens: ReadonlyArray<number>;
 }
 
-/** Where a unit landed: the first and last frame its tokens hold, and how well they were heard. */
 export interface Placed {
 	readonly from: number;
 	readonly to: number;
-	/** The mean log-probability of its tokens where they start. */
 	readonly score: number;
 }
 
-/** What the path pays for text nobody read and for audio the book lacks. */
 export interface Costs {
-	/** Leaving a unit out: less than forcing text that is not there, more than noise. */
 	readonly skip: number;
-	/** A frame of audio that matches no text, over the frame's best guess. */
 	readonly garbage: number;
-	/**
-	 * A placed unit whose tokens were heard worse than this, as a mean log-probability, is not
-	 * believed. The path can find it cheaper to force a short unit onto audio than to skip it.
-	 */
 	readonly leastScore: number;
 }
 
@@ -35,32 +25,24 @@ export const COSTS: Costs = {
 
 const NONE = -Infinity;
 
-/** Backpointer codes: 0 to 4 step back that many states; this one jumps over a skipped unit. */
 const SKIPPED = 5;
 
-/** What each state emits, frame by frame, over the stretch being aligned. */
 interface Lattice {
-	/** For each state: -1 for garbage, -2 for blank, or its token's column in `table`. */
 	readonly kind: Int32Array;
-	/** Each token's score, `width` columns to a frame. */
 	readonly table: Float32Array;
 	readonly width: number;
 	readonly blank: Float32Array;
 	readonly garbage: Float32Array;
 }
 
-/** The states laid out in order, and how each may be entered. */
 interface States {
 	readonly count: number;
 	readonly unitStart: ReadonlyArray<number>;
 	readonly garbageAt: ReadonlyArray<number>;
-	/** Each state's unit, or -1 for garbage. */
 	readonly unitOf: Int32Array;
-	/** How many states back a state may be entered from: every step from 1 to this one is allowed. */
 	readonly reach: Uint8Array;
 }
 
-/** Number each token the units use, in order of first use. */
 const columnsOf = (units: ReadonlyArray<Unit>): Map<number, number> => {
 	const columns = new Map<number, number>();
 
@@ -75,7 +57,6 @@ const columnsOf = (units: ReadonlyArray<Unit>): Map<number, number> => {
 	return columns;
 };
 
-/** A small dense table of the scores of the tokens this stretch uses, one column per token. */
 const tableOf = (
 	emissions: Emissions,
 	from: number,
@@ -94,7 +75,6 @@ const tableOf = (
 	return table;
 };
 
-/** What audio with no text scores in each frame: a little under the frame's best guess. */
 const garbageOf = (
 	emissions: Emissions,
 	from: number,
@@ -111,11 +91,6 @@ const garbageOf = (
 	return garbage;
 };
 
-/**
- * How many states back a unit's state at `place` may be entered from. A blank comes from itself or
- * the token before; a token also from the token before it when the two differ. The unit's first
- * blank and first token may also be entered from the garbage state and the end of the unit before.
- */
 const unitReach = (
 	kind: Int32Array,
 	state: number,
@@ -141,7 +116,6 @@ const unitReach = (
 	return (kind[state - 2] ?? -1) === (kind[state] ?? -1) ? 1 : 2;
 };
 
-/** Lay out the states: G0, then for each unit its blanks and tokens and a G after it. */
 const layOut = (
 	units: ReadonlyArray<Unit>,
 	columns: ReadonlyMap<number, number>
@@ -161,7 +135,6 @@ const layOut = (
 	const unitOf = new Int32Array(count).fill(-1);
 	const reach = new Uint8Array(count);
 
-	// Garbage after a unit is entered from its last blank or last token.
 	for (const g of garbageAt) {
 		reach[g] = g > 0 ? 2 : 0;
 	}
@@ -175,7 +148,6 @@ const layOut = (
 			unitOf[start + p] = k;
 		}
 
-		// A token's reach depends on the kind of the token before it, so all kinds come first.
 		for (let p = 0; p <= 2 * unit.tokens.length; p += 1) {
 			reach[start + p] = unitReach(kind, start + p, p, k);
 		}
@@ -184,7 +156,6 @@ const layOut = (
 	return { states: { count, unitStart, garbageAt, unitOf, reach }, kind };
 };
 
-/** A state's score in frame `t`. */
 const emit = (lattice: Lattice, state: number, t: number): number => {
 	const k = lattice.kind[state] ?? -1;
 
@@ -199,7 +170,6 @@ const emit = (lattice: Lattice, state: number, t: number): number => {
 	return lattice.table[t * lattice.width + k] ?? NONE;
 };
 
-/** Let each garbage state take over the one before it, skipping the unit between, where that wins. */
 const skipForward = (
 	states: States,
 	back: Uint8Array,
@@ -221,10 +191,6 @@ const skipForward = (
 	}
 };
 
-/**
- * Run the Viterbi over every frame. Returns the backpointers, a byte per state per frame, and the
- * scores of the states in the last frame.
- */
 const viterbi = (
 	lattice: Lattice,
 	states: States,
@@ -272,7 +238,6 @@ const viterbi = (
 	return { back, last: previous };
 };
 
-/** The state the path ends in: the last garbage state or the end of the last unit. */
 const endOf = (states: States, last: Float32Array): number => {
 	const lastGarbage = states.garbageAt.at(-1) ?? 0;
 	let state = lastGarbage;
@@ -286,7 +251,6 @@ const endOf = (states: States, last: Float32Array): number => {
 	return state;
 };
 
-/** Follow the backpointers from the end and note, for each unit, its frames and its tokens' scores. */
 const traceBack = (
 	lattice: Lattice,
 	states: States,
@@ -318,7 +282,6 @@ const traceBack = (
 
 			firstFrame[k] = t;
 
-			// Entering a token: count its score once.
 			if (code !== 0) {
 				total[k] = (total[k] ?? 0) + emit(lattice, state, t);
 				entered[k] = (entered[k] ?? 0) + 1;
@@ -331,14 +294,6 @@ const traceBack = (
 	return { firstFrame, lastFrame, total, entered };
 };
 
-/**
- * Place `units` in frames `from` to `to` (exclusive) with CTC's Viterbi. Between units the path may
- * pass through a garbage state that absorbs audio with no text, and may skip a whole unit; a unit
- * the path skips comes back `undefined`, so text nobody read is decided here, not guessed later.
- *
- * States, in order: G0, then for each unit its blanks and tokens (b t1 b t2 ... tn b) and a G after
- * it. Every transition is to the same state or one to four states on, so a backpointer is a byte.
- */
 export const forceAlign = (
 	emissions: Emissions,
 	from: number,

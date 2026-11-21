@@ -5,10 +5,6 @@ import { Downloads } from "./Downloads.external.ts";
 import { Grab } from "./Grab.aggregate.ts";
 import { PayloadReleased } from "./ReleasePayload.command.ts";
 
-/**
- * Whenever a payload is released, have Downloads stop seeding it. If Downloads can't be reached, the
- * torrent stays in its list, seeding on, to remove there.
- */
 export class Releasing extends Domain.Policy(
 	"Releasing",
 	{ from: Grab, on: [PayloadReleased] },

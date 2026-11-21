@@ -27,24 +27,17 @@ const State = Schema.Struct({
 	title: Schema.String,
 	author: Schema.String,
 	search: Schema.Int,
-	/** What the latest search offered. A want kept before grabs has none, and is searched again. */
 	offers: Schema.Array(Release).pipe(
 		Schema.withDecodingDefaultKey(Effect.succeed([]))
 	),
-	/** The ids of the releases grabbed, in order: the grab of the first is `<work>.1`. */
 	grabbed: Schema.Array(Schema.String).pipe(
 		Schema.withDecodingDefaultKey(Effect.succeed([]))
 	),
 }).annotate({ identifier: "WantState" });
 
-/** Whether an answer is about the latest search for a book still wanted. */
 const isLatest = (want: typeof State.Type, search: number): boolean =>
 	want.isWanted && want.search === search;
 
-/**
- * A book you want, keyed by the work it will be. It holds the latest search, and takes the first
- * answer to it. It grabs only what that answer offered.
- */
 export class Want extends Domain.Aggregate("Want", {
 	id: WorkId,
 	state: State,

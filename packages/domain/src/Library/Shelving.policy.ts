@@ -12,11 +12,6 @@ import { Stacks } from "./Stacks.external.ts";
 import { Work } from "./Work.aggregate.ts";
 import type { WorkId } from "./Work.id.ts";
 
-/**
- * Whenever a payload arrives, claim its work's folder and have Stacks copy the edition into it. A
- * folder another work already holds takes the edition for that work, so a book wanted twice is one
- * work on the shelf, and an audiobook grabbed for an ebook already there pairs with it.
- */
 export class Shelving extends Domain.Policy(
 	"Shelving",
 	{ from: Grab, on: [PayloadArrived] },
@@ -32,11 +27,6 @@ export const ShelvingLive = Shelving.toLayer(
 		const wants = yield* Want;
 		const claims = yield* ShelfmarkClaim;
 
-		/**
-		 * The work's folder, or the one it will have, named for it as it was catalogued. A work wanted
-		 * before works kept their names has none, so the catalogues outside are asked again, for the
-		 * names you gave, and name it as they did then.
-		 */
 		const shelfmarkFor = Effect.fn(function* (work: WorkId) {
 			const named = yield* works.get(work);
 

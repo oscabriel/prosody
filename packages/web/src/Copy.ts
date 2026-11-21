@@ -5,10 +5,6 @@ import { Command } from "foldkit";
 
 import { Message } from "./Model.ts";
 
-/**
- * What a reading copy holds: the text and the audio joined, the text alone (no audio), the audio
- * alone (no sections, only chapters), or a book's pages (a picture of each).
- */
 export type Kind = "synced" | "text" | "audio" | "pages";
 
 export const kindOf = (contents: Contents): Kind => {
@@ -23,15 +19,9 @@ export const kindOf = (contents: Contents): Kind => {
 	return contents.sections.length === 0 ? "audio" : "synced";
 };
 
-/** Where a work's reading copy is served from. */
 export const copyUrl = (work: string, file: string): string =>
 	`/copies/${work}/${file}`;
 
-/**
- * Open a work's reading copy: its contents, and the timeline that joins its text and audio when it
- * has both. A copy with no contents is not made yet, or was made before the reading room, so it says
- * nothing of what to show.
- */
 export const OpenCopy = Command.define("OpenCopy", {
 	args: { work: Schema.String },
 	messages: [Message.OpenedCopy, Message.FoundUnmade, Message.FailedOpenCopy],
@@ -66,14 +56,8 @@ export const OpenCopy = Command.define("OpenCopy", {
 		),
 });
 
-/** Elements that only matter to the book's own reader: the reading room sets its own type. */
 const DROPPED = "script, style, link, meta, title";
 
-/**
- * A section's body as markup for the reading room. Every link to a file of the copy (an image, a
- * figure) is made absolute, and links between sections are dropped, since the room turns to
- * them itself.
- */
 export const bodyOf = (xhtml: string, base: string): string => {
 	const parsed = new DOMParser().parseFromString(
 		xhtml,
@@ -114,7 +98,6 @@ export const bodyOf = (xhtml: string, base: string): string => {
 	return body.innerHTML;
 };
 
-/** The files a section shows, such as its pictures, as `bodyOf` leaves their paths. */
 export const filesOf = (html: string): ReadonlyArray<string> => {
 	const { body } = new DOMParser().parseFromString(html, "text/html");
 
@@ -126,7 +109,6 @@ export const filesOf = (html: string): ReadonlyArray<string> => {
 	);
 };
 
-/** Fetch one section of a work's reading copy, ready to show. */
 export const FetchSection = Command.define("FetchSection", {
 	args: { work: Schema.String, path: Schema.String },
 	messages: [Message.FetchedSection, Message.FailedFetchSection],

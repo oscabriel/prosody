@@ -1,9 +1,3 @@
-/**
- * Align one book from saved emissions, and write its timeline as JSON: every sentence, its section and
- * id, its text, and its clip or none.
- *
- *   PROSODY_ALIGNER_MODELS=<dir> bun bench/align.ts <book.emissions> <book.epub> <timeline.json>
- */
 import { readFileSync, writeFileSync } from "node:fs";
 
 import { AutoTokenizer, env } from "@huggingface/transformers";
@@ -73,7 +67,6 @@ const said = sentences.map((sentence) => {
 
 const marked = performance.now();
 
-// COSTS='{"skip":-8}' tries other costs without editing the defaults.
 const Costly = Schema.Struct({
 	skip: Schema.optionalKey(Schema.Finite),
 	garbage: Schema.optionalKey(Schema.Finite),
@@ -89,7 +82,6 @@ const placed = align(emissions, said, {
 
 const aligned = performance.now();
 
-// TUNING='{"lead":-0.05}' tries other values without editing the defaults.
 const Tunable = Schema.Struct({
 	lead: Schema.optionalKey(Schema.Finite),
 	reachBack: Schema.optionalKey(Schema.Finite),

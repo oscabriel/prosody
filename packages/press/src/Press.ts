@@ -41,16 +41,10 @@ import type { Book } from "./Stacks.ts";
 import { Stacks } from "./Stacks.ts";
 import { watchDownloads } from "./Watch.ts";
 
-/** Where the press's container sees the downloads. */
 const DOWNLOADS = "/downloads";
 
-/** Bump this whenever `image/Dockerfile` changes: the press is rebuilt only when the tag moves. */
 const IMAGE = "pages-1";
 
-/**
- * The press's base image: Bun, ffmpeg, poppler, the speech models and the library that runs them,
- * made for the user the press runs as. A user other than 1000 has an image of their own.
- */
 const PressImage = Effect.gen(function* () {
 	const uid = yield* pressUser;
 
@@ -60,14 +54,9 @@ const PressImage = Effect.gen(function* () {
 	});
 });
 
-/**
- * Send an answer to the model until it is heard, for five minutes: long enough for a deploy to
- * replace the Api.
- */
 const persistently = <A, E, R>(answer: Effect.Effect<A, E, R>) =>
 	Effect.retry(answer, { schedule: Schedule.spaced("10 seconds"), times: 30 });
 
-/** What the last walk did, for `docker service logs` and the press's own page. */
 interface Report {
 	readonly at: string;
 	readonly works: number;
@@ -75,28 +64,16 @@ interface Report {
 	readonly unreadable: ReadonlyArray<string>;
 }
 
-/** The walk's and the workshop's own services. The container provides files and processes. */
 const PressLive = Layer.mergeAll(
 	Stacks.layer,
 	ReadingCopies.layer,
 	Pending.layer
 ).pipe(Layer.provide(Digest.layerWebCrypto));
 
-/**
- * A new connection for every call to the model. While a deploy replaces the Api, the Api's address
- * reaches the press's own server, inside its own container; Bun would keep that connection open and
- * send it every later call, long after the Api is back. `keepalive: false` stops Bun reusing it.
- */
 const freshConnections = Effect.provideService(FetchHttpClient.RequestInit, {
 	keepalive: false,
 });
 
-/**
- * The press: the one service that touches book files, and the library's one writer. It walks the
- * library and reports each work, edition, pair and edition alone to the model, which decides what
- * that changes. When the model asks, it makes a reading copy, one at a time, and shelves a payload,
- * and reports how that went. It watches qBittorrent, and reports how each grab's download goes.
- */
 export default class Press extends Docker.Service<Press>()(
 	"Press",
 	Effect.gen(function* () {
@@ -104,7 +81,6 @@ export default class Press extends Docker.Service<Press>()(
 		const front = yield* Front;
 		const image = yield* PressImage;
 
-		// The runner asks the press to align a pair over the cluster's own network.
 		const clusterNetworks =
 			database.network?.kind === "docker"
 				? [{ name: database.network.name, aliases: [PRESS_ALIAS] }]
@@ -114,8 +90,6 @@ export default class Press extends Docker.Service<Press>()(
 			main: import.meta.url,
 			image: image.imageRef,
 			port: 3000,
-			// The speech models' runtime loads a native library, so it is installed in the image and
-			// left out of the bundle.
 			build: { input: { external: ["@huggingface/transformers"] } },
 			environment: {
 				PROSODY_SOURCE: yield* sourceFingerprint,
@@ -123,7 +97,6 @@ export default class Press extends Docker.Service<Press>()(
 			},
 			networks: [{ name: front.name }, ...clusterNetworks],
 			volumes: [
-				// The library is mounted writable, for shelving; the downloads are only ever read.
 				{ hostPath: yield* libraryOnHost, containerPath: LIBRARY },
 				{
 					hostPath: yield* downloadsOnHost,
@@ -141,17 +114,10 @@ export default class Press extends Docker.Service<Press>()(
 		const last = yield* Ref.make(Option.none<Report>());
 		const pending = yield* Pending;
 
-		// Read as the press is built, so the deploy gives the press qBittorrent's settings.
 		yield* Effect.orDie(QBittorrentSettings);
 
-		/** The model's door for the press. */
 		const model = PressApi.clientHttp(`http://${API_ALIAS}:3000/press`);
 
-		/**
-		 * Tell the model about one book. Sending the same book again changes nothing. Its work is the
-		 * one that holds its folder: a work you wanted, shelved there, or else the work named for the
-		 * folder, which claims it.
-		 */
 		const report = Effect.fn("Press.report")(function* (book: Book) {
 			const press = yield* model;
 			const named = WorkId.make(yield* stacks.workIdOf(book.shelfmark));
@@ -187,7 +153,6 @@ export default class Press extends Docker.Service<Press>()(
 				return;
 			}
 
-			// A work with no pair is read or heard by one edition alone.
 			const kind = editionToCopy((each) => Option.isSome(book[each]));
 
 			if (kind !== undefined) {
@@ -199,7 +164,6 @@ export default class Press extends Docker.Service<Press>()(
 			}
 		}, Effect.scoped);
 
-		/** Report one book, and name it if the model refused it. */
 		const refusalOf = (book: Book) =>
 			report(book).pipe(
 				Effect.tapError(Effect.logWarning),
@@ -210,7 +174,6 @@ export default class Press extends Docker.Service<Press>()(
 				})
 			);
 
-		/** Walk the library once and report everything in it. */
 		const walk = Effect.fn("Press.walk")(function* () {
 			const { books, unreadable } = yield* stacks.walk(LIBRARY);
 
@@ -225,7 +188,6 @@ export default class Press extends Docker.Service<Press>()(
 			yield* Effect.log("walked the library", done);
 		});
 
-		/** Make one reading copy, and tell the model how it went. */
 		const align = Effect.fn("Press.align")(function* (request: AlignRequest) {
 			const press = yield* model;
 			const { work, attempt } = request;
@@ -258,7 +220,6 @@ export default class Press extends Docker.Service<Press>()(
 			yield* pending.done(request);
 		}, Effect.scoped);
 
-		/** Make the copy of an edition alone, and tell the model how it went. A copy has no deadline. */
 		const copy = Effect.fn("Press.copy")(function* (request: CopyRequest) {
 			const press = yield* model;
 			const { work, attempt } = request;
@@ -284,11 +245,6 @@ export default class Press extends Docker.Service<Press>()(
 			yield* pending.done(request);
 		}, Effect.scoped);
 
-		/**
-		 * Shelve a payload, and tell the model how it went. While the library or the downloads don't
-		 * answer, nothing is written: the model is told why, and it fails with `StacksUnavailable`, to
-		 * be tried again. Once it is shelved, a walk reports its work, so a pair aligns at once.
-		 */
 		const shelve = Effect.fn("Press.shelve")(function* (
 			request: ShelveRequest
 		) {
@@ -335,7 +291,6 @@ export default class Press extends Docker.Service<Press>()(
 			)
 		);
 
-		// Every minute, how each grab's download goes. qBittorrent down is a minute without news.
 		yield* host.run(
 			Effect.scoped(Effect.flatMap(model, watchDownloads)).pipe(
 				Effect.catchCause(Effect.logWarning),
@@ -345,9 +300,6 @@ export default class Press extends Docker.Service<Press>()(
 			)
 		);
 
-		// Payloads are shelved one at a time, beside the reading copies, so a copy into the library
-		// never waits behind an hour of aligning. One the library or the downloads can't take yet goes
-		// back in line five minutes later, so the payloads behind it go on.
 		yield* host.run(
 			Queue.take(pending.shelving).pipe(
 				Effect.flatMap((request) =>
@@ -368,11 +320,6 @@ export default class Press extends Docker.Service<Press>()(
 			)
 		);
 
-		// Like the walk, the worker runs only in the container: Alchemy also runs this setup on your
-		// machine when it plans a deploy, where /copies doesn't exist. Without its folder the press can
-		// do nothing, so it stops there and says why. Then one reading copy at a time, since the aligner
-		// uses every core it is given. A failure to report is logged: a pair's deadline covers its try,
-		// and a copy's answer has been sent again for five minutes by then.
 		yield* host.run(
 			pending.resume.pipe(
 				Effect.orDie,

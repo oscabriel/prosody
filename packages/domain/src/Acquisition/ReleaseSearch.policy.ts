@@ -7,10 +7,6 @@ import { RecordSearchFailed } from "./RecordSearchFailed.command.ts";
 import { Want } from "./Want.aggregate.ts";
 import { SearchStarted } from "./WantBook.command.ts";
 
-/**
- * Whenever a search starts, ask the Indexer for the book and offer what it finds. A search that
- * fails is recorded with its reason, and waits for you to search again.
- */
 export class ReleaseSearch extends Domain.Policy(
 	"ReleaseSearch",
 	{ from: Want, on: [SearchStarted] },

@@ -3,16 +3,13 @@ import { Command, Mount } from "foldkit";
 
 import { Message } from "./Model.ts";
 
-/** The id of the one audio element. */
 export const PLAYER = "prosody-player";
 
-/** The browser would not play: it wants the page touched first, or the audio could not load. */
 class PlayRefused extends Schema.TaggedError<PlayRefused>()(
 	"PlayRefused",
 	{}
 ) {}
 
-/** Play `audio`. A refusal is ignored: the Listen button stays, to be pressed again. */
 const startPlaying = (audio: HTMLAudioElement | undefined) =>
 	Effect.tryPromise({
 		try: async () => {
@@ -27,18 +24,10 @@ const player = (): HTMLAudioElement | undefined => {
 	return element instanceof HTMLAudioElement ? element : undefined;
 };
 
-/**
- * How far a skip goes, in seconds: a little way back, or a little further on. The listening page's
- * buttons go this far, and so do the lock screen's when they do not say.
- */
 export const SKIP_BACK = 15;
 
 export const SKIP_AHEAD = 30;
 
-/**
- * Answer the lock screen's buttons by moving the audio element itself: what it does then comes
- * back as its own events, as if the page's own buttons were pressed.
- */
 const takeControls = (audio: HTMLAudioElement) =>
 	Effect.sync(() => {
 		const session = navigator.mediaSession;
@@ -66,7 +55,6 @@ const takeControls = (audio: HTMLAudioElement) =>
 		});
 	});
 
-/** Leave the lock screen as it was before the book was open. */
 const dropControls = Effect.sync(() => {
 	const session = navigator.mediaSession;
 
@@ -83,7 +71,6 @@ const dropControls = Effect.sync(() => {
 	session.metadata = null;
 });
 
-/** Show where the audio is on the lock screen's bar, once it knows its length. */
 const showPosition = (audio: HTMLAudioElement) =>
 	Effect.sync(() => {
 		if (Number.isFinite(audio.duration)) {
@@ -95,11 +82,6 @@ const showPosition = (audio: HTMLAudioElement) =>
 		}
 	});
 
-/**
- * What the audio element does, as Messages: when it starts, where it is (about four times a
- * second while it plays) and when it stops. Each carries the clock, so a place kept from it says
- * when it was kept. While the element is on the page, the lock screen's buttons move it.
- */
 export const Listen = Mount.defineStream("Listen", {
 	messages: [Message.Played, Message.Paused, Message.Ticked],
 	execute: ({ element }) => {
@@ -134,7 +116,6 @@ export const Listen = Mount.defineStream("Listen", {
 	},
 });
 
-/** Start the audio. A browser may refuse until the page has been touched; the button stays. */
 export const Play = Command.define("Play", {
 	messages: [Message.CompletedPlayer],
 	execute: Effect.suspend(() => startPlaying(player())).pipe(
@@ -149,17 +130,12 @@ export const Pause = Command.define("Pause", {
 	),
 });
 
-/** The next animation frame. */
 const frame = Effect.callback<undefined>((resume) => {
 	requestAnimationFrame(() => {
 		resume(Effect.undefined);
 	});
 });
 
-/**
- * The audio element once it is on the page. A seek can be sent in the same update that first
- * draws the player, before the element exists, so look again each frame, for a second at most.
- */
 const playerOnPage = Effect.gen(function* () {
 	for (let tries = 0; tries < 60; tries += 1) {
 		const audio = player();
@@ -174,7 +150,6 @@ const playerOnPage = Effect.gen(function* () {
 	return Option.none<HTMLAudioElement>();
 });
 
-/** Move the audio to `time`, in seconds, and play from there if `play`. */
 export const Seek = Command.define("Seek", {
 	args: { time: Schema.Finite, play: Schema.Boolean },
 	messages: [Message.CompletedPlayer],
@@ -188,7 +163,6 @@ export const Seek = Command.define("Seek", {
 
 			const audio = found.value;
 
-			// A seek before the audio knows its length is dropped, so wait for that first.
 			if (audio.readyState === HTMLMediaElement.HAVE_NOTHING) {
 				yield* Effect.callback<undefined>((resume) => {
 					audio.addEventListener(

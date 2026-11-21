@@ -1,18 +1,10 @@
-/** A word of the book and a word the model heard that are surely the same: a tie between them. */
 export interface Tie {
-	/** The book word's index. */
 	readonly word: number;
-	/** The heard word's index. */
 	readonly heard: number;
 }
 
-/** Words compared without apostrophes, which the model and the book disagree on. */
 const keyOf = (word: string) => word.replaceAll("'", "");
 
-/**
- * Every run of `n` words that appears exactly once in `book` and once in `heard`, in the book's
- * order: each could be a tie.
- */
 export const candidatesOf = (
 	book: ReadonlyArray<string>,
 	heard: ReadonlyArray<string>,
@@ -48,19 +40,13 @@ export const candidatesOf = (
 	return candidates.toSorted((a, b) => a.word - b.word);
 };
 
-/**
- * Ties between `book` and `heard`, in order in both: the longest chain of candidates in the same
- * order in both. Text the narrator skipped and narration the book lacks fall between ties.
- */
 export const tiesOf = (
 	book: ReadonlyArray<string>,
 	heard: ReadonlyArray<string>,
 	n: number
 ): Array<Tie> => longestChain(candidatesOf(book, heard, n));
 
-/** The longest run of ties whose heard indexes rise with their book indexes. */
 export const longestChain = (candidates: ReadonlyArray<Tie>): Array<Tie> => {
-	// Patience sorting: tails[k] is the candidate ending the best chain of length k + 1.
 	const tails: Array<number> = [];
 	const before = new Int32Array(candidates.length).fill(-1);
 
@@ -98,10 +84,6 @@ export const longestChain = (candidates: ReadonlyArray<Tie>): Array<Tie> => {
 	return chain.toReversed();
 };
 
-/**
- * Drop ties that stand alone: a true tie has a neighbour within `near` words whose offset (heard
- * index less book index) is close to its own. A lone tie is a coincidence of wording.
- */
 export const steadyTies = (
 	ties: ReadonlyArray<Tie>,
 	near = 60,
@@ -116,19 +98,14 @@ export const steadyTies = (
 		)
 	);
 
-/** A run of ties out of step with the chain: text from one gap of it, heard in another. */
 export interface Stray {
-	/** The run's candidates, in the book's order. They may hold runs out of step with each other. */
 	readonly candidates: ReadonlyArray<Tie>;
-	/** The chain's ties before and after the run's words, if any. */
 	readonly wordsAfter: Tie | undefined;
 	readonly wordsBefore: Tie | undefined;
-	/** The chain's ties before and after where the run was heard, if any. */
 	readonly heardAfter: Tie | undefined;
 	readonly heardBefore: Tie | undefined;
 }
 
-/** How many of `sorted` are less than or equal to `value`. */
 const countUpTo = (sorted: ReadonlyArray<number>, value: number): number => {
 	let low = 0;
 	let high = sorted.length;
@@ -146,12 +123,6 @@ const countUpTo = (sorted: ReadonlyArray<number>, value: number): number => {
 	return low;
 };
 
-/**
- * Runs of candidates the chain left out because the audio is not in the book's order: audio files
- * played in the wrong order, or a chapter read out of place. Such a run's words sit in one gap of
- * the chain and were heard in another, and it has at least `least` ties that agree with each other;
- * chance matches do not come in runs.
- */
 export const straysOf = (
 	candidates: ReadonlyArray<Tie>,
 	chain: ReadonlyArray<Tie>,

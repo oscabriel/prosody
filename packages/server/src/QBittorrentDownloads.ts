@@ -11,11 +11,6 @@ import { signIn } from "./QBittorrent.ts";
 const failed = ({ reason }: { readonly reason: string }) =>
 	new DownloadsFailed({ reason });
 
-/**
- * Downloads, played by qBittorrent. A grab's torrent is fetched through Prowlarr and added under
- * the category for books, tagged with the grab's id, by which the press watches it and Prosody
- * finds it again. Nothing here ever deletes a file.
- */
 export const QBittorrentDownloads = Downloads.toLayer(
 	Effect.gen(function* () {
 		const withClient = Effect.provideService(

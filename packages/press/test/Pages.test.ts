@@ -2,7 +2,6 @@ import { describe, expect, it } from "@effect/vitest";
 
 import { headingsOf } from "../src/Pages.ts";
 
-/** The start of `pdftohtml -xml`'s answer for Domain-Driven Design, cut short. */
 const XML = `<?xml version="1.0" encoding="UTF-8"?>
 <pdf2xml producer="poppler" version="26.10.0">
 <page number="1" position="absolute" top="0" left="0" height="1188" width="892">

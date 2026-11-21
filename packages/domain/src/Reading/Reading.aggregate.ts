@@ -12,17 +12,11 @@ import { Stage } from "./Stage.ts";
 
 const State = Schema.Struct({
 	place: Schema.NullOr(KeptPlace),
-	// A state kept before the nightstand existed: the work goes on it when it is next opened.
 	stage: Stage.pipe(
 		Schema.withDecodingDefaultKey(Effect.succeed<Stage>("unopened"))
 	),
 }).annotate({ identifier: "ReadingState" });
 
-/**
- * Your reading of one work: one place, whichever device kept it, and whether the work is on your
- * nightstand. A place kept later wins, so a phone that was offline can't drag you back to where it
- * last was.
- */
 export class Reading extends Domain.Aggregate("Reading", {
 	id: WorkId,
 	state: State,

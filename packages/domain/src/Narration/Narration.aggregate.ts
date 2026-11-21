@@ -23,7 +23,6 @@ import {
 	RecordAlignmentFailed,
 } from "./RecordAlignmentFailed.command.ts";
 
-/** How long the press has to answer one try. Ten books in the queue take about two hours. */
 export const ALIGNMENT_WINDOW = "6 hours";
 
 const State = Schema.Struct({
@@ -38,14 +37,9 @@ const State = Schema.Struct({
 	attempt: Schema.Int,
 }).annotate({ identifier: "NarrationState" });
 
-/** Whether an answer is about the try that is running now. */
 const isRunning = (narration: typeof State.Type, attempt: number): boolean =>
 	narration.status === "aligning" && narration.attempt === attempt;
 
-/**
- * A work's text and audio, and the timeline that joins them. It holds one try at a time, and takes
- * the first answer to it: the press's report, or the deadline.
- */
 export class Narration extends Domain.Aggregate("Narration", {
 	id: WorkId,
 	state: State,

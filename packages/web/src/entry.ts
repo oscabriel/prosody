@@ -11,28 +11,20 @@ import { init, subscriptions, update, view } from "./Main.ts";
 import { Flags, Message, Model } from "./Model.ts";
 import { savedPlaces } from "./Places.ts";
 
-/**
- * The reader's Api for the life of the page, on this page's own origin. Calls go over HTTP; each
- * live read is a WebSocket the model pushes changes down. The reading copies are plain fetches.
- */
 const Connection = ReaderApi.layerClient.pipe(
 	Layer.provide(Domain.protocolWebSocket(`${location.origin}/api`)),
 	Layer.provide(Socket.layerWebSocketConstructorGlobal),
 	Layer.provideMerge(FetchHttpClient.layer)
 );
 
-// The service worker keeps the app on the device, so it opens with no network. The dev server
-// builds none.
 if (import.meta.env.PROD) {
 	void navigator.serviceWorker.register("/worker.js");
 }
 
-/** What the page starts from: a fresh session for its command ids, and what this device kept. */
 const flags = Effect.gen(function* () {
 	const random = yield* SecureRandom.SecureRandom;
 
 	return {
-		// Names this page's commands, so each is unique even across reloads.
 		session: yield* random.uuidV4(),
 		isOnline: navigator.onLine,
 		places: yield* savedPlaces,

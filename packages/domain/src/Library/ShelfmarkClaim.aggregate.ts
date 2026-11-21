@@ -9,11 +9,6 @@ import {
 import { Shelfmark } from "./Shelfmark.ts";
 import { WorkId } from "./Work.id.ts";
 
-/**
- * One folder in the library, keyed by its shelfmark, and the work that holds it. Two works reaching
- * for one folder meet here, and exactly one has it: a second import of a book is told the first's
- * work, and no `Title (2)` is made beside it.
- */
 export class ShelfmarkClaim extends Domain.Aggregate("ShelfmarkClaim", {
 	id: Shelfmark,
 	state: Schema.Struct({ work: Schema.NullOr(WorkId) }),

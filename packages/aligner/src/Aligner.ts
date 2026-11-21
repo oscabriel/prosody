@@ -26,48 +26,33 @@ import { phraseStarts, phrases } from "./Spoken.ts";
 import { SpotCheck } from "./SpotCheck.ts";
 import type { CheckFailed } from "./SpotCheck.ts";
 
-/** One pair to align, on local disk, and where its results go. */
 export interface Pair {
-	/** The audio files, in play order. */
 	readonly audio: ReadonlyArray<string>;
 	readonly epub: string;
-	/** The reading copy to write. */
 	readonly copy: string;
-	/** The timeline to write, as JSON. */
 	readonly timeline: string;
-	/** Where to keep what the speech model heard, so a retry need not listen again. */
 	readonly emissions?: string;
-	/**
-	 * A folder to also write the copy's text into, unpacked: every file of the EPUB with its sections
-	 * marked, so a reader can fetch one section at a time.
-	 */
 	readonly text?: string;
 }
 
-/** A book's text, marked: the sections that hold sentences, in reading order, and how many there are. */
 export interface Marked {
 	readonly sentences: number;
 	readonly sections: ReadonlyArray<TitledSection>;
-	/** The cover picture's path in the text folder, when the book names one. */
 	readonly cover: string | undefined;
 }
 
-/** A finished alignment: the marked text, and every sentence's place in the audio. */
 export interface Aligned extends Marked {
 	readonly aligned: number;
 	readonly entries: ReadonlyArray<Entry>;
-	/** How many aligned sentences the spot check listened to, and how many it heard right. */
 	readonly checked: number;
 	readonly heard: number;
 }
 
-/** Audio ffmpeg cannot decode whole. Spike 1 found xHE-AAC loses frames without an error. */
 export class UndecodableAudio extends Schema.TaggedError<UndecodableAudio>()(
 	"UndecodableAudio",
 	{ file: Schema.String, format: Schema.String }
 ) {}
 
-/** ffmpeg decoded less (or more) audio than the file says it holds, without saying why. */
 export class AudioCutShort extends Schema.TaggedError<AudioCutShort>()(
 	"AudioCutShort",
 	{ file: Schema.String, decoded: Schema.Finite, stated: Schema.Finite }
@@ -82,13 +67,11 @@ export class CopyFailed extends Schema.TaggedError<CopyFailed>()("CopyFailed", {
 	reason: Schema.String,
 }) {}
 
-/** The timeline as JSON. Encoding plain data never fails in practice; if it did, no copy was made. */
 const timelineJson = (entries: ReadonlyArray<Entry>) =>
 	Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown))(entries).pipe(
 		Effect.mapError((failed) => new CopyFailed({ reason: failed.message }))
 	);
 
-/** The text and the audio share nothing the aligner could find. */
 export class NothingAligned extends Schema.TaggedError<NothingAligned>()(
 	"NothingAligned",
 	{}
@@ -105,10 +88,6 @@ export type AlignFailed =
 	| CheckFailed
 	| PlatformError.PlatformError;
 
-/**
- * The first track whose decoded length is not the length its file states, within a second and a
- * thousandth, or `undefined` when all agree. A file that states no length is taken at its word.
- */
 export const wrongLength = (
 	decoded: ReadonlyArray<number>,
 	stated: ReadonlyArray<number>
@@ -125,19 +104,10 @@ export const wrongLength = (
 	return wrong === -1 ? undefined : wrong;
 };
 
-/**
- * Aligns a book's text with its audio and writes its reading copy: every sentence of the EPUB is
- * marked, the speech model listens to the audio, each sentence is found in what it heard or left
- * unaligned, and the EPUB is written back with media overlays and the audio inside.
- */
 export class Aligner extends Context.Service<
 	Aligner,
 	{
 		readonly align: (pair: Pair) => Effect.Effect<Aligned, AlignFailed>;
-		/**
-		 * Mark the text of a book that has no audio, and write it into the folder `text`, as
-		 * `align` does.
-		 */
 		readonly mark: (
 			epub: string,
 			text: string
@@ -151,10 +121,6 @@ export class Aligner extends Context.Service<
 		const acoustic = yield* Acoustic;
 		const spotCheck = yield* SpotCheck;
 
-		/**
-		 * What the model heard: from the saved file if there is one, or by listening and saving.
-		 * `stated` is each file's length as its container gives it.
-		 */
 		const emissionsOf = Effect.fnUntraced(function* (
 			pair: Pair,
 			stated: ReadonlyArray<number>
@@ -164,7 +130,6 @@ export class Aligner extends Context.Service<
 			if (saved !== undefined && (yield* fs.exists(saved))) {
 				const bytes = yield* fs.readFile(saved);
 
-				// A file that does not decode, or that holds other audio, is heard again and replaced.
 				const read = Option.liftThrowable(decode)(bytes);
 
 				if (
@@ -178,7 +143,6 @@ export class Aligner extends Context.Service<
 			const heard = yield* acoustic.listen(pair.audio);
 			const wrong = wrongLength(heard.tracks, stated);
 
-			// xHE-AAC taught this: ffmpeg can drop what it cannot decode and exit cleanly.
 			if (wrong !== undefined) {
 				return yield* new AudioCutShort({
 					file: pair.audio[wrong] ?? "",
@@ -194,7 +158,6 @@ export class Aligner extends Context.Service<
 			return heard;
 		});
 
-		/** Every file of the book under `folder`, its sections marked. A path that leaves the folder is skipped. */
 		const writeText = Effect.fnUntraced(function* (
 			book: Book,
 			markups: ReadonlyMap<string, string>,
@@ -203,7 +166,6 @@ export class Aligner extends Context.Service<
 			for (const [name, data] of book.files) {
 				const target = path.join(folder, name);
 
-				// An archive lists its folders too, as names ending in a slash; they are made as needed.
 				if (name.endsWith("/") || !target.startsWith(`${folder}${path.sep}`)) {
 					continue;
 				}
@@ -218,7 +180,6 @@ export class Aligner extends Context.Service<
 			}
 		});
 
-		/** The EPUB at `epub`, opened. */
 		const openEpub = Effect.fnUntraced(function* (epub: string) {
 			const bytes = yield* fs.readFile(epub);
 
@@ -320,7 +281,6 @@ export class Aligner extends Context.Service<
 				yield* writeText(book, markups, pair.text);
 			}
 
-			// The aligner finishes cleanly even when it is wrong, so listen before believing it.
 			const offsets: Array<number> = [];
 			let offset = 0;
 

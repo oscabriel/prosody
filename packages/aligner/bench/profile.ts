@@ -1,13 +1,3 @@
-/**
- * Where the listening time goes, on one excerpt: decoding, features, the model, and keeping the
- * best tokens. Each knob is an environment variable, so two settings can be run back to back.
- *
- *   PROSODY_ALIGNER_MODELS=<dir> THREADS=8 WINDOW=30 CONTEXT=2 bun bench/profile.ts <audio>
- *
- * SESSION is JSON merged into ONNX Runtime's session options, e.g.
- * '{"executionMode":"parallel","interOpNumThreads":2,"graphOptimizationLevel":"all"}'.
- * DTYPE picks the export (int8, fp32, fp16, q4). REPEAT runs the model pass that many times.
- */
 import { spawnSync } from "node:child_process";
 
 import {
@@ -96,7 +86,6 @@ const window = windowSeconds * RATE;
 
 const context = contextSeconds * RATE;
 
-/** One window's logits, and how long its features and the model each took. */
 const hear = async (pcm: Float32Array) => {
 	clock = performance.now();
 
@@ -109,7 +98,6 @@ const hear = async (pcm: Float32Array) => {
 		? output.logits
 		: undefined;
 
-	// A model that returns no float logits counts as no frames, which the totals show.
 	const data =
 		logits instanceof Tensor && logits.data instanceof Float32Array
 			? logits.data
@@ -121,7 +109,6 @@ const hear = async (pcm: Float32Array) => {
 	return { features, inference, data, count, classes };
 };
 
-/** One pass over the excerpt, timing each stage. */
 const pass = Effect.gen(function* () {
 	let features = 0;
 	let inference = 0;
@@ -142,7 +129,6 @@ const pass = Effect.gen(function* () {
 		features += heard.features;
 		inference += heard.inference;
 
-		// The same work as Acoustic's `keep`: a log-softmax and the best token of each frame.
 		for (let frame = 0; frame < count; frame += 1) {
 			let max = -Infinity;
 			let best = 0;

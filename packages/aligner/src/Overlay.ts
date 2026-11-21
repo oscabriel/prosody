@@ -10,24 +10,19 @@ import { parseDocument } from "htmlparser2";
 import { relative } from "./Epub.ts";
 import type { Book } from "./Epub.ts";
 
-/** One sentence's place in the book and in the audio. */
 export interface Entry {
-	/** `<section path>#<span id>`. */
 	readonly sentence: string;
 	readonly state: "aligned" | "unaligned";
 	readonly start?: number;
 	readonly end?: number;
 }
 
-/** The audio, in play order, with each file's length. */
 export interface Track {
 	readonly file: string;
 	readonly seconds: number;
 }
 
-/** `h:mm:ss.fff`, as EPUB's `media:duration` wants it. */
 export const clock = (seconds: number): string => {
-	// Whole milliseconds first: rounding the seconds alone turns 59.9996 into "60.000".
 	const ms = Math.round(seconds * 1000);
 	const h = Math.floor(ms / 3_600_000);
 	const m = Math.floor((ms % 3_600_000) / 60_000);
@@ -51,19 +46,15 @@ const MEDIA_TYPES = new Map([
 	["mp3", "audio/mpeg"],
 ]);
 
-/** The archive is written without ZIP64, so it and every offset in it must stay under 4 GB. */
 const MOST_BYTES = 2 ** 32 - 2 ** 26;
 
-/** The reading copy would be too large to be a valid archive. */
 export class TooLargeError extends Schema.TaggedError<TooLargeError>()(
 	"TooLargeError",
 	{ message: Schema.String }
 ) {}
 
-/** Audio is copied into the archive this many bytes at a time. */
 const AUDIO_PIECE = 4 * 2 ** 20;
 
-/** A section's sentences in order, each with its clip in one track's own time. */
 interface Pars {
 	readonly section: string;
 	readonly smil: string;
@@ -77,11 +68,9 @@ interface Pars {
 	seconds: number;
 }
 
-/** Where the reading copy puts its files: beside the package document, and the audio's paths. */
 interface Layout {
 	readonly inFolder: (path: string) => string;
 	readonly audioPaths: ReadonlyArray<string>;
-	/** Where each track starts in the book's time. */
 	readonly offsets: ReadonlyArray<number>;
 }
 
@@ -108,7 +97,6 @@ const layoutOf = (book: Book, tracks: ReadonlyArray<Track>): Layout => {
 	return { inFolder, audioPaths, offsets };
 };
 
-/** The section's entry in `bySection`, made when its first sentence comes. */
 const parsOf = (
 	bySection: Map<string, Pars>,
 	section: string,
@@ -126,7 +114,6 @@ const parsOf = (
 			.at(-1)
 			?.replace(/\.x?html?$/u, "") ?? "page";
 
-	// Two sections in different folders may share a name; their overlays must not.
 	const taken = new Set([...bySection.values()].map((other) => other.smil));
 	const plain = inFolder(`MediaOverlays/${name}.smil`);
 
@@ -145,7 +132,6 @@ const parsOf = (
 	return pars;
 };
 
-/** The track a moment of the book's time falls in. */
 const trackAt = (offsets: ReadonlyArray<number>, seconds: number): number => {
 	let track = 0;
 
@@ -156,7 +142,6 @@ const trackAt = (offsets: ReadonlyArray<number>, seconds: number): number => {
 	return track;
 };
 
-/** The aligned sentences by section, in the book's order, each clip in its own track's time. */
 const bySectionOf = (
 	entries: ReadonlyArray<Entry>,
 	tracks: ReadonlyArray<Track>,
@@ -214,7 +199,6 @@ const meta = (property: string, value: string, refines?: string) => {
 	return element;
 };
 
-/** The package document, upgraded to EPUB 3 and extended with the audio and the overlays. */
 const packageOf = (
 	book: Book,
 	bySection: ReadonlyMap<string, Pars>,
@@ -279,7 +263,6 @@ const packageOf = (
 		}
 	}
 
-	// The book's duration is the sum of its overlays', as EPUB defines it, not the audio's length.
 	const spoken = [...bySection.values()].reduce(
 		(n, pars) => n + pars.seconds,
 		0
@@ -298,7 +281,6 @@ const packageOf = (
 	return opf;
 };
 
-/** A section's media overlay. */
 const smilOf = (pars: Pars, audioPaths: ReadonlyArray<string>) => {
 	const textref = relative(pars.smil, pars.section);
 
@@ -317,7 +299,6 @@ const smilOf = (pars: Pars, audioPaths: ReadonlyArray<string>) => {
 	);
 };
 
-/** Stream one audio file into the archive, stored, in pieces. */
 const addAudio = (zip: Zip, path: string, source: string) => {
 	const file = new ZipPassThrough(path);
 	zip.add(file);
@@ -332,7 +313,6 @@ const addAudio = (zip: Zip, path: string, source: string) => {
 				break;
 			}
 
-			// No copy: a stored file's bytes are summed and written out before `push` returns.
 			file.push(piece.subarray(0, read));
 		}
 
@@ -342,11 +322,6 @@ const addAudio = (zip: Zip, path: string, source: string) => {
 	}
 };
 
-/**
- * Write the reading copy: the book with its sections marked, a media overlay (SMIL) for every section with
- * an aligned sentence, the audio, and a package document upgraded to EPUB 3 that ties them
- * together. The audio is streamed into the archive, so a long book never sits in memory.
- */
 export const writeReadingCopy = (
 	book: Book,
 	marked: ReadonlyMap<string, string>,
@@ -366,7 +341,6 @@ export const writeReadingCopy = (
 	const bySection = bySectionOf(entries, tracks, layout);
 	const opf = packageOf(book, bySection, layout);
 
-	// The archive, streamed to disk: mimetype first and stored, as EPUB requires.
 	const fd = openSync(out, "w");
 	const failures: Array<Error> = [];
 
@@ -411,7 +385,6 @@ export const writeReadingCopy = (
 			add(pars.smil, strToU8(smilOf(pars, layout.audioPaths)), false);
 		}
 
-		// Audio is already compressed: stored, and read in pieces.
 		for (const [index, track] of tracks.entries()) {
 			addAudio(zip, layout.audioPaths[index] ?? "", track.file);
 		}
@@ -421,7 +394,6 @@ export const writeReadingCopy = (
 		closeSync(fd);
 	}
 
-	// The archive reports its errors through the callback; the last one is thrown.
 	const failure = failures.at(-1);
 
 	if (failure) {

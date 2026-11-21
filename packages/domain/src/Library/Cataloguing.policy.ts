@@ -7,11 +7,6 @@ import { CatalogueWork } from "./CatalogueWork.command.ts";
 import { Metadata } from "./Metadata.external.ts";
 import { Work } from "./Work.aggregate.ts";
 
-/**
- * Whenever you want a book, catalogue its work as the catalogues outside know it. They are asked
- * this once; a work is never looked up again. Asking them dies when they can't be reached in time,
- * and the platform runs the policy again.
- */
 export class Cataloguing extends Domain.Policy(
 	"Cataloguing",
 	{ from: Want, on: [BookWanted] },

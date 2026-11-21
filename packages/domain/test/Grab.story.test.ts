@@ -98,7 +98,6 @@ const shelfmark = Shelfmark.make("Andy Weir/Project Hail Mary");
 
 const folder = ShelfmarkClaim.ref(shelfmark);
 
-/** Project Hail Mary, catalogued when you wanted it, with no shelfmark yet. */
 const catalogued = new WorkCatalogued({
 	title: "Project Hail Mary",
 	author: "Andy Weir",
@@ -118,7 +117,6 @@ const audiobook: Release = {
 	link: "/1/download?link=b25l&file=Project+Hail+Mary",
 };
 
-/** Project Hail Mary, wanted, with the audiobook offered. */
 const offered = given(
 	hailMary,
 	new BookWanted({ title: "Project Hail Mary", author: "Andy Weir" }),
@@ -126,14 +124,12 @@ const offered = given(
 	new ReleasesOffered({ releases: [audiobook] })
 );
 
-/** Its audiobook grabbed, and downloading. */
 const downloading = [
 	offered,
 	given(hailMary, new ReleaseGrabbed({ grab, release: audiobook })),
 	given(grabbed, new DownloadStarted({ work, release: audiobook })),
 ] as const;
 
-/** Its audiobook come, and seeded this many hours. */
 const seeded = (hours: number) =>
 	[
 		...downloading,
@@ -144,7 +140,6 @@ const seeded = (hours: number) =>
 		),
 	] as const;
 
-/** You grab and release from one of your devices, as everything a reader sends. */
 const fromLaptop = provide(Device, "laptop");
 
 describe("a release you grab", () => {

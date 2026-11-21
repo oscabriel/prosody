@@ -1,0 +1,3 @@
+# The service worker answers from the network first, then from the device
+
+A load of the app's own pages, or of a reading copy's file, goes to the network and falls back to what the device keeps when the network fails or has not begun to answer in three seconds; only the answer's start is timed. A built file is served from the device at once, since it never changes under its name. Kept audio is served from its own address, `?kept`, because a media element fails when one address gives it bytes from both the network and the device. The worker is built apart from the page with the list of built files written in, so a new build installs a new worker.

@@ -4,11 +4,6 @@ import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/http";
 
 import { PRESS_ALIAS } from "./Front.ts";
 
-/**
- * The Aligner, played by the press. The runner asks it over the cluster's network; the press queues
- * the pair and answers at once. A press that can't be reached is a failure, not an answer, so the
- * Alignment policy runs again.
- */
 export const PressAligner = Aligner.toLayer(
 	Effect.gen(function* () {
 		const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);

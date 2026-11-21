@@ -5,21 +5,14 @@ import { WorkId } from "../Library/Work.id.ts";
 import { Session } from "../Session.middleware.ts";
 import { KeptPlace, PlaceAt } from "./Sentence.ts";
 
-/** A reader's place in a work moved. */
 export class PlaceKept extends Domain.Event("PlaceKept", KeptPlace.fields) {}
 
-/** Another device kept a newer place. `keptAt` is the evidence: when it did. */
 export class StalePlace extends Domain.Rejection(
 	"StalePlace",
 	{ keptAt: Schema.Int },
 	{ httpApiStatus: 409 }
 ) {}
 
-/**
- * Keep the reader's place in a work. A device sends it as you read or listen, and again until it
- * hears back, so sending the same place twice records it once. Which device sent it is the
- * Session's to say.
- */
 export class KeepPlace extends Domain.Command("KeepPlace", {
 	target: WorkId,
 	middleware: [Session],

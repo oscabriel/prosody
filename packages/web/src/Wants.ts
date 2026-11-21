@@ -18,9 +18,6 @@ import type { Desk, Model } from "./Model.ts";
 import { Prosody } from "./Prosody.ts";
 import type { Return } from "./Steps.ts";
 
-// The desk's steps: wanting a book, searching for it again, and withdrawing it.
-
-/** Make the work id of a book you want: `w-` and twelve hex digits, as the press names works. */
 const MintWork = Command.define("MintWork", {
 	args: { title: Schema.String, author: Schema.String },
 	messages: [Message.MintedWork],
@@ -38,14 +35,9 @@ const MintWork = Command.define("MintWork", {
 const toMessage = (result: typeof Prosody.Message.Type) =>
 	Message.ReceivedResult({ result });
 
-/** The desk's form, changed. */
 export const changeDesk = (model: Model, change: (desk: Desk) => Desk): Model =>
 	modifyFields(model, { desk: change });
 
-/**
- * Want the book the form names, once it names both a title and an author. Offline, it stays in the
- * form, to want once the desk can be reached.
- */
 export const submitWant = (model: Model): Return => {
 	const title = model.desk.title.trim();
 	const author = model.desk.author.trim();
@@ -81,7 +73,6 @@ export const submitWant = (model: Model): Return => {
 	};
 };
 
-/** Send a want under its new work id. */
 export const sendWant = (
 	model: Model,
 	work: string,
@@ -105,7 +96,6 @@ export const sendWant = (
 	};
 };
 
-/** Search for a wanted book again, or withdraw it, putting by what went wrong before. */
 export const sendAbout = (
 	model: Model,
 	work: string,
@@ -132,7 +122,6 @@ export const sendAbout = (
 	};
 };
 
-/** Anything the desk asks, as the model may refuse it or the connection lose it. */
 type DeskFailure = DomainFoldkit.Failure<
 	| typeof WantBook
 	| typeof SearchAgain
@@ -144,13 +133,11 @@ type DeskFailure = DomainFoldkit.Failure<
 	| typeof ReleasePayload
 >;
 
-/** Why the model refused something asked at the desk. */
 type Refusal = Extract<
 	DeskFailure,
 	{ readonly rejection: unknown }
 >["rejection"];
 
-/** What the desk says of a refusal. Most need no words: the desk already shows why. */
 const refusalOf = (rejection: Refusal): Option.Option<string> =>
 	Match.value(rejection).pipe(
 		Match.tag("ReleaseNotOffered", () =>
@@ -167,17 +154,12 @@ const refusalOf = (rejection: Refusal): Option.Option<string> =>
 		Match.orElse(() => Option.none())
 	);
 
-/** The desk, saying the last thing asked of it was not sent. */
 const notSent = (model: Model): Model =>
 	changeDesk(model, (desk) => ({
 		...desk,
 		problem: Option.some("Not sent: the model could not be reached."),
 	}));
 
-/**
- * Something asked at the desk not done. Refused, the desk says why when it does not show it already.
- * Lost, it is not sent again: the desk says so, and you ask again once the model can be reached.
- */
 export const deskFailed = (model: Model, failure: DeskFailure): Return =>
 	Match.value(failure).pipe(
 		Match.tagsExhaustive({

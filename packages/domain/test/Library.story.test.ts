@@ -62,7 +62,6 @@ const epub = {
 	bytes: 900_000,
 };
 
-/** The shelf holding only Carl, with these editions. */
 const shelfWith = (
 	editions: Partial<Record<"text" | "audio" | "pages", boolean>>
 ) => ({
@@ -175,7 +174,6 @@ describe("the library", () => {
 });
 
 describe("a work you wanted", () => {
-	/** Dungeon Crawler Carl, as Open Library knows it, catalogued when you wanted it. */
 	const wanted = new WorkCatalogued({
 		title: "Dungeon Crawler Carl",
 		author: "Matt Dinniman",

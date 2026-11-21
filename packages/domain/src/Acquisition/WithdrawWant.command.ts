@@ -5,14 +5,12 @@ import { Session } from "../Session.middleware.ts";
 
 export class WantWithdrawn extends Domain.Event("WantWithdrawn", {}) {}
 
-/** The book is not wanted: never wanted, or withdrawn already. */
 export class NotWanted extends Domain.Rejection(
 	"NotWanted",
 	{},
 	{ httpApiStatus: 409 }
 ) {}
 
-/** You no longer want the book. Its offers go with it. */
 export class WithdrawWant extends Domain.Command("WithdrawWant", {
 	target: WorkId,
 	middleware: [Session],

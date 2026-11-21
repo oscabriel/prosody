@@ -1,0 +1,3 @@
+# Text a narrator does not read is left unmarked, and marking moves no byte
+
+A cover, a title page, the contents, an index, notes and the like are never narrated, and marking them would count sentences no one could find and make every book look less in sync. They are told by their EPUB type, their title, or their file name near the front or back of the book; note markers and what follows a heading such as "References" are skipped too. Each sentence is wrapped in a span and nothing else changes: entities stay as written, read at the same length so offsets do not move, and a full stop after an abbreviation or an initial does not end a sentence.

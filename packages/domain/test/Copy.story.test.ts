@@ -55,14 +55,12 @@ const pdf = {
 	bytes: 4000,
 };
 
-/** The Odyssey's file of each kind. */
 const FILES = {
 	text: epub.file,
 	audio: "The Odyssey.m4b",
 	pages: pdf.file,
 };
 
-/** The Odyssey in the library, with these files. */
 const shelved = (...kinds: ReadonlyArray<keyof typeof FILES>) =>
 	given(
 		Work.ref("w-odyssey"),
@@ -82,7 +80,6 @@ const shelved = (...kinds: ReadonlyArray<keyof typeof FILES>) =>
 		)
 	);
 
-/** What the press is asked for the given try, of the text or of another edition. */
 const asked = (attempt: number, edition: typeof epub | typeof pdf = epub) => ({
 	work: WorkId.make("w-odyssey"),
 	attempt,
@@ -91,7 +88,6 @@ const asked = (attempt: number, edition: typeof epub | typeof pdf = epub) => ({
 	file: edition.file,
 });
 
-/** A remake comes from one of your devices, as everything a reader sends does. */
 const fromLaptop = provide(Device, "laptop");
 
 describe("the copy of a work with one edition", () => {

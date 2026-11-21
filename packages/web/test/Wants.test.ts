@@ -8,7 +8,6 @@ import { Message, Model } from "../src/Model.ts";
 import { Prosody } from "../src/Prosody.ts";
 import { AppRoute } from "../src/Route.ts";
 
-/** A page online at the desk, its form filled in with this title and author. */
 const atDesk = (title: string, author: string) =>
 	Model.make({
 		route: AppRoute.Desk(),
@@ -26,10 +25,8 @@ const atDesk = (title: string, author: string) =>
 		desk: { title, author, correcting: Option.none(), problem: Option.none() },
 	});
 
-/** A command's answer that the connection lost. */
 const Lost = Schema.TaggedStruct("Unknown", {});
 
-/** A command's answer that the model refused. */
 const Refused = Schema.TaggedStruct("Rejected", { rejection: Schema.Any });
 
 const names = (commands: ReadonlyArray<{ readonly name: string }>) =>
@@ -132,7 +129,6 @@ describe("the desk", () => {
 	});
 });
 
-/** The desk, wanting Project Hail Mary, as typed and as Open Library knows it. */
 const wantingHailMary = Model.make({
 	...atDesk("", ""),
 	wanted: Option.some({

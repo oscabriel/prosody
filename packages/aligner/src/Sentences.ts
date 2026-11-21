@@ -4,19 +4,16 @@ import type { AnyNode, ChildNode, ParentNode } from "domhandler";
 import { decodeHTML } from "entities";
 import { parseDocument } from "htmlparser2";
 
-/** One sentence of a section: the id of the span that now holds it, and its text. */
 export interface Sentence {
 	readonly id: string;
 	readonly text: string;
 }
 
-/** A section with every sentence wrapped in a span of its own. */
 export interface Marked {
 	readonly markup: string;
 	readonly sentences: ReadonlyArray<Sentence>;
 }
 
-/** Elements that flow inside a line of text. Everything else starts a block. */
 const INLINE = new Set([
 	"a",
 	"abbr",
@@ -53,26 +50,17 @@ const INLINE = new Set([
 	"wbr",
 ]);
 
-/** Elements whose text is never read aloud as the book's prose. */
 const SKIP = new Set(["head", "script", "style", "svg", "math", "rt"]);
 
-/** Abbreviations after which a full stop does not end a sentence. */
 const NOT_AN_END =
 	/\b(?:mr|mrs|ms|dr|prof|st|jr|sr|vs|mt|vol|fig|e\.g|i\.e)\.["'”’)\]]*\s*$/iu;
 
-/** An initial, as in "J. R. R. Tolkien". "I." ends a sentence. */
 const INITIAL = /(?:^|\s)[A-HJ-Z]\.\s*$/u;
 
 const segmenter = new Intl.Segmenter("en", { granularity: "sentence" });
 
-/** A character the segmenter ignores, to fill the room an entity took. */
 const FILLER = "\u2060";
 
-/**
- * Text with each entity read as its character, at the same length: `&#8221;` becomes a closing
- * quote and six fillers, and an entity for a space becomes spaces. The section keeps its entities as
- * written, so offsets must not move, but a sentence cannot be told from `.&#8221; She`.
- */
 const entitiesRead = (text: string): string =>
 	text.replaceAll(/&(?:#\d+|#x[\da-f]+|[a-z][\da-z]*);/giu, (entity) => {
 		const character = decodeHTML(entity);
@@ -86,11 +74,6 @@ const entitiesRead = (text: string): string =>
 			: character + FILLER.repeat(entity.length - character.length);
 	});
 
-/**
- * A block's text split into sentences, as ranges of it. The segmenter alone ends a sentence after
- * "Dr." and inside "“Why?” she asked.", so a piece after an abbreviation or before a lower case
- * word joins its neighbour.
- */
 export const sentenceRanges = (
 	written: string
 ): Array<readonly [number, number]> => {
@@ -119,7 +102,6 @@ export const sentenceRanges = (
 		}
 	}
 
-	// Trim the spaces at each end, and drop a piece that is only spaces.
 	return pieces.flatMap(([from, to]) => {
 		const slice = text.slice(from, to);
 		const start = from + (slice.length - slice.trimStart().length);
@@ -132,7 +114,6 @@ export const sentenceRanges = (
 const isInline = (node: AnyNode): boolean =>
 	isText(node) || (isTag(node) && INLINE.has(node.name.toLowerCase()));
 
-/** The text a node holds, as it flows: a line break counts as a space. */
 const textOf = (node: AnyNode): string => {
 	if (isText(node)) {
 		return node.data;
@@ -153,10 +134,6 @@ const textOf = (node: AnyNode): string => {
 	return "";
 };
 
-/**
- * A link to a note: the narrator does not read its marker. EPUB 3 names it with `epub:type`,
- * accessible books with `role`, and O'Reilly's books with `data-type`.
- */
 const isNoteReference = (node: Element): boolean =>
 	node.attribs["epub:type"]?.includes("noteref") === true ||
 	node.attribs.role === "doc-noteref" ||
@@ -170,7 +147,6 @@ const hasLink = (node: Element): boolean =>
 			((child.name === "a" && "href" in child.attribs) || hasLink(child))
 	);
 
-/** The text a narrator reads from a node: its text without note markers. */
 const saidOf = (node: AnyNode): string => {
 	if (!isTag(node)) {
 		return textOf(node);
@@ -187,7 +163,6 @@ const saidOf = (node: AnyNode): string => {
 	return node.children.map(saidOf).join("");
 };
 
-/** A node's text with note markers turned to spaces, keeping every offset. */
 const blankedOf = (node: AnyNode): string => {
 	if (!isTag(node)) {
 		return textOf(node);
@@ -207,11 +182,6 @@ const blankedOf = (node: AnyNode): string => {
 const hasText = (nodes: ReadonlyArray<AnyNode>) =>
 	nodes.some((node) => textOf(node).trim() !== "");
 
-/**
- * The part of `nodes` that holds text from `from` to `to`, copied. An element split between two
- * sentences is copied into both, and keeps its id only in the first. An element with no text (an
- * image, an empty anchor) goes in the first range that reaches its place.
- */
 const slice = (
 	nodes: ReadonlyArray<ChildNode>,
 	from: number,
@@ -280,7 +250,6 @@ const slice = (
 	return out;
 };
 
-/** Wrap each sentence of one run of inline nodes in a span, in place of the run. */
 const markRun = (
 	parent: ParentNode,
 	run: ReadonlyArray<ChildNode>,
@@ -288,7 +257,6 @@ const markRun = (
 	sentences: Array<Sentence>
 ) => {
 	const text = run.map(textOf).join("");
-	// Split with note markers blanked out, the same length, so "cold.1 Then" ends at "cold.".
 	const ranges = sentenceRanges(run.map(blankedOf).join(""));
 
 	if (ranges.length === 0) {
@@ -352,12 +320,9 @@ const markRun = (
 	}
 };
 
-/** Mark every block under `node`: a run of inline content is a block of its own. */
-/** Headings of parts of a section no narrator reads. */
 const UNREAD_HEADING =
 	/^\s*(?:references|footnotes|notes|endnotes|bibliography|further reading)\s*$/iu;
 
-/** Kinds of element that hold notes or references, as EPUB 3 names them. */
 const NOTES = new Set([
 	"footnote",
 	"footnotes",
@@ -374,7 +339,6 @@ const isNotes = (node: AnyNode): boolean =>
 		.split(/\s+/u)
 		.some((type) => NOTES.has(type));
 
-/** A heading's level, 1 to 6, or undefined for anything else. */
 const headingLevel = (node: AnyNode): number | undefined => {
 	if (!isTag(node)) {
 		return undefined;
@@ -400,9 +364,7 @@ const markIn = (
 		run = [];
 	};
 
-	// A copy, since marking a run replaces it in the children.
 	const children = [...node.children];
-	// Below a heading such as "References", siblings are skipped until a heading as high or higher.
 	let skipBelow: number | undefined;
 
 	for (const child of children) {
@@ -440,12 +402,7 @@ const markIn = (
 	flush();
 };
 
-/**
- * Wrap every sentence of a section in `<span id="...">`. Ids are `<prefix><n>`, so the prefix should be
- * one the section does not use.
- */
 export const mark = (xhtml: string, prefix: string): Marked => {
-	// Entities stay as written, so the section comes back out byte for byte apart from the spans.
 	const document = parseDocument(xhtml, {
 		xmlMode: true,
 		decodeEntities: false,

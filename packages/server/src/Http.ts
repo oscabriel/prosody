@@ -5,10 +5,6 @@ import { Layer } from "effect";
 import { HttpRouter } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 
-/**
- * The reader's Api as plain HTTP, for curl and scripts: a view read is `GET /<View>/<key>`, a
- * command is a `POST`, and `/openapi.json` describes every route.
- */
 export const ReaderHttp = DomainHttp.toHttpApi(ReaderApi, {
 	expose: [
 		"Wanted.get",

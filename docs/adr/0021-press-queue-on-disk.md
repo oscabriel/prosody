@@ -1,0 +1,3 @@
+# The press's queue is kept on disk, one reading copy at a time
+
+Each request the model makes of the press waits as a file in `.pending` until its answer has been sent, so a restart picks up where it left off instead of waiting out a deadline. Files are taken in name order, so a work's copy runs before the pair that replaces it, and a request asked twice is queued once. Reading copies are made one at a time because the aligner uses every core; payloads are shelved in a line of their own so a copy into the library never waits behind an hour of aligning, and one that cannot be shelved yet goes to the back for five minutes.

@@ -38,32 +38,22 @@ const State = Schema.Struct({
 	release: Schema.NullOr(Release),
 	status: GrabStatus,
 	percent: Schema.Int,
-	/** The payload's file or folder in the downloads, once it has come. */
 	payload: Schema.NullOr(Schema.String),
-	/** Whole hours seeded. */
 	seeded: Schema.Int,
-	// A grab kept before shelving was not shelved, and has no note.
 	isShelved: Schema.Boolean.pipe(
 		Schema.withDecodingDefaultKey(Effect.succeed(false))
 	),
-	/** Why its edition is not shelved yet, as the press last said. */
 	note: Schema.String.pipe(Schema.withDecodingDefaultKey(Effect.succeed(""))),
 }).annotate({ identifier: "GrabState" });
 
 type State = typeof State.Type;
 
-/** Whether its payload is still on its way. */
 const isDownloading = (grab: State): boolean =>
 	grab.status === "downloading" || grab.status === "stalled";
 
-/** Whether its payload has come and its edition is waiting to be shelved. */
 const isWaiting = (grab: State): boolean =>
 	grab.payload !== null && !grab.isShelved;
 
-/**
- * One release you grabbed, from the download to the end of its seeding. The press reports how the
- * download goes; you resume it, abandon it, or release its payload once it owes nothing.
- */
 export class Grab extends Domain.Aggregate("Grab", {
 	id: GrabId,
 	state: State,

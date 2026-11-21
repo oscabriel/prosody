@@ -1,0 +1,3 @@
+# Sentences are tied to the audio first, then placed by forced alignment
+
+Runs of words that appear exactly once in both the book and the model's own transcript are candidate ties; the longest chain in the same order in both is kept, and a tie with no neighbour is dropped as a coincidence. Runs out of step with the chain are text heard out of the book's order, and are aligned where they were heard. Between ties, CTC's Viterbi places each phrase, with a garbage state for audio the book lacks and a skip for text nobody read, so an unread sentence is decided there and not guessed later. A phrase is a run of quoted speech or of narration, since a dramatised reading drops "he said"; splitting at every comma was tried and placed scraps on chance matches.

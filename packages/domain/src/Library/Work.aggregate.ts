@@ -16,26 +16,19 @@ import {
 } from "./ShelveEdition.command.ts";
 import { WorkId } from "./Work.id.ts";
 
-/** A name kept with the work. A work stored before names were kept has none. */
 const Name = Schema.String.pipe(
 	Schema.withDecodingDefaultKey(Effect.succeed(""))
 );
 
-/**
- * Only what the rules below need: whether the work exists, its name and folder, and each edition's
- * file.
- */
 const State = Schema.Struct({
 	catalogued: Schema.Boolean,
 	title: Name,
 	author: Name,
-	/** Its folder. A work stored before folders were kept has none, though it has its editions. */
 	shelfmark: Schema.NullOr(Shelfmark).pipe(
 		Schema.withDecodingDefaultKey(Effect.succeed(null))
 	),
 	text: Schema.NullOr(Schema.String),
 	audio: Schema.NullOr(Schema.String),
-	/** A work stored before there were pages has none. */
 	pages: Schema.NullOr(Schema.String).pipe(
 		Schema.withDecodingDefaultKey(Effect.succeed(null))
 	),
@@ -43,17 +36,12 @@ const State = Schema.Struct({
 
 type State = typeof State.Type;
 
-/** Whether it is on the shelf: in a folder, or, kept before folders were, with an edition. */
 const isShelved = (work: State): boolean =>
 	work.shelfmark !== null ||
 	work.text !== null ||
 	work.audio !== null ||
 	work.pages !== null;
 
-/**
- * One book, whatever its editions. It refuses a second file for an edition it already has. A work
- * you wanted is catalogued again, at its shelfmark, when the press first finds it in the library.
- */
 export class Work extends Domain.Aggregate("Work", {
 	id: WorkId,
 	state: State,

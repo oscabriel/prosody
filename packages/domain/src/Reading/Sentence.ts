@@ -1,35 +1,22 @@
 import { Effect, Schema } from "effect";
 
-/**
- * A sentence of a work's text, as `<section path>#<span id>`. Text and audio both resolve to one, so
- * it is the only locator the reading room needs: a place is a sentence.
- */
 export const Sentence = Schema.String.pipe(Schema.brand("Sentence"));
 
 export type Sentence = typeof Sentence.Type;
 
-/**
- * A place as a device sends it, and when. In a work with text it is a sentence. A work with its
- * audio alone has no sentences, so there it is a time in the audio instead, and in a work made of
- * pages it is a page.
- */
 export const PlaceAt = Schema.Struct({
 	sentence: Schema.NullOr(Sentence),
-	/** Seconds into the audio, in a work with its audio alone. A place kept before there were times has none. */
 	time: Schema.NullOr(Schema.Finite).pipe(
 		Schema.withDecodingDefaultKey(Effect.succeed(null))
 	),
-	/** The page, counted from 1, in a work made of pages. A place kept before there were pages has none. */
 	page: Schema.NullOr(Schema.Int).pipe(
 		Schema.withDecodingDefaultKey(Effect.succeed(null))
 	),
-	/** When the device kept it, in milliseconds since 1970. */
 	at: Schema.Int,
 });
 
 export type PlaceAt = typeof PlaceAt.Type;
 
-/** A place as it is kept: the sentence, the time or the page, when, and which device. */
 export const KeptPlace = Schema.Struct({
 	...PlaceAt.fields,
 	device: Schema.String,

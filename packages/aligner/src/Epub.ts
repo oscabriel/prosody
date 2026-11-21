@@ -6,29 +6,21 @@ import { parseDocument } from "htmlparser2";
 
 import { isNarrated } from "./Sections.ts";
 
-/** An EPUB opened in memory: its files by path, its package document, and its sections in order. */
 export interface Book {
 	readonly files: Map<string, Uint8Array>;
-	/** The package document's path, e.g. `OEBPS/content.opf`. */
 	readonly packagePath: string;
 	readonly packageXml: string;
-	/** The spine's sections, as paths in the archive. */
 	readonly sections: ReadonlyArray<Section>;
-	/** The cover picture's path in the archive, when the package names one. */
 	readonly cover: string | undefined;
-	/** What the book's own table of contents calls its sections, by path: the first entry for each. */
 	readonly titles: ReadonlyMap<string, string>;
 }
 
 export interface Section {
 	readonly path: string;
-	/** The section's manifest id. */
 	readonly id: string;
-	/** Whether a narrator reads it: not a cover, an index, the copyright page and the like. */
 	readonly narrated: boolean;
 }
 
-/** The EPUB could not be read. */
 export class NotAnEpubError extends Schema.TaggedError<NotAnEpubError>()(
 	"NotAnEpubError",
 	{ message: Schema.String }
@@ -39,11 +31,9 @@ const elements = (nodes: ReadonlyArray<AnyNode>): Array<Element> =>
 		isTag(node) ? [node, ...elements(node.children)] : []
 	);
 
-/** A tag's name without its namespace prefix, lower case. */
 const local = (element: Element) =>
 	element.name.toLowerCase().replace(/^.*:/u, "");
 
-/** The text inside an element, with its spaces run together. */
 const textOf = (element: Element): string =>
 	element.children
 		.map((node) => {
@@ -57,10 +47,6 @@ const textOf = (element: Element): string =>
 		.replaceAll(/\s+/gu, " ")
 		.trim();
 
-/**
- * The titles an NCX table of contents gives the files it points into, by path. A file named more
- * than once keeps its first entry, which is the outermost: a chapter, not a section inside it.
- */
 const titlesIn = (ncx: string, ncxPath: string): Map<string, string> => {
 	const titles = new Map<string, string>();
 	const all = elements(parseDocument(ncx, { xmlMode: true }).children);
@@ -83,7 +69,6 @@ const titlesIn = (ncx: string, ncxPath: string): Map<string, string> => {
 	return titles;
 };
 
-/** `href` resolved against the folder of `base`, as a path in the archive. */
 export const resolve = (base: string, href: string): string => {
 	const parts = base.split("/").slice(0, -1);
 
@@ -98,7 +83,6 @@ export const resolve = (base: string, href: string): string => {
 	return parts.join("/");
 };
 
-/** `target` as a relative link from the file at `from`. */
 export const relative = (from: string, target: string): string => {
 	const a = from.split("/").slice(0, -1);
 	const b = target.split("/");
@@ -166,7 +150,6 @@ export const open = (bytes: Uint8Array): Book => {
 		})
 		.filter((section) => files.has(section.path));
 
-	// An EPUB 2 package names its cover, index and the like in its guide.
 	const guide = new Map(
 		all
 			.filter((element) => local(element) === "reference")
@@ -179,7 +162,6 @@ export const open = (bytes: Uint8Array): Book => {
 			)
 	);
 
-	// EPUB 3 marks the cover picture in the manifest; EPUB 2 names its id in a meta.
 	const coverId = all.find(
 		(element) =>
 			local(element) === "meta" &&
@@ -197,7 +179,6 @@ export const open = (bytes: Uint8Array): Book => {
 			? undefined
 			: resolve(packagePath, coverItem.href);
 
-	// Most EPUBs, EPUB 3 ones too, carry an EPUB 2 table of contents, the NCX.
 	const ncxHref = [...manifest.values()].find(
 		(item) => item["media-type"] === "application/x-dtbncx+xml"
 	)?.href;

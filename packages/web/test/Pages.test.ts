@@ -9,7 +9,6 @@ import { turnOf } from "../src/Pages.ts";
 import { AppRoute } from "../src/Route.ts";
 import { roomOf } from "../src/Steps.ts";
 
-/** Domain-Driven Design as a book of pages: 324 pictures and three chapters. */
 const contents = {
 	audio: null,
 	sections: [],
@@ -26,7 +25,6 @@ const contents = {
 	],
 };
 
-/** A page online with Domain-Driven Design's room open, before any place has come. */
 const inEvans = (room: Partial<Room> = {}) =>
 	Model.make({
 		route: AppRoute.Room({ work: "w-evans" }),
@@ -58,7 +56,6 @@ const names = (commands: ReadonlyArray<{ readonly name: string }>) =>
 
 const shownIn = (model: Model) => Option.map(model.room, (room) => room.shown);
 
-/** A place at a page, kept on the phone. */
 const atPage = (page: number, at: number) => ({
 	sentence: null,
 	time: null,

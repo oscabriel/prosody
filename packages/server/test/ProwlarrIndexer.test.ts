@@ -3,7 +3,6 @@ import { describe, expect, it } from "@effect/vitest";
 import type { Found } from "../src/ProwlarrIndexer.ts";
 import { releasesOf } from "../src/ProwlarrIndexer.ts";
 
-/** A result as Prowlarr gives it, in these categories, with this many seeders. */
 const found = (
 	title: string,
 	categories: ReadonlyArray<number>,

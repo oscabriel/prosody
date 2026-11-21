@@ -1,0 +1,3 @@
+# A host's facts are settings, read when a deploy is planned
+
+Paths, the press's user and the relay's address are read from `.env` by `Host.ts`, and a required one that is missing stops the plan by name. Alchemy runs a service's settings again inside its container, with no `.env`, so there an unset one reads as empty and the source fingerprint as `none`. Alchemy also binds a setting to whatever was being built when it was read: the runner pool and the press read the indexer's and download client's settings where they are declared, and anything that touches a container's own files runs inside `host.run`, since a plan runs a service's setup on the host too.

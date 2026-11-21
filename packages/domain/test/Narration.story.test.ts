@@ -46,7 +46,6 @@ const story = Story.make(Prosody, {
 
 const carl = Narration.ref("w-carl");
 
-/** A realign comes from one of your devices, as everything a reader sends does. */
 const fromLaptop = provide(Device, "laptop");
 
 const pair = {
@@ -55,7 +54,6 @@ const pair = {
 	audio: "Matt Dinniman - Dungeon Crawler Carl.m4b",
 };
 
-/** What the press is asked for the given try. */
 const asked = (attempt: number) => ({
 	work: WorkId.make("w-carl"),
 	attempt,
@@ -214,7 +212,6 @@ describe("the narration", () => {
 					reason: `the press did not answer within ${ALIGNMENT_WINDOW}`,
 				})
 			),
-			// The press's answer now comes too late, and changes nothing.
 			when(carl, new RecordAlignment({ attempt: 1, ...aligned })),
 			then(carl)
 		)

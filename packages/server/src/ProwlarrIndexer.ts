@@ -6,18 +6,14 @@ import type { Release } from "@prosody/domain/Acquisition/Release";
 import { Config, Effect, Layer, Redacted, Schema } from "effect";
 import { FetchHttpClient, HttpClient, HttpClientResponse } from "effect/http";
 
-/** Prowlarr's own categories for audiobooks and for ebooks. */
 const AUDIOBOOKS = 3030;
 
 const EBOOKS = 7020;
 
-/** How many releases of each kind one search offers, the most seeded first. */
 const OFFERS = 10;
 
-/** How long a search may take. Prowlarr asks every tracker in turn. */
 const SEARCH_TIME = "1 minute";
 
-/** The part of a release in Prowlarr's search results that Prosody reads. */
 export const Found = Schema.Struct({
 	guid: Schema.String,
 	indexerId: Schema.Int,
@@ -27,17 +23,12 @@ export const Found = Schema.Struct({
 	seeders: Schema.optionalKey(Schema.NullOr(Schema.Int)),
 	publishDate: Schema.String,
 	infoUrl: Schema.optionalKey(Schema.NullOr(Schema.String)),
-	/** Where Prowlarr fetches its torrent, with Prowlarr's API key in the query. */
 	downloadUrl: Schema.optionalKey(Schema.NullOr(Schema.String)),
 	categories: Schema.Array(Schema.Struct({ id: Schema.Int })),
 });
 
 export type Found = typeof Found.Type;
 
-/**
- * Which edition a release is, by the categories Prowlarr gives it: the audio ones are in the
- * 3000s, the book ones in the 7000s. Anything else is no edition at all.
- */
 const kindOf = (found: Found): Release["kind"] | undefined => {
 	const ids = found.categories.map(({ id }) => id);
 
@@ -50,7 +41,6 @@ const kindOf = (found: Found): Release["kind"] | undefined => {
 
 const failed = (reason: string) => new IndexerFailed({ reason });
 
-/** Where Prowlarr fetches a release's torrent: a path on Prowlarr, with the API key taken out. */
 const linkOf = (found: Found): string | undefined => {
 	if (found.downloadUrl === undefined || found.downloadUrl === null) {
 		return undefined;
@@ -63,11 +53,6 @@ const linkOf = (found: Found): string | undefined => {
 	return `${link.pathname}${link.search}`;
 };
 
-/**
- * Prowlarr's results as releases of a book, the most seeded first, ten of each kind at most so
- * neither crowds out the other. A release's id is the name Prowlarr grabs it by, its
- * indexer's number and its guid. One with no torrent to fetch can't be grabbed, and is left out.
- */
 export const releasesOf = (results: ReadonlyArray<Found>): Array<Release> => {
 	const releases = results
 		.flatMap((found) => {
@@ -100,21 +85,11 @@ export const releasesOf = (results: ReadonlyArray<Found>): Array<Release> => {
 	);
 };
 
-/**
- * Where Prowlarr answers, with no slash at the end, and its API key: `INDEXER_URL` and
- * `INDEXER_API_KEY`, read from `.env` or the shell where the stack is deployed. Whatever reads them
- * while a deploy is planned is given them in its environment: the runner pool does, in
- * `ProsodyLive.ts`, and the Indexer reads them only as it searches.
- */
 export const ProwlarrSettings = Config.all({
 	url: Config.String("INDEXER_URL"),
 	key: Config.Redacted("INDEXER_API_KEY"),
 });
 
-/**
- * A release's torrent file, fetched through Prowlarr by its link, with the key the link leaves out.
- * Prowlarr fetches it from the tracker, which counts it as a grab.
- */
 export const torrentOf = Effect.fn("Prowlarr.torrent")(function* (
 	link: string
 ) {
@@ -141,11 +116,6 @@ export const torrentOf = Effect.fn("Prowlarr.torrent")(function* (
 	return new Uint8Array(bytes);
 });
 
-/**
- * The Indexer, played by Prowlarr, which holds the tracker accounts. Prosody holds
- * only Prowlarr's address and its API key. Prowlarr down, or refusing the key, is a failed search,
- * with the reason.
- */
 export const ProwlarrIndexer = Indexer.toLayer(
 	Effect.gen(function* () {
 		const client = yield* HttpClient.HttpClient;

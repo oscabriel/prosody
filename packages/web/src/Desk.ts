@@ -15,16 +15,11 @@ import { dayOf } from "./Nightstand.ts";
 import { sizeIn } from "./OnDevice.ts";
 import { shelfRouter } from "./Route.ts";
 
-// The desk: the books you want, what the trackers offer of each, and the releases you grabbed. A
-// tool, so it gets the plain treatment: the same tokens, a sans face, no leaf.
-
-/** A length of audio as a listener says it: 16 h 10 min. */
 const lengthOf = (minutes: number): string =>
 	minutes < 60
 		? `${minutes} min`
 		: `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 
-/** A day with its year: 4 May 2021. */
 const dateOf = (iso: string): string =>
 	new Date(iso).toLocaleDateString("en-GB", {
 		day: "numeric",
@@ -32,7 +27,6 @@ const dateOf = (iso: string): string =>
 		year: "numeric",
 	});
 
-/** A link to a work's page on Open Library, after its byline. */
 const openLibraryView = (
 	openLibrary: string | null,
 	h: HtmlBuilder<Message>
@@ -52,7 +46,6 @@ const openLibraryView = (
 				),
 			];
 
-/** The line under a book: its author, the year it was first published, and its Open Library page. */
 const bylineView = (
 	book: WantedBook,
 	catalogued: Option.Option<Catalogued>,
@@ -70,14 +63,12 @@ const bylineView = (
 			),
 	});
 
-/** Why its last search failed, when it did. */
 const failureView = (
 	book: WantedBook,
 	h: HtmlBuilder<Message>
 ): ReadonlyArray<Html> =>
 	book.state === "failed" ? [h.p([h.Class("note problem")], [book.note])] : [];
 
-/** An audiobook as the catalogues know it: who reads it, how long, and its chapters, when known. */
 const recordingOf = ({ narrators, minutes, chapters }: Recording): string => {
 	const parts = [
 		narrators.length === 0
@@ -98,7 +89,6 @@ const recordingOf = ({ narrators, minutes, chapters }: Recording): string => {
 	return parts.join(", ");
 };
 
-/** What the catalogues say of its audiobook, when there is one. */
 const recordingView = (
 	catalogued: Option.Option<Catalogued>,
 	h: HtmlBuilder<Message>
@@ -114,7 +104,6 @@ const recordingView = (
 		}
 	);
 
-/** Grab an offer, or see that it was grabbed, or that it was offered before grabbing was. */
 const grabView = (
 	work: string,
 	release: Release,
@@ -173,7 +162,6 @@ const offerView = (
 		]
 	);
 
-/** Where a want's search stands, as a label. */
 const stateOf = (book: WantedBook): string => {
 	if (book.state === "searching") {
 		return "searching";
@@ -186,7 +174,6 @@ const stateOf = (book: WantedBook): string => {
 	return book.offers.length === 1 ? "1 offer" : `${book.offers.length} offers`;
 };
 
-/** A book's title and the state of its search, or the form correcting its title. */
 const headingView = (
 	book: WantedBook,
 	catalogued: Option.Option<Catalogued>,
@@ -261,7 +248,6 @@ const wantView = (
 	);
 };
 
-/** Whether any of a work's grabs is on the shelf, which names its folder. */
 const isShelved = (model: Model, work: string): boolean =>
 	Option.exists(model.wanted, ({ grabs }) =>
 		Object.values(grabs).some(

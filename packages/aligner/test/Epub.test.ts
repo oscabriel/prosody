@@ -3,7 +3,6 @@ import { strToU8, zipSync } from "fflate";
 
 import { open } from "../src/Epub.ts";
 
-/** An EPUB of one section whose package holds `metadata` and `items` beside the section's own. */
 const epub = (metadata: string, items: string) =>
 	zipSync({
 		"META-INF/container.xml": strToU8(

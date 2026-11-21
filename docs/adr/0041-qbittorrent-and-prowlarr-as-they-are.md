@@ -1,0 +1,3 @@
+# The adapters accept qBittorrent 4 and 5, and Prowlarr's own categories
+
+qBittorrent is signed in to afresh for each use, so nothing is kept between one minute's watch and the next. Version 5 refuses a request with no origin, and the two versions answer a sign-in and a duplicate torrent differently, so the adapter sends an origin and accepts both answers. Every grab is added under one category and tagged with its grab's id, which is how it is found again. Prowlarr's audiobook categories are in the 3000s and its ebook ones in the 7000s; a search offers the ten most seeded of each, so neither crowds out the other.

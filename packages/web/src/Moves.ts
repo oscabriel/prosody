@@ -6,19 +6,12 @@ import type { Model, Room } from "./Model.ts";
 import { standingOf, dayOf } from "./Nightstand.ts";
 import { sizeIn } from "./OnDevice.ts";
 
-// The moves under a book's author: where it stands on the nightstand, and its copy on this device.
-
-/** A button among the moves under the book's author. */
 const moveButton = (
 	h: HtmlBuilder<Message>,
 	message: Message,
 	label: string
 ): Html => h.button([h.Type("button"), h.OnClick(message)], [label]);
 
-/**
- * Where the work stands with you, and, while the model can be reached, the moves that take it off
- * the nightstand.
- */
 export const standingView = (
 	model: Model,
 	room: Room,
@@ -56,7 +49,6 @@ export const standingView = (
 		},
 	});
 
-/** Whether the work's copy is kept on this device, on its way, or can be. */
 export const copyView = (
 	model: Model,
 	room: Room,
@@ -77,7 +69,6 @@ export const copyView = (
 		]);
 	}
 
-	// Only a copy that opened can be kept.
 	const keep =
 		model.isOnline && Book.guards.Open(room.book)
 			? [moveButton(h, Message.ClickedKeepCopy(), "Keep on this device")]

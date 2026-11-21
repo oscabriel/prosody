@@ -8,16 +8,6 @@ import {
 	HttpClientResponse,
 } from "effect/http";
 
-/**
- * Where qBittorrent's Web UI answers, with no slash at the end, and the user and password it signs
- * in with: `DOWNLOADS_URL`, `DOWNLOADS_USERNAME` and `DOWNLOADS_PASSWORD`, read from `.env`
- * or the shell where the stack is deployed. The runner reads them to start and stop downloads, and
- * the press to watch them.
- *
- * `DOWNLOADS_CATEGORY` is the category every grab is filed under, `books` unless you say
- * otherwise. Make it in qBittorrent, saving into the folder the press mounts as the downloads
- * (`PROSODY_DOWNLOADS`).
- */
 export const QBittorrentSettings = Config.all({
 	url: Config.String("DOWNLOADS_URL"),
 	username: Config.String("DOWNLOADS_USERNAME"),
@@ -27,18 +17,14 @@ export const QBittorrentSettings = Config.all({
 	),
 });
 
-/** How long qBittorrent has to answer one request. */
 const ANSWER_TIME = "15 seconds";
 
-/** How long a torrent may go with nothing coming before its grab is stalled. */
 const STALL_TIME = 30 * 60;
 
-/** One torrent as qBittorrent lists it: the fields Prosody reads. Times are in seconds. */
 export const Torrent = Schema.Struct({
 	hash: Schema.String,
 	state: Schema.String,
 	progress: Schema.Finite,
-	/** Its tags, joined by commas. */
 	tags: Schema.String,
 	save_path: Schema.String,
 	content_path: Schema.String,
@@ -49,7 +35,6 @@ export const Torrent = Schema.Struct({
 
 export type Torrent = typeof Torrent.Type;
 
-/** qBittorrent could not do what was asked, for this reason. */
 export class QBittorrentFailed extends Schema.TaggedError<QBittorrentFailed>()(
 	"QBittorrentFailed",
 	{ reason: Schema.String }
@@ -59,7 +44,6 @@ const failed = (reason: string) => new QBittorrentFailed({ reason });
 
 const unreachable = () => failed("qBittorrent did not answer");
 
-/** The grab a torrent was added for: the tag that is a grab id. */
 export const grabOf = (torrent: Torrent): Option.Option<GrabId> =>
 	Option.fromUndefinedOr(
 		torrent.tags
@@ -68,18 +52,13 @@ export const grabOf = (torrent: Torrent): Option.Option<GrabId> =>
 			.find(Schema.is(GrabId))
 	);
 
-/** How a grab's download stands, as its torrent shows it. */
 export interface Progress {
 	readonly percent: number;
-	/** Why it is stalled, when it is. */
 	readonly stall: Option.Option<string>;
-	/** Its file or folder in the downloads, once it has all come. Empty when it is elsewhere. */
 	readonly payload: Option.Option<string>;
-	/** Whole hours seeded. */
 	readonly hours: number;
 }
 
-/** Why a torrent still coming is stalled, at `now` in seconds, if it is. */
 const stallOf = (torrent: Torrent, now: number): Option.Option<string> => {
 	const lastCame = Math.max(torrent.last_activity, torrent.added_on);
 
@@ -102,7 +81,6 @@ const stallOf = (torrent: Torrent, now: number): Option.Option<string> => {
 	);
 };
 
-/** Where its content is, inside the folder it saves to. */
 const payloadOf = (torrent: Torrent): string => {
 	const folder = torrent.save_path.endsWith("/")
 		? torrent.save_path
@@ -113,7 +91,6 @@ const payloadOf = (torrent: Torrent): string => {
 		: "";
 };
 
-/** How a torrent's download stands at `now`, in seconds. */
 export const progressOf = (torrent: Torrent, now: number): Progress => {
 	const isCome = torrent.progress >= 1;
 
@@ -125,15 +102,10 @@ export const progressOf = (torrent: Torrent, now: number): Progress => {
 	};
 };
 
-/**
- * qBittorrent's Web UI, signed in: what Prosody asks of it. Each use signs in afresh, so nothing is
- * kept between a minute's watch and the next.
- */
 export const signIn = Effect.fn("QBittorrent.signIn")(function* () {
 	const { url, username, password, category } =
 		yield* Effect.orDie(QBittorrentSettings);
 
-	// qBittorrent 5 refuses a request whose origin it can't see, as a guard against other sites.
 	const client = (yield* HttpClient.HttpClient).pipe(
 		HttpClient.mapRequest((request) =>
 			request.pipe(
@@ -143,7 +115,6 @@ export const signIn = Effect.fn("QBittorrent.signIn")(function* () {
 		)
 	);
 
-	/** Send a request and take its answer, or say qBittorrent did not answer. */
 	const answerTo = (request: HttpClientRequest.HttpClientRequest) =>
 		client
 			.execute(request)
@@ -158,8 +129,6 @@ export const signIn = Effect.fn("QBittorrent.signIn")(function* () {
 		)
 	);
 
-	// qBittorrent 4 answers "Ok." and 5 answers with no body, each with the session's cookie; a
-	// wrong password is "Fails.", with none.
 	if (login.status >= 300 || Cookies.isEmpty(login.cookies)) {
 		return yield* failed(
 			login.status === 403
@@ -173,7 +142,6 @@ export const signIn = Effect.fn("QBittorrent.signIn")(function* () {
 	const signed = (request: HttpClientRequest.HttpClientRequest) =>
 		HttpClientRequest.setHeader(request, "Cookie", session);
 
-	/** Send a form to qBittorrent, and fail with what it answered unless it took it. */
 	const send = (path: string, form: Record<string, string>) =>
 		answerTo(
 			signed(
@@ -188,10 +156,8 @@ export const signIn = Effect.fn("QBittorrent.signIn")(function* () {
 		);
 
 	return {
-		/** The category every grab is filed under. */
 		category,
 
-		/** The torrents in a category, or with a tag. */
 		torrents: Effect.fn("QBittorrent.torrents")(function* (filter: {
 			readonly category?: string;
 			readonly tag?: string;
@@ -211,7 +177,6 @@ export const signIn = Effect.fn("QBittorrent.signIn")(function* () {
 			);
 		}),
 
-		/** Add a torrent file under the category, tagged with its grab. */
 		add: Effect.fn("QBittorrent.add")(function* (
 			torrent: Uint8Array<ArrayBuffer>,
 			grab: GrabId
@@ -232,7 +197,6 @@ export const signIn = Effect.fn("QBittorrent.signIn")(function* () {
 
 			const text = yield* response.text.pipe(Effect.orElseSucceed(() => ""));
 
-			// qBittorrent 4 answers "Fails." with 200 for a torrent it already has; 5 answers 409.
 			return yield* response.status === 200 && text !== "Fails."
 				? Effect.void
 				: failed(

@@ -6,12 +6,10 @@ import { Digest } from "effect/crypto";
 
 import { Stacks, Unshelvable } from "../src/Stacks.ts";
 
-/** The real walk, on the real file system of this machine. */
 const StacksTest = Stacks.layer.pipe(
 	Layer.provideMerge(Layer.mergeAll(NodeServices.layer, Digest.layerWebCrypto))
 );
 
-/** A small library in a temporary folder, removed when the test ends. */
 const library = Effect.gen(function* () {
 	const fs = yield* FileSystem.FileSystem;
 	const path = yield* Path.Path;

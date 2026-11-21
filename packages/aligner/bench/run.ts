@@ -1,8 +1,3 @@
-/**
- * Align one pair end to end through the Aligner service, as the press will.
- *
- *   PROSODY_ALIGNER_MODELS=<dir> bun bench/run.ts <out folder> <book.epub> <emissions file> <audio>...
- */
 import { BunRuntime, BunServices } from "@effect/platform-bun";
 import { Console, Effect, Layer } from "effect";
 

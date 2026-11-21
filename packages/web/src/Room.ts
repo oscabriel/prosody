@@ -14,10 +14,6 @@ import { chapterOf, chaptersIn, entryOf, titleOf } from "./Steps.ts";
 import { Read } from "./Text.ts";
 import { sectionOf, spanOf } from "./Timeline.ts";
 
-/**
- * The contents, on the leaf: a manicule at the chapter you are in, and the chapters before it
- * dimmed. Each turns the page to it, or in audio alone, plays from it.
- */
 const chaptersView = (
 	room: Room,
 	contents: Contents,
@@ -25,7 +21,6 @@ const chaptersView = (
 ): Html => {
 	const current = chapterOf(room, contents);
 
-	// A text shows one chapter at a time; in audio alone or a book of pages, you are in it.
 	const shown = ["audio", "pages"].includes(kindOf(contents))
 		? current
 		: room.shown;
@@ -59,7 +54,6 @@ const chaptersView = (
 	);
 };
 
-/** A text's cover, above its title on the leaf. Audio alone shows its cover on the page. */
 const leafCoverView = (
 	room: Room,
 	contents: Contents,
@@ -78,7 +72,6 @@ const leafCoverView = (
 	];
 };
 
-/** The leaf: the book's title and author, then its contents, folded away on a phone. */
 const leafView = (model: Model, room: Room, h: HtmlBuilder<Message>) => {
 	const entry = Option.getOrUndefined(entryOf(model, room.work));
 
@@ -91,8 +84,6 @@ const leafView = (model: Model, room: Room, h: HtmlBuilder<Message>) => {
 	];
 
 	return Book.match(room.book, {
-		// Two copies of the contents: always open beside the page, folded above it on a phone. A text
-		// shows its cover above its title; audio alone shows it on the page.
 		Open: ({ contents }) => [
 			...leafCoverView(room, contents, h),
 			...heading,
@@ -114,7 +105,6 @@ const leafView = (model: Model, room: Room, h: HtmlBuilder<Message>) => {
 	});
 };
 
-/** The underline under your sentence and the manicule beside its paragraph, as a style rule. */
 const markView = (room: Room, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
 	Option.match(room.sentence, {
 		onNone: () => [],
@@ -135,10 +125,6 @@ const markView = (room: Room, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
 		},
 	});
 
-/**
- * "Turn to" the chapter after `current` and "turn back to" the one before, at the foot of the
- * page.
- */
 const turnsView = (
 	current: number,
 	contents: Contents,
@@ -183,7 +169,6 @@ const turnsView = (
 	return h.nav([h.Class("turns")], turns);
 };
 
-/** The section on show: its text, marked with your place, or why it is not there yet. */
 const textView = (
 	room: Room,
 	contents: Contents,
@@ -216,7 +201,6 @@ const textView = (
 	});
 };
 
-/** A newer place from another device, offered as a line to follow. */
 const elsewhereView = (
 	room: Room,
 	h: HtmlBuilder<Message>
@@ -238,7 +222,6 @@ const elsewhereView = (
 		],
 	});
 
-/** What a room says while its copy is not there, for an edition alone or for a pair. */
 const unmadeWords = (alone: boolean, failure: Option.Option<string>) =>
 	alone
 		? {
@@ -260,7 +243,6 @@ const unmadeWords = (alone: boolean, failure: Option.Option<string>) =>
 					"The press is aligning it. The book opens here when it is done.",
 			};
 
-/** Why a book will not open, and what can be done. */
 const unmadeView = (
 	phase: "idle" | "asked" | "aligning",
 	alone: boolean,

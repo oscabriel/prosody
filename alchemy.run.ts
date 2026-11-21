@@ -7,10 +7,6 @@ import { relayOnHost } from "@prosody/server/Host";
 import * as Alchemy from "alchemy";
 import { Effect, Layer } from "effect";
 
-/**
- * Prosody on the host's swarm: a Postgres, one runner hosting the model, the Api, the press and a
- * relay. The swarm itself was made by hand (`docker swarm init`) and is not this Stack's to destroy.
- */
 export default Alchemy.Stack(
 	"Prosody",
 	{
@@ -22,10 +18,6 @@ export default Alchemy.Stack(
 		const api = yield* Api;
 		const press = yield* Press;
 
-		// Caddy cannot join a swarm network, and a swarm service's published port listens on every
-		// interface. This plain container is the one door: it joins the Front network and listens on
-		// the loopback address alone. Caddy sends the app's host name there, after asking `/auth`
-		// whether the request is from one of your devices; the dev server calls it the same way.
 		const address = yield* relayOnHost;
 
 		const relay = yield* Docker.Container("Relay", {

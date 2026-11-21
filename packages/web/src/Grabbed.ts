@@ -6,15 +6,11 @@ import { Message } from "./Model.ts";
 import { sizeIn } from "./OnDevice.ts";
 import { roomRouter } from "./Route.ts";
 
-// The desk's grabs: each release you grabbed, from its download to the end of its seeding.
-
 const DAY = 24 * 60 * 60 * 1000;
 
-/** A day without its year: 18 December. */
 const dayIn = (at: number): string =>
 	new Date(at).toLocaleDateString("en-GB", { day: "numeric", month: "long" });
 
-/** Where a grab stands, as a label. */
 const stateOf = (grabbed: GrabbedRelease): string => {
 	if (grabbed.state === "downloading") {
 		return `${grabbed.percent}%`;
@@ -31,16 +27,11 @@ const stateOf = (grabbed: GrabbedRelease): string => {
 	return grabbed.note === "" ? "shelving" : "not shelved";
 };
 
-/**
- * How its seeding stands: the hours it owes, and the day they are owed by. The hours are
- * qBittorrent's, which count on while the tracker credits none, so the tracker has the last word.
- */
 const seedingOf = (grabbed: GrabbedRelease, arrived: number): string =>
 	grabbed.seeded >= OBLIGATION.hours
 		? `qBittorrent has seeded it ${OBLIGATION.hours} hours. Check your tracker counts them before you release it.`
 		: `Seeded ${grabbed.seeded} of ${OBLIGATION.hours} hours, owed by ${dayIn(arrived + OBLIGATION.days * DAY)}`;
 
-/** What you can do with it now. */
 const movesView = (
 	grab: string,
 	grabbed: GrabbedRelease,
@@ -66,14 +57,12 @@ const movesView = (
 		: [];
 };
 
-/** Why it stalled, or why it is not on the shelf yet. */
 const problemView = (
 	grabbed: GrabbedRelease,
 	h: HtmlBuilder<Message>
 ): ReadonlyArray<Html> =>
 	grabbed.note === "" ? [] : [h.p([h.Class("note problem")], [grabbed.note])];
 
-/** Where it was shelved, with the way into its room. */
 const shelfView = (
 	grabbed: GrabbedRelease,
 	h: HtmlBuilder<Message>
@@ -96,7 +85,6 @@ const shelfView = (
 				),
 			];
 
-/** How its seeding stands, once its payload has come. */
 const seedingView = (
 	grabbed: GrabbedRelease,
 	h: HtmlBuilder<Message>
@@ -138,7 +126,6 @@ const grabView = (
 		]
 	);
 
-/** Every release you grabbed, the latest first, until it is released or abandoned. */
 export const grabsView = (
 	grabs: Readonly<Record<string, GrabbedRelease>>,
 	h: HtmlBuilder<Message>

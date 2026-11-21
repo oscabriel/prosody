@@ -10,7 +10,6 @@ import type { Model } from "./Model.ts";
 import { Prosody } from "./Prosody.ts";
 import type { Return } from "./Steps.ts";
 
-/** Read the clock for a move on the nightstand, so it is sent with when it happened. */
 export const Stamp = Command.define("Stamp", {
 	args: { work: Schema.String, move: Move },
 	messages: [Message.Stamped],
@@ -23,7 +22,6 @@ export const Stamp = Command.define("Stamp", {
 const toMessage = (result: typeof Prosody.Message.Type) =>
 	Message.ReceivedResult({ result });
 
-/** Send a move on the nightstand to the model, under a new command id. */
 export const sendMove = (
 	model: Model,
 	work: string,
@@ -57,7 +55,6 @@ export const sendMove = (
 	};
 };
 
-/** Where you are with a work, once the nightstand has answered. */
 export const standingOf = (
 	model: Model,
 	work: string
@@ -66,7 +63,6 @@ export const standingOf = (
 		Option.fromUndefinedOr(works[work])
 	);
 
-/** The works on the nightstand, by id, the one read most lately first. */
 export const readingNow = (
 	model: Model
 ): ReadonlyArray<readonly [string, Standing]> =>
@@ -78,6 +74,5 @@ export const readingNow = (
 				.toSorted(([, a], [, b]) => b.at - a.at),
 	});
 
-/** A day as a reader would say it: 19 November. */
 export const dayOf = (at: number): string =>
 	new Date(at).toLocaleDateString("en-GB", { day: "numeric", month: "long" });

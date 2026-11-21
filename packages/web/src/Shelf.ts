@@ -16,10 +16,6 @@ import { dayOf, readingNow } from "./Nightstand.ts";
 import { sizeIn } from "./OnDevice.ts";
 import { deskRouter, roomRouter } from "./Route.ts";
 
-/**
- * A work as the shelf lists it: its id, its entry, its sync if it has a pair, and its copy if it
- * has one edition.
- */
 interface Listed {
 	readonly id: string;
 	readonly entry: ShelfEntry;
@@ -27,7 +23,6 @@ interface Listed {
 	readonly made: Option.Option<Made>;
 }
 
-/** The shelf's works with their ids, by author and then title. */
 const worksOf = (model: Model): ReadonlyArray<Listed> =>
 	Option.match(model.shelf, {
 		onNone: () => [],
@@ -44,14 +39,12 @@ const worksOf = (model: Model): ReadonlyArray<Listed> =>
 				})),
 	});
 
-/** Where a work stands: whether it opens, a label for its kind, and a line that says why. */
 interface Standing {
 	readonly opens: boolean;
 	readonly label: string;
 	readonly line: string;
 }
 
-/** Whether a work's text and audio are joined. */
 const pairOf = (sync: Option.Option<Sync>): Standing =>
 	Option.match(sync, {
 		onSome: ({ state, note }) => ({
@@ -64,19 +57,16 @@ const pairOf = (sync: Option.Option<Sync>): Standing =>
 		onNone: () => ({ opens: false, label: "not paired", line: "" }),
 	});
 
-/** What a copy of each edition alone is called, and what it is for once it is made. */
 const ALONE = {
 	text: { kind: "Text alone", made: "to read" },
 	pages: { kind: "Printed pages", made: "to read" },
 	audio: { kind: "Audio alone", made: "to hear" },
 } as const;
 
-/** Whether a work's one edition has its copy, to read or to hear on its own. */
 const aloneOf = (edition: EditionKind, made: Option.Option<Made>): Standing => {
 	const { kind } = ALONE[edition];
 
 	return Option.match(made, {
-		// A copy that failed opens on why, and the room offers to make it again.
 		onSome: ({ state, note }) => ({
 			opens: state !== "copying",
 			label: {
@@ -90,7 +80,6 @@ const aloneOf = (edition: EditionKind, made: Option.Option<Made>): Standing => {
 	});
 };
 
-/** Where a work stands, by which editions it has. */
 const standingOf = ({ entry, sync, made }: Listed): Standing => {
 	if (entry.text && entry.audio) {
 		return pairOf(sync);
@@ -103,10 +92,6 @@ const standingOf = ({ entry, sync, made }: Listed): Standing => {
 		: aloneOf(alone, made);
 };
 
-/**
- * A book's cover beside its entry: the picture over a plain binding that shows the title's first
- * letter, which stays when there is no picture. Only a work with a copy has one to show.
- */
 const coverView = (
 	work: string,
 	title: string,
@@ -123,7 +108,6 @@ const coverView = (
 	);
 };
 
-/** A line under a work kept on this device, saying how much room it takes. */
 const keptNote = (
 	model: Model,
 	work: string,
@@ -144,7 +128,6 @@ const workView = (
 	const { id, entry } = listed;
 	const { opens, label, line } = standingOf(listed);
 
-	// A work that opens links to its room; the others are listed until they can.
 	const title = opens
 		? h.a([h.Class("title"), h.Href(roomRouter({ work: id }))], [entry.title])
 		: h.span([h.Class("title")], [entry.title]);
@@ -174,10 +157,6 @@ const workView = (
 	);
 };
 
-/**
- * What you are reading now, the one read most lately first: each work, and when and where you last
- * read it.
- */
 const nightstandView = (
 	model: Model,
 	h: HtmlBuilder<Message>
@@ -229,7 +208,6 @@ const nightstandView = (
 	];
 };
 
-/** With no shelf to hand, the books kept on this device, which open with no network. */
 const keptView = (model: Model, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
 	Option.isSome(model.shelf)
 		? []
@@ -258,7 +236,6 @@ const keptView = (model: Model, h: HtmlBuilder<Message>): ReadonlyArray<Html> =>
 					)
 				);
 
-/** How much this device keeps, under the introduction. */
 const keptTotalView = (
 	model: Model,
 	h: HtmlBuilder<Message>
@@ -281,7 +258,6 @@ const keptTotalView = (
 };
 
 const statusOf = (model: Model, count: number): string => {
-	// Out of reach before the shelf came, as when the page opens with no network.
 	if (
 		Option.isNone(model.shelf) &&
 		(!model.isOnline || Option.isSome(model.error))

@@ -10,13 +10,9 @@ import type { GrabMove, Model } from "./Model.ts";
 import { Prosody } from "./Prosody.ts";
 import type { Return } from "./Steps.ts";
 
-// The desk's steps for a grab: grabbing a release, resuming or abandoning its download, and
-// releasing its payload.
-
 const toMessage = (result: typeof Prosody.Message.Type) =>
 	Message.ReceivedResult({ result });
 
-/** A new command id, and the desk's last problem put by. */
 const allocate = (model: Model) => {
 	const allocation = DomainFoldkit.next(model.commandIds);
 
@@ -29,7 +25,6 @@ const allocate = (model: Model) => {
 	};
 };
 
-/** Grab one of a wanted book's offers. */
 export const sendGrab = (
 	model: Model,
 	work: string,
@@ -52,7 +47,6 @@ export const sendGrab = (
 	};
 };
 
-/** Resume or abandon a grab still downloading, or release a payload seeded long enough. */
 export const sendGrabMove = (
 	model: Model,
 	grab: string,

@@ -6,10 +6,6 @@ import { ExpireAlignment } from "./ExpireAlignment.command.ts";
 import { ALIGNMENT_WINDOW, Narration } from "./Narration.aggregate.ts";
 import { AlignmentStarted } from "./PairEditions.command.ts";
 
-/**
- * Whenever a try starts, give it a deadline and ask the press to do it. The Narration decides the
- * race: the press's answer and the deadline are commands on the same work, so the first one wins.
- */
 export class Alignment extends Domain.Policy(
 	"Alignment",
 	{ from: Narration, on: [AlignmentStarted] },
@@ -28,7 +24,6 @@ export const AlignmentLive = Alignment.toLayer(
 				return;
 			}
 
-			// The deadline first, so a press that never answers is caught even when the ask fails.
 			yield* narrations.schedule(
 				source,
 				new ExpireAlignment({ attempt: event.attempt }),

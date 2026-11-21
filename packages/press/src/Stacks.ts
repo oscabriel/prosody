@@ -16,13 +16,11 @@ import {
 import type { PlatformError } from "effect";
 import { Digest } from "effect/crypto";
 
-/** One file found in the library: its name inside the work's folder, and its size. */
 export interface Found {
 	readonly file: string;
 	readonly bytes: number;
 }
 
-/** One `Author/Title` folder, with the text, the audio and the pages found for it. */
 export interface Book {
 	readonly shelfmark: string;
 	readonly author: string;
@@ -32,41 +30,34 @@ export interface Book {
 	readonly pages: Option.Option<Found>;
 }
 
-/** What one walk of the library saw. `unreadable` lists folders that failed, with the reason. */
 export interface Walk {
 	readonly books: ReadonlyArray<Book>;
 	readonly unreadable: ReadonlyArray<string>;
 }
 
-/** The library or the downloads did not answer, so nothing was written. Shelving tries again later. */
 export class StacksUnavailable extends Schema.TaggedError<StacksUnavailable>()(
 	"StacksUnavailable",
 	{ reason: Schema.String }
 ) {}
 
-/** The payload can't be shelved as it is, for this reason. */
 export class Unshelvable extends Schema.TaggedError<Unshelvable>()(
 	"Unshelvable",
 	{ reason: Schema.String }
 ) {}
 
-/** How long a mount has to answer before it counts as dropped. */
 const MOUNT_TIME = "8 seconds";
 
-/** The library's two halves, and the kinds of edition each holds. */
 const HALVES = [
 	{ folder: "ebooks", kinds: ["text", "pages"] },
 	{ folder: "audiobooks", kinds: ["audio"] },
 ] as const;
 
-/** The file each kind of edition is, by its ending. */
 const EXTENSIONS = {
 	text: ".epub",
 	pages: ".pdf",
 	audio: ".m4b",
 } as const satisfies Record<EditionKind, string>;
 
-/** One edition seen in one folder. */
 interface Sighting {
 	readonly shelfmark: string;
 	readonly author: string;
@@ -75,10 +66,8 @@ interface Sighting {
 	readonly found: Found;
 }
 
-/** What a look into one folder gives: the editions seen, or why the folder could not be read. */
 type Look = ReadonlyArray<Result.Result<Sighting, string>>;
 
-/** Gather a work's sightings, from both halves, into one book. */
 const bookOf = (sightings: Array.NonEmptyReadonlyArray<Sighting>): Book => {
 	const { shelfmark, author, title } = Array.headNonEmpty(sightings);
 
@@ -98,7 +87,6 @@ const bookOf = (sightings: Array.NonEmptyReadonlyArray<Sighting>): Book => {
 	};
 };
 
-/** Look into a folder, and go on to each thing found there. A failure is reported, not raised. */
 const lookInto = <A>(
 	what: string,
 	read: Effect.Effect<ReadonlyArray<A>, PlatformError.PlatformError>,
@@ -114,23 +102,11 @@ const lookInto = <A>(
 			),
 	});
 
-/**
- * The library, read through Effect's file system. It may be a network share, so `walk` never
- * fails: a folder that cannot be read is reported and skipped, and never stops the walk. A failing
- * mount can also list a folder as empty with no error; that costs nothing, because the press only
- * ever adds what it finds.
- */
 export class Stacks extends Context.Service<
 	Stacks,
 	{
-		/** Walk `<root>/ebooks/<Author>/<Title>` and `<root>/audiobooks/<Author>/<Title>`. */
 		readonly walk: (root: string) => Effect.Effect<Walk>;
-		/** A work's id, made from its shelfmark so every walk gives the same folder the same id. */
 		readonly workIdOf: (shelfmark: string) => Effect.Effect<string>;
-		/**
-		 * Copy a payload's edition from `downloads` into its work's folder in the library at `root`,
-		 * never moving it, once both answer.
-		 */
 		readonly shelve: (
 			root: string,
 			downloads: string,
@@ -143,7 +119,6 @@ export class Stacks extends Context.Service<
 		const path = yield* Path.Path;
 		const digest = yield* Digest.Digest;
 
-		/** The folders directly inside `folder`, by name. */
 		const foldersIn = (folder: string) =>
 			Effect.map(fs.readDirectoryEntries(folder), (entries) =>
 				Array.sort(
@@ -154,7 +129,6 @@ export class Stacks extends Context.Service<
 				)
 			);
 
-		/** The first file in `folder` with this extension, by name, and its size. */
 		const firstFile = Effect.fnUntraced(function* (
 			folder: string,
 			extension: string
@@ -247,7 +221,6 @@ export class Stacks extends Context.Service<
 			return `w-${hex.slice(0, 12)}`;
 		});
 
-		/** Read a folder, or say it did not answer: a share that has dropped hangs, or reads empty. */
 		const answer = (folder: string, name: string) =>
 			fs.readDirectory(folder).pipe(
 				Effect.timeout(MOUNT_TIME),
@@ -257,7 +230,6 @@ export class Stacks extends Context.Service<
 				)
 			);
 
-		/** The files in a payload with this extension: the payload itself, or those in its folder. */
 		const editionsIn = Effect.fnUntraced(function* (
 			payload: string,
 			extension: string
@@ -282,7 +254,6 @@ export class Stacks extends Context.Service<
 			) {
 				const halves = yield* answer(root, "library");
 
-				// A share that has dropped can read as an empty folder: never write into one.
 				if (!HALVES.every(({ folder }) => halves.includes(folder))) {
 					return yield* new StacksUnavailable({
 						reason: "The library is empty: its share may have dropped",
@@ -340,7 +311,6 @@ export class Stacks extends Context.Service<
 				const bytes = Number((yield* fs.stat(edition)).size);
 				const [held] = yield* firstFile(shelf, extension);
 
-				// The same file, by name and size, is this copy, made before a restart cut its answer short.
 				if (held !== undefined) {
 					return held.file === file && held.bytes === bytes
 						? held
@@ -349,7 +319,6 @@ export class Stacks extends Context.Service<
 							});
 				}
 
-				// Under another name until it is whole, so a walk never finds half a file.
 				const part = path.join(shelf, `.${file}.part`);
 
 				yield* fs.copyFile(edition, part);

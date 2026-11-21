@@ -10,7 +10,6 @@ import { Prosody } from "../src/Prosody.ts";
 import { AppRoute, urlToAppRoute } from "../src/Route.ts";
 import { roomOf } from "../src/Steps.ts";
 
-/** A page offline with Carl's room open. */
 const inCarl = Model.make({
 	route: AppRoute.Room({ work: "w-carl" }),
 	commandIds: DomainFoldkit.CommandIds.make({ session: "s", sent: 0 }),
@@ -73,7 +72,6 @@ describe("the open room, back online", () => {
 	});
 });
 
-/** A page online with the room of a work with its audio alone open, paused at 100 seconds. */
 const inAlice = Model.make({
 	...inCarl,
 	route: AppRoute.Room({ work: "w-alice" }),
@@ -142,7 +140,6 @@ describe("a room with its audio alone", () => {
 	});
 });
 
-/** The shelf with Alice, an audio alone, and Carl, a pair. */
 const shelfWith = (
 	alice: "copying" | "made" | "failed",
 	carl: "syncing" | "synced"
@@ -168,7 +165,6 @@ const shelfWith = (
 				},
 			},
 			syncs: { "w-carl": { state: carl, note: "" } },
-			// Carl's copy left copying by a walk that saw only half of it.
 			copies: {
 				"w-alice": { state: alice, note: "" },
 				"w-carl": { state: "copying", note: "" },
@@ -177,7 +173,6 @@ const shelfWith = (
 		cursor: 1,
 	});
 
-/** A page whose room for `work` found no copy to open, in this phase. */
 const waiting = (work: string, phase: "idle" | "asked") =>
 	Model.make({
 		...inCarl,

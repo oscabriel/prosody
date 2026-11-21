@@ -7,10 +7,6 @@ import { RecordStall } from "./RecordStall.command.ts";
 import { GrabResumed } from "./ResumeGrab.command.ts";
 import { DownloadStarted } from "./StartDownload.command.ts";
 
-/**
- * Whenever a grab starts or is resumed, have Downloads download it. A download that can't be
- * started is a stall, with the reason, which waits for you to resume it.
- */
 export class Downloading extends Domain.Policy(
 	"Downloading",
 	{ from: Grab, on: [DownloadStarted, GrabResumed] },

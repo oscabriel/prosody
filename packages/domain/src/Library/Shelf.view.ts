@@ -7,21 +7,18 @@ import { Session } from "../Session.middleware.ts";
 import { Shelfmark } from "./Shelfmark.ts";
 import { Work } from "./Work.aggregate.ts";
 
-/** Which shelf. There is one, so there is one key. */
 export const ShelfName = Schema.String.pipe(Schema.brand("ShelfName"));
 
 export type ShelfName = typeof ShelfName.Type;
 
 export const SHELF = ShelfName.make("main");
 
-/** What the shelf shows of one work. */
 export const ShelfEntry = Schema.Struct({
 	title: Schema.String,
 	author: Schema.String,
 	shelfmark: Shelfmark,
 	text: Schema.Boolean,
 	audio: Schema.Boolean,
-	/** A shelf kept before there were pages has none. */
 	pages: Schema.Boolean.pipe(
 		Schema.withDecodingDefaultKey(Effect.succeed(false))
 	),
@@ -29,7 +26,6 @@ export const ShelfEntry = Schema.Struct({
 
 export type ShelfEntry = typeof ShelfEntry.Type;
 
-/** How far a paired work's alignment has got, and a line that says why. */
 export const Sync = Schema.Struct({
 	state: Schema.Literals(["syncing", "synced", "failed"]),
 	note: Schema.String,
@@ -37,7 +33,6 @@ export const Sync = Schema.Struct({
 
 export type Sync = typeof Sync.Type;
 
-/** How far the reading copy of a work with one edition has got, and a line that says why. */
 export const Made = Schema.Struct({
 	state: Schema.Literals(["copying", "made", "failed"]),
 	note: Schema.String,
@@ -45,15 +40,9 @@ export const Made = Schema.Struct({
 
 export type Made = typeof Made.Type;
 
-/** A share as a whole percentage. */
 const percent = (part: number, whole: number) =>
 	`${Math.round((100 * part) / Math.max(whole, 1))}%`;
 
-/**
- * Every catalogued work, every pair's sync, and the copy of every work with one edition, by work id.
- * Each work's, narration's and copy's events are routed to the one shelf. The sources have no order
- * between them, so syncs and copies are kept apart from their works and the page joins them.
- */
 export class Shelf extends Domain.View("Shelf", {
 	from: [Work, Narration, Copy],
 	key: ShelfName,
@@ -62,18 +51,13 @@ export class Shelf extends Domain.View("Shelf", {
 	state: Schema.Struct({
 		works: Schema.Record(Schema.String, ShelfEntry),
 		syncs: Schema.Record(Schema.String, Sync),
-		// A shelf kept before there were copies has none.
 		copies: Schema.Record(Schema.String, Made).pipe(
 			Schema.withDecodingDefaultKey(Effect.succeed({}))
 		),
 	}),
 	initial: { works: {}, syncs: {}, copies: {} },
-	// 1: reads the Narration too, and keeps syncs. Copies and pages came later with no new version:
-	// every event about them is newer than they are, and a new version would rebuild the shelf from no
-	// history at all.
 	version: 1,
 	evolve: {
-		// A work you want is on the shelf only once it is shelved.
 		WorkCatalogued: (shelf, e, { source }) =>
 			e.shelfmark === null
 				? shelf
@@ -160,5 +144,4 @@ export class Shelf extends Domain.View("Shelf", {
 	},
 }) {}
 
-/** Any of your devices may read the shelf; the Session lets in no one else. */
 export const ShelfLive = Shelf.toLayer(Effect.succeed(() => Effect.void));

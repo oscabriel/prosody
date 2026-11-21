@@ -27,9 +27,6 @@ import type { Return, Step } from "./Steps.ts";
 import { Show, ToTop } from "./Text.ts";
 import { heardOf, indexOf, sectionOf, sentenceAt, spanOf } from "./Timeline.ts";
 
-// The reading room's steps that open it, follow the audio through it, and close it.
-
-/** Whether the room's book is open with its audio alone. */
 const isListening = (room: Room): boolean =>
 	Book.match(room.book, {
 		Open: ({ contents }) => kindOf(contents) === "audio",
@@ -38,11 +35,6 @@ const isListening = (room: Room): boolean =>
 		Failed: () => false,
 	});
 
-/**
- * In audio alone, the audio moving while it is paused is you moving it, by a chapter or a skip or
- * from the lock screen, so the place is kept at once. Opening at your place moves it too, to where
- * it already was.
- */
 const isMovedByHand = (room: Room, time: number): boolean =>
 	isListening(room) &&
 	!room.isPlaying &&
@@ -51,10 +43,6 @@ const isMovedByHand = (room: Room, time: number): boolean =>
 		onSome: (kept) => Math.abs((kept.time ?? 0) - time) > 1,
 	});
 
-/**
- * Follow the audio: underline the sentence it is in, turn the page when it does, and keep the
- * place every so often.
- */
 export const follow = (model: Model, time: number, at: number): Return => {
 	const step = (room: Room): Step =>
 		Book.match<Step>(room.book, {
@@ -98,10 +86,6 @@ export const follow = (model: Model, time: number, at: number): Return => {
 		: inRoom(model, step);
 };
 
-/**
- * Go to a chapter in the contents: turn to its section, or in audio alone, play from its start. In a
- * book of pages, turn to the page it begins on, and bring the page into view.
- */
 export const toChapter = (model: Model, index: number): Return =>
 	inRoom(model, (room) =>
 		Book.match<Step>(room.book, {
@@ -127,7 +111,6 @@ export const toChapter = (model: Model, index: number): Return =>
 		})
 	);
 
-/** Turn to the page at `index` in a book of pages, when it has one there. */
 export const turnPage = (model: Model, index: number): Return =>
 	inRoom(model, (room) =>
 		Book.match<Step>(room.book, {
@@ -143,11 +126,6 @@ export const turnPage = (model: Model, index: number): Return =>
 		})
 	);
 
-/**
- * A page of a book of pages is on show, which makes it your place: it is kept, unless it is the
- * place you were at already, as when the book opens there, or on its first page with no place yet.
- * Nothing is kept before your place is known, or a page turned to meanwhile would replace it.
- */
 export const showedPage = (model: Model, index: number, at: number): Return =>
 	keepIn(model, (room) => {
 		const was = Option.match(room.kept, {
@@ -165,7 +143,6 @@ export const showedPage = (model: Model, index: number, at: number): Return =>
 		);
 	});
 
-/** Move the audio back or on by `seconds`, within the book. */
 export const skip = (model: Model, seconds: number): Return =>
 	inRoom(model, (room) =>
 		Book.match<Step>(room.book, {
@@ -183,14 +160,12 @@ export const skip = (model: Model, seconds: number): Return =>
 		})
 	);
 
-/** Read the clock for a move on the nightstand with the work that is open. */
 export const stampIn = (model: Model, move: Move): Return =>
 	Option.match(model.room, {
 		onNone: () => ({ model }),
 		onSome: (room) => ({ model, commands: [Stamp({ work: room.work, move })] }),
 	});
 
-/** With no connection, the device's own place stands in for the model's answer. */
 export const hearOwn = (model: Model): Return =>
 	inRoom(model, (room) =>
 		room.knowsPlace
@@ -202,7 +177,6 @@ export const hearOwn = (model: Model): Return =>
 				})
 	);
 
-/** Open a work's room: its copy, and its place. */
 const openRoom = (model: Model, next: AppRoute, work: string): Return => {
 	const opened = {
 		model: modifyFields(model, {
@@ -215,10 +189,6 @@ const openRoom = (model: Model, next: AppRoute, work: string): Return => {
 	return model.isOnline ? opened : andThen(opened, hearOwn);
 };
 
-/**
- * Back online, try again a book that could not be opened, and send again an open the model has not
- * answered, so the book goes on the nightstand.
- */
 export const reopen = (model: Model): Return =>
 	inRoom(model, (room) =>
 		Book.match<Step>(room.book, {
@@ -235,7 +205,6 @@ export const reopen = (model: Model): Return =>
 		})
 	);
 
-/** Open the room a route asks for, or close it. */
 export const route = (model: Model, next: AppRoute): Return =>
 	AppRoute.match<Return>(next, {
 		Room: ({ work }) =>
@@ -262,10 +231,6 @@ export const route = (model: Model, next: AppRoute): Return =>
 		}),
 	});
 
-/**
- * Whether the shelf says a work has an edition but no pair, so its copy is of one edition alone:
- * its text, its pages or its audio.
- */
 export const isAlone = (model: Model, work: string): boolean =>
 	Option.exists(model.shelf, ({ works }) => {
 		const entry = works[work];
@@ -275,7 +240,6 @@ export const isAlone = (model: Model, work: string): boolean =>
 		);
 	});
 
-/** Why the press could not make the copy of a work's one edition, when it tried and failed. */
 export const copyFailureOf = (
 	model: Model,
 	work: string
@@ -286,10 +250,6 @@ export const copyFailureOf = (
 		return made?.state === "failed" ? Option.some(made.note) : Option.none();
 	});
 
-/**
- * Whether the shelf reports the press at work on a work's copy: copying its edition alone, or
- * aligning its pair. A pair's lone copy, left from a walk that saw half of it, is not asked.
- */
 const isPressing = (model: Model, work: string): boolean =>
 	Option.exists(model.shelf, ({ syncs, copies }) =>
 		isAlone(model, work)
@@ -297,7 +257,6 @@ const isPressing = (model: Model, work: string): boolean =>
 			: syncs[work]?.state === "syncing"
 	);
 
-/** A copy that would not open is not made yet: the press may be making it now. */
 export const unmade = (model: Model, work: string): Return =>
 	withRoom(model, work, (room) => [
 		{
@@ -312,7 +271,6 @@ export const unmade = (model: Model, work: string): Return =>
 const toMessage = (result: typeof Prosody.Message.Type) =>
 	Message.ReceivedResult({ result });
 
-/** Ask the press to make the open room's copy again: align its pair, or copy its edition alone. */
 export const remake = (model: Model): Return =>
 	Option.match(model.room, {
 		onNone: () => ({ model }),
@@ -340,10 +298,6 @@ export const remake = (model: Model): Return =>
 		},
 	});
 
-/**
- * The model's answer to a remake, for a room still waiting on it: taken, so the press is at it and
- * the book reopens when the shelf says it is done; or refused, so the room offers it again.
- */
 export const answeredRemake = (
 	model: Model,
 	phase: "idle" | "aligning"
@@ -355,10 +309,6 @@ export const answeredRemake = (
 		[],
 	]);
 
-/**
- * Move a room that waits on its copy along as the shelf reports the press at work, and reopen the
- * book when it is done. A room opened while the press is at it waits with it.
- */
 export const realigned = (model: Model): Return =>
 	inRoom(model, (room) =>
 		Book.match<Step>(room.book, {

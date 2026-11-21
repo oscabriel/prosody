@@ -77,10 +77,7 @@ import {
 	submitWant,
 } from "./Wants.ts";
 
-/** The speeds the rate button steps through. */
 const RATES = [1, 1.2, 1.5, 1.8, 2, 0.8];
-
-// COMMANDS
 
 const Navigate = Command.define("Navigate", {
 	args: { url: Schema.String },
@@ -89,7 +86,6 @@ const Navigate = Command.define("Navigate", {
 		pushUrl(url).pipe(Effect.as(Message.CompletedNavigate())),
 });
 
-/** Close the room by putting the shelf in its place, so going back does not open the book again. */
 const CloseRoom = Command.define("CloseRoom", {
 	messages: [Message.CompletedNavigate],
 	execute: replaceUrl(shelfRouter()).pipe(
@@ -104,9 +100,6 @@ const Leave = Command.define("Leave", {
 		load(href).pipe(Effect.as(Message.CompletedNavigate())),
 });
 
-// INIT
-
-/** Start on the page the address names, and send any place an earlier visit could not. */
 export const init = (flags: Flags, url: Url): Return =>
 	andThen(
 		route(
@@ -141,9 +134,6 @@ export const init = (flags: Flags, url: Url): Return =>
 		})
 	);
 
-// UPDATE
-
-/** Every message, then the lock screen told if what is playing changed. */
 export const update = (model: Model, message: Message): Return =>
 	announced(model, handle(model, message));
 
@@ -178,7 +168,6 @@ const handle = (model: Model, message: Message): Return =>
 				})
 			),
 
-		// The device keeps the newer of its own place and the model's, and the room first opens there.
 		ReceivedPlace: ({ state }) => {
 			const place = Option.flatMap(state, (s) => Option.fromNullishOr(s.place));
 
@@ -213,8 +202,6 @@ const handle = (model: Model, message: Message): Return =>
 		}),
 		FailedWatchNightstand: () => lostConnection(model),
 
-		// The book goes on the nightstand, once a visit, and shows its first page until your place
-		// arrives, waiting only a moment for it.
 		OpenedCopy: ({ work, contents, timeline }) =>
 			withRoom(model, work, (room) => {
 				const open = { ...room, book: Book.Open({ contents, timeline }) };
@@ -297,7 +284,6 @@ const handle = (model: Model, message: Message): Return =>
 					Failed: () => Option.none(),
 				})
 			),
-		// Reading on with the audio stopped: the place follows the section, and so does the audio.
 		ReadTo: ({ id, at }) =>
 			Option.exists(model.room, (room) => room.isPlaying)
 				? { model }
@@ -352,7 +338,6 @@ const handle = (model: Model, message: Message): Return =>
 		ClickedRealign: () => remake(model),
 		ClickedFinish: () => stampIn(model, "finish"),
 		ClickedSetAside: () => stampIn(model, "setAside"),
-		// Finishing a book or setting it aside closes it, so neither a reload nor Back opens it again.
 		Stamped: ({ work, move, at }) =>
 			andThen(sendMove(model, work, move, at), (next) => ({
 				model: next,
@@ -379,23 +364,18 @@ const handle = (model: Model, message: Message): Return =>
 				FailedKeepPlace: ({ commandId, failure }) =>
 					Match.value(failure).pipe(
 						Match.tagsExhaustive({
-							// A newer place was kept elsewhere: the Place view brings it.
 							Rejected: () => answered(model, commandId),
 							Denied: () => answered(model, commandId),
-							// The answer was lost: the place waits, and is sent again with the same id.
 							Unknown: () => lostConnection(model),
 						})
 					),
-				// The open was heard, so coming back online does not send it again.
 				SucceededOpenBook: () =>
 					inRoom(model, (room) => [{ ...room, hasOpened: true }, []]),
-				// The nightstand brings what each of these changed.
 				FailedOpenBook: () => ({ model }),
 				SucceededFinishBook: () => ({ model }),
 				FailedFinishBook: () => ({ model }),
 				SucceededSetAside: () => ({ model }),
 				FailedSetAside: () => ({ model }),
-				// The desk's view brings what each of these changed.
 				SucceededWantBook: () => ({ model }),
 				FailedWantBook: ({ failure }) => deskFailed(model, failure),
 				SucceededSearchAgain: () => ({ model }),
@@ -446,7 +426,6 @@ const handle = (model: Model, message: Message): Return =>
 			model: modifyFields(model, { isOnline: () => false }),
 		}),
 
-		// A desk where nothing was ever wanted answers with no state: an empty desk.
 		ReceivedWanted: ({ state }) => ({
 			model: modifyFields(model, {
 				wanted: () =>
@@ -499,16 +478,8 @@ const handle = (model: Model, message: Message): Return =>
 		ClickedGrabMove: ({ grab, move }) => sendGrabMove(model, grab, move),
 	});
 
-// SUBSCRIPTION
-
-/** What the place watch is keyed by while no room is open and it reads nothing. No work has it. */
 const NO_ROOM = WorkId.make("w-none");
 
-/**
- * Follow the browser's network and the copy on its way to the device, and while the model can be
- * reached, the one shelf, the nightstand beside it, your place in the work that is open, and the
- * books you want while the desk is open.
- */
 export const subscriptions = Subscription.make<Model, Message, Reader>()(
 	(entry) => ({
 		network: entry(
@@ -585,8 +556,6 @@ export const subscriptions = Subscription.make<Model, Message, Reader>()(
 		}),
 	})
 );
-
-// VIEW
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document =>
 	AppRoute.guards.Desk(model.route)

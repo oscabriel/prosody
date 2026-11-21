@@ -1,8 +1,3 @@
-/**
- * Text as a narrator says it: lower case words the speech model could have written. "20 years" is
- * "twenty years", "Dr." is "doctor", "skirt-like" is "skirt like", "café" is "cafe".
- */
-
 const ONES = [
 	"zero",
 	"one",
@@ -45,7 +40,6 @@ const SCALES: ReadonlyArray<readonly [number, string]> = [
 	[1000, "thousand"],
 ];
 
-/** A whole number in words: 1,234 is "one thousand two hundred thirty four". */
 export const cardinal = (n: number): Array<string> => {
 	if (n < 20) {
 		return [ONES[n] ?? ""];
@@ -94,7 +88,6 @@ const ORDINAL_ENDINGS = new Map([
 	["twelve", "twelfth"],
 ]);
 
-/** 21 as "twenty first". */
 export const ordinal = (n: number): Array<string> => {
 	const words = cardinal(n);
 	const last = words.at(-1) ?? "";
@@ -106,7 +99,6 @@ export const ordinal = (n: number): Array<string> => {
 	return [...words.slice(0, -1), ending];
 };
 
-/** 1984 as "nineteen eighty four", 2005 as "two thousand five", 1900 as "nineteen hundred". */
 export const year = (n: number): Array<string> => {
 	if (n >= 2000 && n < 2010) {
 		return cardinal(n);
@@ -131,7 +123,6 @@ export const year = (n: number): Array<string> => {
 	return words;
 };
 
-/** Abbreviations a narrator expands, by their written form without the full stop, lower case. */
 const ABBREVIATIONS = new Map([
 	["mr", "mister"],
 	["mrs", "missus"],
@@ -157,7 +148,6 @@ const SYMBOLS = new Map([
 	["#", " number "],
 ]);
 
-/** Digits said one by one: "007" is "zero zero seven". */
 const oneByOne = (digits: string): Array<string> => {
 	const words: Array<string> = [];
 
@@ -168,7 +158,6 @@ const oneByOne = (digits: string): Array<string> => {
 	return words;
 };
 
-/** 1980s as "nineteen eighties". */
 const decade = (digits: string): Array<string> => {
 	const words = year(Number(digits));
 	const last = words.at(-1) ?? "";
@@ -179,7 +168,6 @@ const decade = (digits: string): Array<string> => {
 	];
 };
 
-/** 2:23 as "two twenty three", 2:05 as "two oh five", 2:00 as "two". */
 const clock = (hours: string, minutes: string): Array<string> => {
 	const words = [...cardinal(Number(hours))];
 	const past = Number(minutes);
@@ -197,7 +185,6 @@ const clock = (hours: string, minutes: string): Array<string> => {
 	return words;
 };
 
-/** A plain run of digits: a year when it looks like one, read digit by digit when a number can't be. */
 const number = (digits: string): Array<string> => {
 	const n = Number(digits);
 
@@ -216,16 +203,13 @@ const number = (digits: string): Array<string> => {
 	return oneByOne(digits);
 };
 
-/** A written number of any kind as spoken words, or `undefined` when the token is not one. */
 const sayNumber = (bare: string): Array<string> | undefined => {
-	// 1980s
 	const decadeMatch = /^(?<digits>\d{4})'?s$/u.exec(bare);
 
 	if (decadeMatch) {
 		return decade(decadeMatch.groups?.digits ?? "");
 	}
 
-	// '90s
 	const shortDecade = /^(?<digits>\d0)'?s$/u.exec(bare);
 
 	if (shortDecade) {
@@ -234,21 +218,18 @@ const sayNumber = (bare: string): Array<string> | undefined => {
 		return [`${tens.slice(0, -1)}ies`];
 	}
 
-	// 21st, 2nd, 3rd, 4th
 	const nth = /^(?<digits>\d+)(?:st|nd|rd|th)$/u.exec(bare);
 
 	if (nth) {
 		return ordinal(Number(nth.groups?.digits));
 	}
 
-	// 2:23
 	const time = /^(?<hours>\d{1,2}):(?<minutes>\d{2})$/u.exec(bare);
 
 	if (time) {
 		return clock(time.groups?.hours ?? "", time.groups?.minutes ?? "");
 	}
 
-	// 3.5
 	const decimal = /^(?<whole>\d+)\.(?<fraction>\d+)$/u.exec(bare);
 
 	if (decimal) {
@@ -259,7 +240,6 @@ const sayNumber = (bare: string): Array<string> | undefined => {
 		];
 	}
 
-	// 1,234,567 and 1,234.50
 	if (/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/u.test(bare)) {
 		return sayNumber(bare.replaceAll(",", ""));
 	}
@@ -271,11 +251,6 @@ const sayNumber = (bare: string): Array<string> | undefined => {
 	return undefined;
 };
 
-/**
- * Letters, digits and marks mixed (a code, a model number, "key:value"): each run of letters is a
- * word and each run of digits a number. Nothing but letters and apostrophes comes out, since the
- * model has no token for anything else.
- */
 const sayMixed = (bare: string): Array<string> =>
 	(bare.match(/\d+|[a-z']+/gu) ?? [])
 		.flatMap((part) =>
@@ -285,7 +260,6 @@ const sayMixed = (bare: string): Array<string> =>
 		)
 		.filter((word) => /[a-z]/u.test(word));
 
-/** One written token as spoken words. */
 const say = (token: string): Array<string> => {
 	const bare = token.replaceAll(/^'+|'+$/gu, "");
 
@@ -302,7 +276,6 @@ const say = (token: string): Array<string> => {
 	return sayNumber(bare) ?? sayMixed(bare);
 };
 
-/** What a currency's sign is said as, after the amount. */
 const currency = (sign: string): string => {
 	if (sign === "$") {
 		return "dollars";
@@ -315,21 +288,14 @@ const currency = (sign: string): string => {
 	return "euros";
 };
 
-/** Where quoted speech meets the narration around it: after a closing quote, before an opening one. */
 const SPEECH_EDGE = /(?<=[”"])\s+|\s+(?=[“"])/u;
 
-/**
- * A sentence's spoken words, phrase by phrase: each run of quoted speech, and each run of narration
- * between. A dramatised reading says "No" and leaves "he said" out, so the two are placed apart.
- * Finer phrases (at every comma) were tried and placed scraps of code listings on chance matches.
- */
 export const phrases = (text: string): Array<Array<string>> =>
 	text
 		.split(SPEECH_EDGE)
 		.map(spoken)
 		.filter((words) => words.length > 0);
 
-/** The index of the first word of each phrase after the first, as the alignment wants them. */
 export const phraseStarts = (
 	parts: ReadonlyArray<ReadonlyArray<string>>
 ): Array<number> => {
@@ -344,21 +310,18 @@ export const phraseStarts = (
 	return starts;
 };
 
-/** A sentence's spoken words. */
 export const spoken = (text: string): Array<string> => {
 	let plain = text
 		.normalize("NFKD")
 		.replaceAll(/\p{M}/gu, "")
 		.toLowerCase()
 		.replaceAll(/[‘’ʼ`´]/gu, "'")
-		// Dashes and slashes join words without being said.
 		.replaceAll(/[-‐‑‒–—―/\\_⁄]/gu, " ");
 
 	for (const [symbol, word] of SYMBOLS) {
 		plain = plain.replaceAll(symbol, word);
 	}
 
-	// $5 is "five dollars".
 	plain = plain.replaceAll(
 		/(?<sign>[$£€])(?<amount>\d[\d,.]*)/gu,
 		(_, sign: string, amount: string) => `${amount} ${currency(sign)}`
@@ -370,7 +333,6 @@ export const spoken = (text: string): Array<string> => {
 			token.replaceAll(/[^a-z0-9'.:,]/gu, "").replace(/[,:]+$/u, "")
 		)
 		.map((token) =>
-			// A full stop ends a word unless it belongs to an abbreviation or a number.
 			ABBREVIATIONS.has(token.replace(/\.$/u, "")) || /^\d+\.\d+$/u.test(token)
 				? token
 				: token.replace(/\.+$/u, "")

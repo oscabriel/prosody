@@ -11,10 +11,6 @@ import { Prosody } from "./Prosody.ts";
 import type { Return } from "./Steps.ts";
 import { changeDesk } from "./Wants.ts";
 
-// Correcting a wanted work's title and author at the desk, until its folder is named: the form, and
-// the steps that open and send it.
-
-/** The form that corrects a work's title and author, in place of its heading. */
 export const correctionView = (
 	correction: Correction,
 	h: HtmlBuilder<Message>
@@ -58,7 +54,6 @@ export const correctionView = (
 		]
 	);
 
-/** Correct its title, until its folder is named, unless it is being corrected. */
 export const correctView = (
 	work: string,
 	isFixed: boolean,
@@ -73,7 +68,6 @@ export const correctView = (
 				),
 			];
 
-/** Correct a wanted work's title and author: the form opens on them as the desk names them. */
 export const startCorrecting = (model: Model, work: string): Return => {
 	const named = Option.flatMap(model.wanted, ({ wants, catalogue }) =>
 		Option.fromUndefinedOr(catalogue[work] ?? wants[work])
@@ -91,7 +85,6 @@ export const startCorrecting = (model: Model, work: string): Return => {
 	};
 };
 
-/** The desk, saying why the correction was not sent. It stays in the form. */
 const notSent = (model: Model, problem: string): Return => ({
 	model: changeDesk(model, (desk) => ({
 		...desk,
@@ -99,10 +92,6 @@ const notSent = (model: Model, problem: string): Return => ({
 	})),
 });
 
-/**
- * Send the corrected title and author, once both are given, and close the form. Offline, it stays in
- * the form, to send once the desk can be reached.
- */
 export const submitCorrection = (model: Model): Return =>
 	Option.match(model.desk.correcting, {
 		onNone: () => ({ model }),

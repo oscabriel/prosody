@@ -19,19 +19,16 @@ import {
 import { Covers } from "./Covers.ts";
 import { Pages } from "./Pages.ts";
 
-/** Where the press's container sees the library and the reading copies. */
 export const LIBRARY = "/library";
 
 export const COPIES = "/copies";
 
 const encodeContents = Schema.encodeEffect(Schema.fromJsonString(Contents));
 
-/** A reading copy the press could not make, and why, in words for the shelf. */
 export class Unmade extends Schema.TaggedError<Unmade>()("Unmade", {
 	reason: Schema.String,
 }) {}
 
-/** A finished reading copy: how much of the text was found in the audio, and what the spot check heard. */
 export interface Aligned {
 	readonly sentences: number;
 	readonly matched: number;
@@ -39,12 +36,10 @@ export interface Aligned {
 	readonly heard: number;
 }
 
-/** A finished copy of one edition: how many chapters the reading room lists. */
 export interface Copied {
 	readonly chapters: number;
 }
 
-/** What went wrong, in words for the shelf. */
 const reasonOf = (error: AlignFailed | Schema.SchemaError): string =>
 	Match.valueTags(error, {
 		UndecodableAudio: (failed) =>
@@ -63,27 +58,6 @@ const reasonOf = (error: AlignFailed | Schema.SchemaError): string =>
 		SchemaError: () => "its chapters could not be read",
 	});
 
-/**
- * Makes reading copies on the host's own disk, one at a time. For a pair, both files are copied out
- * of the library, and the aligner marks every sentence, finds it in the audio, writes the copy and
- * listens to a spread of sentences with a second speech model. A text alone is marked the same way;
- * an audio alone is copied, with the chapters its file marks; a book's pages are drawn, one picture
- * each.
- *
- *   /copies/<work>/<work>.epub          a pair's reading copy: marked text, its overlays, the audio
- *   /copies/<work>/audio/               the audio, kept to play from
- *   /copies/<work>/timeline.json        a pair's every sentence's place in the audio, or none
- *   /copies/<work>/text/                the copy's sections, unpacked, for the reading room
- *   /copies/<work>/pictures/            a copy of a PDF: a picture of each of its pages
- *   /copies/<work>/cover.jpg            the cover, when the book has a picture
- *   /copies/<work>/contents.json        the audio to play, the sections to read, the chapters to hear
- *                                       and the cover; written last, so a copy that has one is
- *                                       complete
- *   /copies/<work>/heard-<size>.emissions
- *                                       what the speech model heard, kept so a retry need not
- *                                       listen again; named by the audio's size, so new audio is
- *                                       heard afresh
- */
 export class ReadingCopies extends Context.Service<
 	ReadingCopies,
 	{
@@ -99,10 +73,6 @@ export class ReadingCopies extends Context.Service<
 		const covers = yield* Covers;
 		const pdfs = yield* Pages;
 
-		/**
-		 * A work's copy folder, emptied for a new try. What the speech model heard of the audio is
-		 * kept when `keep` says so.
-		 */
 		const freshFolder = Effect.fnUntraced(function* (
 			work: string,
 			keep: (name: string) => boolean
@@ -123,7 +93,6 @@ export class ReadingCopies extends Context.Service<
 			return folder;
 		});
 
-		/** The cover from the text's picture, or else from the audio's. */
 		const coverOf = Effect.fnUntraced(function* (
 			folder: string,
 			picture: string | undefined,
@@ -141,7 +110,6 @@ export class ReadingCopies extends Context.Service<
 			return yield* covers.make(audio, folder);
 		});
 
-		/** Write a copy's contents, last of all. */
 		const finish = (folder: string, contents: Contents) =>
 			encodeContents(Contents.make(contents)).pipe(
 				Effect.mapError(
@@ -172,7 +140,6 @@ export class ReadingCopies extends Context.Service<
 				const { size } = yield* fs.stat(source);
 				const heard = `heard-${size}.emissions`;
 
-				// A fresh folder for the try, keeping what the model heard of this same audio.
 				yield* freshFolder(request.work, (name) => name === heard);
 				yield* fs.makeDirectory(audioFolder, { recursive: true });
 				yield* fs.copyFile(source, audio);
@@ -196,7 +163,6 @@ export class ReadingCopies extends Context.Service<
 
 				yield* fs.remove(text, { force: true });
 
-				// Three in four heard right. Spike 1's good books scored 37 to 40 of 40; the bad one 0.
 				if (aligned.checked === 0 || 4 * aligned.heard < 3 * aligned.checked) {
 					return yield* new Unmade({
 						reason:
@@ -224,14 +190,12 @@ export class ReadingCopies extends Context.Service<
 					heard: aligned.heard,
 				};
 			},
-			// A file that can't be read or written ends the try too, with the platform's words.
 			Effect.catchTags({
 				PlatformError: (error) =>
 					Effect.fail(new Unmade({ reason: error.message })),
 			})
 		);
 
-		/** A text alone: its sections marked, as a pair's are, with no audio to find them in. */
 		const copyText = Effect.fnUntraced(function* (
 			folder: string,
 			source: string
@@ -244,7 +208,6 @@ export class ReadingCopies extends Context.Service<
 
 			yield* fs.remove(epub, { force: true });
 
-			// A book of pictures, or scanned pages, has nothing to read in the room.
 			if (marked.sections.length === 0) {
 				return yield* new Unmade({
 					reason: "its text has no sentences to read",
@@ -265,10 +228,6 @@ export class ReadingCopies extends Context.Service<
 			return { chapters: marked.sections.length };
 		});
 
-		/**
-		 * An audio alone, with the chapters its file marks. A file that marks none is one chapter,
-		 * as long as the file says it is.
-		 */
 		const copyAudio = Effect.fnUntraced(function* (
 			folder: string,
 			source: string,
@@ -306,7 +265,6 @@ export class ReadingCopies extends Context.Service<
 			return { chapters: chapters.length };
 		});
 
-		/** A book's pages: a picture of each, the chapters its outline lists, and the first as its cover. */
 		const copyPages = Effect.fnUntraced(function* (
 			folder: string,
 			source: string
@@ -349,7 +307,6 @@ export class ReadingCopies extends Context.Service<
 					request.file
 				);
 
-				// What the model heard of any audio is kept, should the work be paired later.
 				const folder = yield* freshFolder(request.work, (name) =>
 					name.startsWith("heard-")
 				);

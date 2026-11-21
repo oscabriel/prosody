@@ -3,7 +3,6 @@ import { Command, Mount } from "foldkit";
 
 import { Message } from "./Model.ts";
 
-/** The marked sentence an event happened in, if any. */
 const spanAt = (target: EventTarget | null): string | undefined => {
 	const span =
 		target instanceof Element ? target.closest('span[id^="ps-"]') : null;
@@ -11,17 +10,12 @@ const spanAt = (target: EventTarget | null): string | undefined => {
 	return span?.id;
 };
 
-/** Whether an element can be seen in the window. */
 const isVisible = (element: Element): boolean => {
 	const { top, bottom } = element.getBoundingClientRect();
 
 	return bottom > 0 && top < window.innerHeight;
 };
 
-/**
- * The first marked sentence whose line is below the top of the window: where a reader who scrolled
- * has got to.
- */
 const firstVisible = (section: Element): string | undefined => {
 	for (const span of section.querySelectorAll('span[id^="ps-"]')) {
 		if (span.getBoundingClientRect().bottom > 0) {
@@ -32,11 +26,6 @@ const firstVisible = (section: Element): string | undefined => {
 	return undefined;
 };
 
-/**
- * What a reader does in the text: tapping a sentence, and scrolling to another part of the section.
- * A scroll only counts once it has stopped, and only when it took your place off the screen; the
- * section marks your place in `data-sentence`.
- */
 export const Read = Mount.defineStream("Read", {
 	messages: [Message.PressedSentence, Message.ReadTo],
 	execute: ({ element }) => {
@@ -78,7 +67,6 @@ export const Read = Mount.defineStream("Read", {
 	},
 });
 
-/** Two animation frames: long enough for a new section to be drawn. */
 const drawn = Effect.callback<undefined>((resume) => {
 	requestAnimationFrame(() => {
 		requestAnimationFrame(() => {
@@ -87,7 +75,6 @@ const drawn = Effect.callback<undefined>((resume) => {
 	});
 });
 
-/** Bring a sentence into view, unless it is already on screen. */
 export const Show = Command.define("Show", {
 	args: { id: Schema.String },
 	messages: [Message.CompletedShow],
@@ -106,7 +93,6 @@ export const Show = Command.define("Show", {
 		),
 });
 
-/** Go to the top of a newly shown section. */
 export const ToTop = Command.define("ToTop", {
 	messages: [Message.CompletedShow],
 	execute: drawn.pipe(

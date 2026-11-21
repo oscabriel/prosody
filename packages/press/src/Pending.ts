@@ -16,7 +16,6 @@ import type { PlatformError } from "effect";
 
 import { COPIES } from "./ReadingCopies.ts";
 
-/** What the model asks of the press: to align a pair, to copy an edition alone, or to shelve a payload. */
 const PressRequest = Schema.Union([AlignRequest, CopyRequest, ShelveRequest]);
 
 type PressRequest = typeof PressRequest.Type;
@@ -25,7 +24,6 @@ export const isCopy = Schema.is(CopyRequest);
 
 const isShelve = Schema.is(ShelveRequest);
 
-/** A request's file in the queue on disk. */
 const nameOf = (request: PressRequest) => {
 	if (isShelve(request)) {
 		return `${request.grab}.shelve.json`;
@@ -36,37 +34,21 @@ const nameOf = (request: PressRequest) => {
 		: `${request.work}.json`;
 };
 
-/** A request as the press keeps it on disk until it has answered. */
 const decodeRequest = Schema.decodeUnknownEffect(
 	Schema.fromJsonString(PressRequest)
 );
 
 const encodeRequest = Schema.encodeEffect(Schema.fromJsonString(PressRequest));
 
-/**
- * The press's queue: what the model asked, in two lines, pairs and copies in one and payloads in
- * the other. Each request waits in `/copies/.pending` as well, until the press has answered it, so a
- * restart (a deploy, a crash) picks up where it left off instead of waiting out a deadline. A pair
- * waits as `<work>.json`; a copy as `<work>.<attempt>.copy.json`, since a remake can overtake a try
- * still waiting, and each try's file is removed only when that try is answered; a payload as
- * `<grab>.shelve.json`.
- */
 export class Pending extends Context.Service<
 	Pending,
 	{
 		readonly waiting: Queue.Queue<AlignRequest | CopyRequest>;
 		readonly shelving: Queue.Queue<ShelveRequest>;
-		/** Queue a request, once: a policy may ask twice for the same try. */
 		readonly enqueue: (
 			request: PressRequest
 		) => Effect.Effect<void, PlatformError.PlatformError | Schema.SchemaError>;
-		/**
-		 * Put back what was waiting when the press last stopped. A file that won't decode is skipped.
-		 * In name order, so a work's copy (`<work>.<attempt>.copy.json`) runs before its pair
-		 * (`<work>.json`), which was asked for later and replaces it.
-		 */
 		readonly resume: Effect.Effect<void, PlatformError.PlatformError>;
-		/** Take an answered request off the disk. */
 		readonly done: (
 			request: PressRequest
 		) => Effect.Effect<void, PlatformError.PlatformError>;

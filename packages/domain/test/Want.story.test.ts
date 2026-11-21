@@ -49,7 +49,6 @@ const book = { title: "Project Hail Mary", author: "Andy Weir" };
 
 const wanted = new BookWanted(book);
 
-/** Project Hail Mary as Open Library and Audnexus know it. */
 const description = {
 	year: 2021,
 	openLibrary: "OL21745884W",
@@ -61,7 +60,6 @@ const description = {
 	},
 };
 
-/** The catalogues outside are asked about a wanted book, and its work is catalogued as they answer. */
 const described = [
 	call(Metadata.describe, book),
 	succeed(Metadata.describe, { ...book, description }),
@@ -83,10 +81,8 @@ const audiobook: Release = {
 	link: "/1/download?link=b25l&file=Project+Hail+Mary",
 };
 
-/** When a story commits its events: its clock stands at the start of 2026. */
 const NEW_YEAR = Date.UTC(2026, 0, 1);
 
-/** You want books from one of your devices, as everything a reader sends. */
 const fromLaptop = provide(Device, "laptop");
 
 describe("a book you want", () => {

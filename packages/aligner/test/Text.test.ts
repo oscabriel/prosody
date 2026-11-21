@@ -156,7 +156,6 @@ describe("the spoken form", () => {
 	});
 
 	it("says only letters, whatever marks a token holds", () => {
-		// The model has no token for a colon or a comma: left in, they become its unknown token.
 		expect(spoken("state:default and a,b")).toStrictEqual([
 			"state",
 			"default",

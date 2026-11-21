@@ -12,10 +12,6 @@ import { COSTS, forceAlign } from "../src/ForcedAlign.ts";
 import { clock } from "../src/Overlay.ts";
 import { likeness, spread, wordsOf } from "../src/SpotCheck.ts";
 
-/**
- * Emissions in which each frame clearly hears one token, or silence (-1). Every frame keeps two
- * tokens: the one heard and a runner-up.
- */
 const heard = (
 	frames: ReadonlyArray<number>,
 	vocabulary: ReadonlyArray<string>
@@ -48,7 +44,6 @@ const heard = (
 	};
 };
 
-/** Loudness every 10 ms: speech where `speech` says so, and a studio's silence elsewhere. */
 const sounding = (speech: (centiseconds: number) => boolean): Emissions => ({
 	...heard(
 		Array.from({ length: 40 }, () => -1),
@@ -60,7 +55,6 @@ const sounding = (speech: (centiseconds: number) => boolean): Emissions => ({
 });
 
 describe("forced alignment", () => {
-	// Silence, A B, a pause, C D, four frames of speech the text lacks, E, silence.
 	const audio = heard(
 		[-1, -1, -1, 0, 0, 1, -1, -1, 2, 3, 5, 5, 5, 5, 4, -1, -1],
 		["▁a", "▁b", "▁c", "▁d", "▁e", "▁f", "▁g", "▁h", "▁x", "▁y"]
@@ -83,7 +77,6 @@ describe("forced alignment", () => {
 	});
 
 	it("does not believe a unit it could only force onto audio that does not hold it", () => {
-		// A B, silence, C. X was not read, but one frame of silence is cheaper for it than skipping.
 		const short = heard([0, 1, -1, -1, 2], ["▁a", "▁b", "▁c", "▁x"]);
 		const units = [{ tokens: [0, 1] }, { tokens: [3] }, { tokens: [2] }];
 
@@ -97,7 +90,6 @@ describe("forced alignment", () => {
 	});
 
 	it("places the speech of a sentence whose narration was left out", () => {
-		// "No," he said softly. Then go. A dramatised reading says "No" and "Then go".
 		const dramatised = heard(
 			[-1, 0, -1, -1, 3, 4, -1],
 			["▁no", "▁he", "▁said", "▁then", "▁go", "▁softly"]
@@ -140,7 +132,6 @@ describe("forced alignment", () => {
 
 describe("boundaries", () => {
 	it("runs an end on across a stop's closure to the last sound of the word", () => {
-		// Sound to 0.50 s, 30 ms of closure, sound to 0.70 s, then a pause.
 		const audio = sounding((at) => at < 50 || (at >= 53 && at < 70));
 		const [clip] = clipsOf(audio, [{ from: 2, to: 5, score: 0 }]);
 
@@ -148,7 +139,6 @@ describe("boundaries", () => {
 	});
 
 	it("gives sound between two sentences to one of them, at its quietest", () => {
-		// Speech runs on from 0.10 s to 1.50 s, dipping at 0.55 s.
 		const audio = sounding((at) => at >= 10 && at < 150);
 		audio.loudness[55] = -35;
 
@@ -196,7 +186,6 @@ describe("anchors", () => {
 });
 
 describe("audio out of the book's order", () => {
-	// The book's words 100 to 299 are heard first, then its words 0 to 99: two files, swapped.
 	const candidates = Array.from({ length: 100 }, (_, index) => {
 		const word = index * 3;
 
@@ -210,7 +199,6 @@ describe("audio out of the book's order", () => {
 		expect(chain.at(0)).toStrictEqual({ word: 102, heard: 2 });
 		expect(strays).toHaveLength(1);
 		expect(strays[0]?.candidates).toHaveLength(34);
-		// Its words come before the chain's first tie, and it was heard after the chain's last.
 		expect(strays[0]).toMatchObject({
 			wordsAfter: undefined,
 			wordsBefore: { word: 102, heard: 2 },
@@ -228,7 +216,6 @@ describe("audio out of the book's order", () => {
 	});
 
 	it("bounds each clip by the sentences heard around it, not the ones printed around it", () => {
-		// The second sentence of the book is heard first.
 		const audio = sounding(() => false);
 
 		const [first, second] = clipsOf(audio, [
@@ -261,7 +248,6 @@ describe("the reading copy", () => {
 	});
 });
 
-/** One processor's entry in /proc/cpuinfo, as far as the count reads it. */
 const processor = (socket: number, core: number) =>
 	`processor\t: 0\nphysical id\t: ${socket}\ncore id\t\t: ${core}\n`;
 
@@ -280,7 +266,6 @@ describe("the model's threads", () => {
 
 describe("the audio's length", () => {
 	it("tells audio that decoded short from audio that decoded whole", () => {
-		// Spike 1: the first 1,200 s of an xHE-AAC file decoded to 908 s, with no error.
 		expect(wrongLength([908], [1200])).toBe(0);
 		expect(wrongLength([48_693.87025], [48_693.870295])).toBeUndefined();
 		expect(wrongLength([100, 200], [100, 0])).toBeUndefined();

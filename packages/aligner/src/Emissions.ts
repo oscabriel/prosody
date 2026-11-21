@@ -1,36 +1,20 @@
 import { Schema } from "effect";
 
-/**
- * What the speech model heard, frame by frame: for every 80 ms of audio, how likely each token was.
- *
- * The model scores 1,024 tokens and a blank for every frame. Kept whole, 20 hours would be 3.7 GB,
- * so each frame keeps its best few tokens and the blank. A token outside a frame's best few scores
- * a little under the worst one kept, which is all the alignment needs to know: it was not heard.
- */
 export interface Emissions {
 	readonly frames: number;
 	readonly secondsPerFrame: number;
-	/** Tokens kept per frame, best first. */
 	readonly kept: number;
-	/** `frames * kept` token ids. */
 	readonly ids: Uint16Array;
-	/** `frames * kept` log-probabilities, matching `ids`. */
 	readonly scores: Float32Array;
-	/** The blank's log-probability, per frame. */
 	readonly blank: Float32Array;
-	/** The audio's loudness in decibels, every 10 ms, for finding where speech stops. */
 	readonly loudness: Float32Array;
 	readonly secondsPerLoudness: number;
-	/** Each audio file's length in seconds, in play order: the book's time is theirs end to end. */
 	readonly tracks: ReadonlyArray<number>;
-	/** The model's tokens, by id. The blank is not among them. */
 	readonly vocabulary: ReadonlyArray<string>;
 }
 
-/** How far under a frame's worst kept score an unkept token sits. */
 const UNKEPT = 2;
 
-/** A token's log-probability in a frame. */
 export const scoreOf = (
 	emissions: Emissions,
 	frame: number,
@@ -47,7 +31,6 @@ export const scoreOf = (
 	return (emissions.scores[from + emissions.kept - 1] ?? -Infinity) - UNKEPT;
 };
 
-/** The frame's best token, or -1 when the blank beats it. */
 export const bestOf = (emissions: Emissions, frame: number): number => {
 	const from = frame * emissions.kept;
 
@@ -57,17 +40,12 @@ export const bestOf = (emissions: Emissions, frame: number): number => {
 		: -1;
 };
 
-/** One word the model heard on its own, with the frames it spans. */
 export interface Heard {
 	readonly word: string;
 	readonly from: number;
 	readonly to: number;
 }
 
-/**
- * The model's own transcript: each frame's best token, repeats and blanks collapsed, joined into
- * words. A token that starts with "▁" starts a word.
- */
 export const transcriptOf = (emissions: Emissions): Array<Heard> => {
 	const words: Array<Heard> = [];
 	let word = "";
@@ -107,7 +85,6 @@ export const transcriptOf = (emissions: Emissions): Array<Heard> => {
 
 const MAGIC = "PRSE";
 
-/** The JSON header `encode` writes ahead of the arrays. */
 const Header = Schema.Struct({
 	frames: Schema.Finite,
 	secondsPerFrame: Schema.Finite,
@@ -120,7 +97,6 @@ const Header = Schema.Struct({
 
 const decodeHeader = Schema.decodeUnknownSync(Schema.fromJsonString(Header));
 
-/** Emissions as one file: a magic word, a JSON header's length and the header, then the arrays. */
 export const encode = (emissions: Emissions): Uint8Array => {
 	const header = new TextEncoder().encode(
 		JSON.stringify({
@@ -134,7 +110,6 @@ export const encode = (emissions: Emissions): Uint8Array => {
 		})
 	);
 
-	// Each array starts on a multiple of four bytes, so it can be read in place.
 	const headerEnd = Math.ceil((8 + header.length) / 4) * 4;
 	const idsBytes = Math.ceil((emissions.ids.length * 2) / 4) * 4;
 
@@ -175,7 +150,6 @@ export const encode = (emissions: Emissions): Uint8Array => {
 	return out;
 };
 
-/** Read back what `encode` wrote. */
 export const decode = (bytes: Uint8Array): Emissions => {
 	const magic = new TextDecoder().decode(bytes.subarray(0, 4));
 
@@ -190,7 +164,6 @@ export const decode = (bytes: Uint8Array): Emissions => {
 		new TextDecoder().decode(bytes.subarray(8, 8 + length))
 	);
 
-	// A copy, so the arrays start at offsets this function controls.
 	const copy = new Uint8Array(bytes);
 	let at = Math.ceil((8 + length) / 4) * 4;
 	const cells = header.frames * header.kept;

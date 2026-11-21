@@ -10,12 +10,10 @@ import { cacheOf, PIECE, pieceOf, recordOf, workOfCache } from "./OnDevice.ts";
 import { entryOf } from "./Steps.ts";
 import type { Return } from "./Steps.ts";
 
-/** Keeping a copy stopped: the network dropped, the Api refused, or the device ran out of room. */
 class CopyFailed extends Schema.TaggedError<CopyFailed>()("CopyFailed", {
 	reason: Schema.String,
 }) {}
 
-/** A step of keeping a copy, with its failure said in a line. */
 const attempt = <A>(run: () => Promise<A>) =>
 	Effect.tryPromise({
 		try: run,
@@ -29,7 +27,6 @@ const RecordJson = Schema.fromJsonString(DeviceCopy);
 
 const ContentsJson = Schema.fromJsonString(Contents);
 
-/** The record of a work's copy, when the copy on this device is whole. */
 const recordIn = (work: string) =>
 	attempt(async () => {
 		const record = await caches.match(recordOf(work));
@@ -43,7 +40,6 @@ const recordIn = (work: string) =>
 		)
 	);
 
-/** Every copy kept whole on this device, by work id. Anything unreadable is left out. */
 export const savedCopies = Effect.gen(function* () {
 	const names = yield* attempt(async () => await caches.keys());
 	const copies: Record<string, DeviceCopy> = {};
@@ -60,11 +56,6 @@ export const savedCopies = Effect.gen(function* () {
 	return copies satisfies DeviceCopies;
 }).pipe(Effect.orElseSucceed((): DeviceCopies => ({})));
 
-/**
- * Keep all of a work's copy on the device but its audio: its contents, its timeline when it has one,
- * its cover, every section, and the pictures the sections show, or in a book of pages, the
- * picture of each page. Its contents come back.
- */
 const keepText = (cache: Cache, work: string) =>
 	Effect.gen(function* () {
 		const contentsUrl = copyUrl(work, "contents.json");
@@ -108,8 +99,6 @@ const keepText = (cache: Cache, work: string) =>
 			await cache.addAll([...timeline, ...covers, ...sections]);
 		});
 
-		// A book of pages is many pictures: each is kept as it comes, so a try that stopped part way
-		// is taken up where it stopped.
 		yield* Effect.forEach(
 			printed,
 			(picture) =>
@@ -146,10 +135,6 @@ const keepText = (cache: Cache, work: string) =>
 		return contents.value;
 	});
 
-/**
- * How much a copy kept on the device takes, measured from what is kept: a response that came
- * compressed says no length.
- */
 const keptSize = (cache: Cache) =>
 	attempt(async () => {
 		const responses = await cache.matchAll();
@@ -161,7 +146,6 @@ const keptSize = (cache: Cache) =>
 		return blobs.reduce((sum, blob) => sum + blob.size, 0);
 	});
 
-/** The audio's size in bytes, from the Api's answer to a range of one byte. */
 const audioSize = (audio: string) =>
 	attempt(async () => {
 		const response = await fetch(audio, { headers: { range: "bytes=0-0" } });
@@ -174,10 +158,6 @@ const audioSize = (audio: string) =>
 		return size;
 	});
 
-/**
- * Keep one piece of the audio, as the Api sent it. A piece already kept, by a try that stopped
- * part way, is not fetched again.
- */
 const keepPiece = (cache: Cache, audio: string, index: number, size: number) =>
 	attempt(async () => {
 		const key = pieceOf(audio, index);
@@ -197,19 +177,12 @@ const keepPiece = (cache: Cache, audio: string, index: number, size: number) =>
 			throw new Error(`the audio answered ${response.status}`);
 		}
 
-		// The cache keeps no partial answers, so the piece is kept as a whole one, with the Api's
-		// headers, which name the whole file's size.
 		await cache.put(
 			key,
 			new Response(await response.blob(), { headers: response.headers })
 		);
 	});
 
-/**
- * Keep a work's whole reading copy on this device, so it reads and plays with no network: the text
- * first, then the audio a piece at a time, saying how much has come, and its record last. A copy
- * with audio is as big as its audio; a text alone, as all its files.
- */
 export const keepCopy = (
 	work: string,
 	title: string,
@@ -221,7 +194,6 @@ export const keepCopy = (
 				async () => await caches.open(cacheOf(work))
 			);
 
-			// Ask the browser to keep what is stored even when the device runs short of room.
 			yield* attempt(async () => await navigator.storage.persist());
 
 			const contents = yield* keepText(cache, work);
@@ -267,7 +239,6 @@ export const keepCopy = (
 		)
 	);
 
-/** Remove a work's copy from this device, whole or in part. */
 export const RemoveCopy = Command.define("RemoveCopy", {
 	args: { work: Schema.String },
 	messages: [Message.RemovedCopy],
@@ -278,7 +249,6 @@ export const RemoveCopy = Command.define("RemoveCopy", {
 		),
 });
 
-/** Start keeping the open room's copy on this device, unless another copy is on its way. */
 export const startCopy = (model: Model): Return =>
 	Option.match(model.room, {
 		onNone: () => ({ model }),
@@ -305,7 +275,6 @@ export const startCopy = (model: Model): Return =>
 		},
 	});
 
-/** The model with the copy on its way to `work` changed. */
 export const changeCopying = (
 	model: Model,
 	work: string,
@@ -319,7 +288,6 @@ export const changeCopying = (
 	}),
 });
 
-/** A copy is whole on the device: the shelf lists it, and it is on its way no longer. */
 export const keptCopy = (
 	model: Model,
 	work: string,
@@ -331,7 +299,6 @@ export const keptCopy = (
 	}),
 });
 
-/** Remove the open room's copy from the device, and stop it if it is on its way. */
 export const removeCopy = (model: Model): Return =>
 	Option.match(model.room, {
 		onNone: () => ({ model }),
@@ -344,7 +311,6 @@ export const removeCopy = (model: Model): Return =>
 		}),
 	});
 
-/** The copies on the device without one. */
 export const withoutCopy = (model: Model, work: string): Return => ({
 	model: modifyFields(model, {
 		copies: () =>

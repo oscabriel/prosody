@@ -6,7 +6,6 @@ import { ReleaseGrabbed } from "./GrabRelease.command.ts";
 import { StartDownload } from "./StartDownload.command.ts";
 import { Want } from "./Want.aggregate.ts";
 
-/** Whenever you grab a release, open its grab, which downloads it. */
 export class Grabbing extends Domain.Policy(
 	"Grabbing",
 	{ from: Want, on: [ReleaseGrabbed] },

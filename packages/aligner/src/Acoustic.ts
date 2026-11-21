@@ -23,36 +23,23 @@ import { Audio, SAMPLE_RATE } from "./Audio.ts";
 import type { DecodeFailed } from "./Audio.ts";
 import type { Emissions } from "./Emissions.ts";
 
-/** The speech model: NVIDIA's Parakeet CTC 0.6B, exported to ONNX and quantised to int8. */
 export const MODEL = "onnx-community/parakeet-ctc-0.6b-ONNX";
 
-/** One frame of the model's output covers 80 ms: 1,280 samples. */
 const SAMPLES_PER_FRAME = 1280;
 
-/** The model hears 30 seconds at a time, with 2 more on each side so no word is cut at an edge. */
 const WINDOW = 30 * SAMPLE_RATE;
 
 const CONTEXT = 2 * SAMPLE_RATE;
 
-/** Tokens kept per frame. */
 const KEPT = 16;
 
-/** Loudness is measured every 10 ms. */
 const LOUDNESS_STEP = SAMPLE_RATE / 100;
 
-/** The speech model could not run. */
 export class ListenFailed extends Schema.TaggedError<ListenFailed>()(
 	"ListenFailed",
 	{ reason: Schema.String }
 ) {}
 
-/**
- * How many cores the machine has, from Linux's `/proc/cpuinfo`: the distinct pairs of "physical id"
- * and "core id". Two threads of one core share its arithmetic, and the model's threads spin while
- * they wait, so a thread for every logical processor is slower than one for every core: 24 against
- * 30 times real time on a machine of 8 cores, and 11 against 20 with other work beside it.
- * `logical` is the answer when the file says nothing, and the most the answer can be.
- */
 export const coresOf = (cpuinfo: string, logical: number): number => {
 	const cores = new Set(
 		cpuinfo.split(/\n\s*\n/u).flatMap((processor) => {
@@ -66,7 +53,6 @@ export const coresOf = (cpuinfo: string, logical: number): number => {
 	return cores.size === 0 ? logical : Math.min(cores.size, logical);
 };
 
-/** Grows a typed array's worth of numbers without knowing the count up front. */
 class Growing {
 	#data: Float32Array;
 	#length = 0;
@@ -95,10 +81,6 @@ class Growing {
 	}
 }
 
-/**
- * Listens to a book's audio with the speech model and keeps what it heard: for every 80 ms, the
- * likeliest tokens and the blank. The model loads once, when the layer is built.
- */
 export class Acoustic extends Context.Service<
 	Acoustic,
 	{
@@ -108,7 +90,6 @@ export class Acoustic extends Context.Service<
 			Emissions,
 			ListenFailed | DecodeFailed | PlatformError.PlatformError
 		>;
-		/** Spoken words as the model's tokens. */
 		readonly tokensOf: (
 			words: ReadonlyArray<string>
 		) => Effect.Effect<Array<ReadonlyArray<number>>, ListenFailed>;
@@ -118,9 +99,6 @@ export class Acoustic extends Context.Service<
 		const audio = yield* Audio;
 		const fs = yield* FileSystem.FileSystem;
 
-		// The models load on first use, not with the layer, so a model that won't load fails one
-		// alignment, with a reason, instead of the whole press. Their settings are read then too:
-		// Alchemy builds the press's layers on the host when it plans a deploy, where none are set.
 		const settings = Effect.gen(function* () {
 			const cpuinfo = yield* fs
 				.readFileString("/proc/cpuinfo")
@@ -160,7 +138,6 @@ export class Acoustic extends Context.Service<
 						}),
 				}).pipe(
 					Effect.map((loaded) => {
-						// The tokenizer's last id is the blank, which the model scores apart from the tokens.
 						const vocabulary: Array<string> = [];
 
 						for (const [piece, id] of loaded.tokenizer.get_vocab()) {
@@ -175,7 +152,6 @@ export class Acoustic extends Context.Service<
 			})
 		);
 
-		/** The model's log-probabilities for one stretch of samples: frames by tokens plus the blank. */
 		const hear = (samples: Float32Array) =>
 			Effect.flatMap(load, (loaded) =>
 				Effect.tryPromise({
@@ -215,20 +191,15 @@ export class Acoustic extends Context.Service<
 			const loudness = new Growing(2 ** 22);
 			const tracks: Array<number> = [];
 
-			// Samples not yet heard, starting at sample `bufferStart` of the whole book.
 			let buffer = new Float32Array(WINDOW + 2 * CONTEXT);
 			let buffered = 0;
 			let bufferStart = 0;
-			// The next window's first sample, and every sample read so far.
 			let windowStart = 0;
 			let total = 0;
-			// Bytes of a float split across two reads.
 			let carry = new Uint8Array(0);
-			// Loudness accumulates over 10 ms.
 			let energy = 0;
 			let energyCount = 0;
 
-			/** Keep one heard window's frames that fall inside it, not in its context. */
 			const keep = (
 				heard: { data: Float32Array; frames: number; classes: number },
 				inputStart: number,
@@ -297,9 +268,7 @@ export class Acoustic extends Context.Service<
 				scores.push(windowScores);
 			};
 
-			/** Hear every window that has all its samples, or, at the end, every window left. */
 			const drain = Effect.fnUntraced(function* (ended: boolean) {
-				// A window waits for its samples and the context after them, until the audio has ended.
 				const wanted = ended ? 0 : WINDOW + CONTEXT;
 
 				while (windowStart < total && total >= windowStart + wanted) {
@@ -314,7 +283,6 @@ export class Acoustic extends Context.Service<
 					keep(heard, inputStart, end);
 					windowStart += WINDOW;
 
-					// Drop what no later window needs.
 					const drop = Math.max(0, windowStart - CONTEXT - bufferStart);
 					buffer.copyWithin(0, drop, buffered);
 					buffered -= drop;

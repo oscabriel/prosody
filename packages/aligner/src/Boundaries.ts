@@ -1,29 +1,16 @@
 import type { Emissions } from "./Emissions.ts";
 import type { Placed } from "./ForcedAlign.ts";
 
-/** A sentence's clip, in seconds of the whole book. */
 export interface Clip {
 	readonly start: number;
 	readonly end: number;
 }
 
-/** How the frames' times are read. Tuned against Whisper's word times on the six books. */
 export interface Tuning {
-	/** Seconds added to a token's frame time to reach where its sound starts (usually negative). */
 	readonly lead: number;
-	/** How far a start may move back, and an end forward, to reach quiet. */
 	readonly reachBack: number;
 	readonly reachForward: number;
-	/**
-	 * An end runs on across quiet shorter than this. A stop's closure ("sys-tem") is 20 to 60 ms of
-	 * quiet inside a word; the pause after a sentence is longer.
-	 */
 	readonly bridge: number;
-	/**
-	 * Loudness counts as sound within this many decibels of the book's speech, and at least
-	 * `overQuiet` over its quiet. Speech spans about 40 dB; a studio's silence sits far under that,
-	 * and a noisy recording's does not, which is what the second bound is for.
-	 */
 	readonly underSpeech: number;
 	readonly overQuiet: number;
 }
@@ -37,10 +24,6 @@ export const TUNING: Tuning = {
 	overQuiet: 10,
 };
 
-/**
- * The loudness that counts as sound: under the book's speech (its ninetieth percentile) by
- * `underSpeech`, and over its quiet (its tenth percentile) by `overQuiet`, whichever is higher.
- */
 const soundOf = (loudness: Float32Array, tuning: Tuning): number => {
 	const sample: Array<number> = [];
 	const step = Math.max(1, Math.floor(loudness.length / 50_000));
@@ -57,13 +40,6 @@ const soundOf = (loudness: Float32Array, tuning: Tuning): number => {
 	return Math.max(speech - tuning.underSpeech, quiet + tuning.overQuiet);
 };
 
-/**
- * Each placed sentence's clip. A start moves back through sound to the quiet before it, and an end
- * runs on through sound to the quiet after it, each only so far and never into a neighbour. An end
- * never stretches across a pause to the next sentence: the quiet between them belongs to neither.
- *
- * Times are counted in steps of the loudness (10 ms) until the end, so no edge lands between two.
- */
 export const clipsOf = (
 	emissions: Emissions,
 	placed: ReadonlyArray<Placed | undefined>,
@@ -90,14 +66,11 @@ export const clipsOf = (
 			: undefined
 	);
 
-	// The placed sentences in the audio's order, which is the book's unless the audio was read or
-	// filed out of order. A sentence's neighbours are the ones heard before and after it.
 	const inOrder = rough
 		.flatMap((clip, index) => (clip ? [{ index, start: clip.start }] : []))
 		.toSorted((a, b) => a.start - b.start)
 		.map((entry) => entry.index);
 
-	// The neighbours' edges, found once each way.
 	const endBefore = new Int32Array(rough.length);
 	const startAfter = new Int32Array(rough.length);
 	let edge = 0;
@@ -114,7 +87,6 @@ export const clipsOf = (
 		edge = rough[index]?.start ?? edge;
 	}
 
-	/** Move a clip's edges out through sound, to quiet, within its reach and its neighbours. */
 	const settle = (clip: Clip, index: number): Clip => {
 		const floor = Math.max(
 			endBefore[index] ?? 0,
@@ -133,7 +105,6 @@ export const clipsOf = (
 			start -= 1;
 		}
 
-		// On through sound, and across quiet too short to be a pause, to the last sound before one.
 		let quiet = 0;
 
 		for (
@@ -152,7 +123,6 @@ export const clipsOf = (
 		return { start, end: Math.max(end, start + 1) };
 	};
 
-	/** The quietest step from `from` to `to`: where one sentence gives way to the next. */
 	const quietest = (from: number, to: number): number => {
 		let best = from;
 
@@ -171,8 +141,6 @@ export const clipsOf = (
 		clip ? settle(clip, index) : undefined
 	);
 
-	// Where speech runs on, an end and the next start each reach across the same sound. They meet
-	// at its quietest moment, so no audio belongs to two sentences.
 	let before: number | undefined;
 
 	for (const index of inOrder) {

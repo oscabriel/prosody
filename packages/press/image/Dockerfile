@@ -1,6 +1,3 @@
-# The press's base: Bun, ffmpeg, poppler (to draw a PDF's pages), the aligner's speech models and
-# the library that runs them.
-# Alchemy builds the press on top of it. Bump the tag in Press.ts whenever this file changes.
 FROM debian:trixie-slim
 
 RUN apt-get update \
@@ -9,8 +6,6 @@ RUN apt-get update \
 
 COPY --from=oven/bun:1 /usr/local/bin/bun /usr/local/bin/bun
 
-# The models, as transformers.js keeps them in its cache, at the revisions the aligner was tested
-# with: Parakeet CTC 0.6B (int8) aligns, Whisper base.en checks.
 ARG HF=https://huggingface.co
 RUN set -e; \
 	get() { mkdir -p "/models/$1/$(dirname "$3")"; curl -fsSL -o "/models/$1/$3" "$HF/$1/resolve/$2/$3"; }; \
@@ -21,13 +16,9 @@ RUN set -e; \
 	for f in config.json generation_config.json preprocessor_config.json tokenizer.json tokenizer_config.json \
 		onnx/encoder_model.onnx onnx/decoder_model_merged.onnx; do get "$w" "$r" "$f"; done
 
-# The press runs as the user who owns the library and the reading copies on the host, so what it
-# writes there is theirs: `PROSODY_UID` in `.env`, or 1000.
 ARG PRESS_UID=1000
 RUN useradd --uid "$PRESS_UID" --create-home press && install -d -o press /app
 USER press
 
-# The library that runs the models loads a native library, so it is installed here rather than
-# bundled into the press. The press's bundle lands in /app beside it.
 WORKDIR /app
 RUN bun add @huggingface/transformers@4.3.2

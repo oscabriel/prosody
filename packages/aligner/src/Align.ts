@@ -11,31 +11,22 @@ import { transcriptOf } from "./Emissions.ts";
 import { COSTS, forceAlign } from "./ForcedAlign.ts";
 import type { Costs, Placed, Unit } from "./ForcedAlign.ts";
 
-/** A sentence as the alignment sees it: its spoken words, and each word's tokens. */
 export interface Said {
 	readonly words: ReadonlyArray<string>;
 	readonly tokens: ReadonlyArray<ReadonlyArray<number>>;
-	/**
-	 * The index of each word that starts a phrase after the first. A narrator may leave a phrase out
-	 * (a dramatised reading drops "he said"), so each is placed or skipped on its own.
-	 */
 	readonly phrases?: ReadonlyArray<number>;
 }
 
-/** Ties come from runs of this many words, and stretches between them are at least this long. */
 const GRAM = 5;
 
 const STRETCH = 25;
 
-/** Inside a stretch too big to align at once, shorter runs tie it down further. */
 const SMALL_GRAM = 3;
 
 const SMALL_STRETCH = 8;
 
-/** Runs out of order inside runs out of order are followed this deep. */
 const DEEPEST = 6;
 
-/** Frames times states: more than this, and a stretch is cut smaller or left unaligned. */
 const MOST_CELLS = 60_000_000;
 
 interface Cut {
@@ -43,14 +34,12 @@ interface Cut {
 	readonly frame: number;
 }
 
-/** A unit of one phrase's words, whose tokens grow as its words are gathered. */
 interface Gathered extends Unit {
 	readonly sentence: number;
 	readonly phrase: number;
 	readonly tokens: Array<number>;
 }
 
-/** Call `between` on each point and the one after it, in order. */
 const eachStretch = (
 	points: ReadonlyArray<Cut>,
 	between: (a: Cut, b: Cut) => void
@@ -65,7 +54,6 @@ const eachStretch = (
 	}
 };
 
-/** Ties at least `stretch` book words apart, with the heard frames strictly rising. */
 const cutsOf = (
 	ties: ReadonlyArray<Tie>,
 	heard: ReadonlyArray<Heard>,
@@ -88,9 +76,6 @@ const cutsOf = (
 	return cuts;
 };
 
-/**
- * Where each sentence is in the audio, in frames, or `undefined` for a sentence nobody read.
- */
 export const align = (
 	emissions: Emissions,
 	sentences: ReadonlyArray<Said>,
@@ -123,7 +108,6 @@ export const align = (
 		GRAM
 	);
 
-	/** Align words `[fromWord, toWord)` in frames `[fromFrame, toFrame)`, merging into `placed`. */
 	const stretch = (
 		placed: Array<Placed | undefined>,
 		fromWord: number,
@@ -160,7 +144,6 @@ export const align = (
 				return;
 			}
 
-			// Tie the stretch down with shorter runs, heard only within its frames.
 			const within = (h: Heard) => h.from >= fromFrame && h.from < toFrame;
 			const inside = heard.filter(within);
 			const firstHeard = heard.findIndex(within);
@@ -208,7 +191,6 @@ export const align = (
 		}
 	};
 
-	/** Align a run of words in a run of frames, cut at the ties that fall inside both. */
 	const region = (
 		within: ReadonlyArray<Tie>,
 		from: Cut,
@@ -236,7 +218,6 @@ export const align = (
 	const frameOf = (tie: Tie | undefined, otherwise: number) =>
 		tie === undefined ? otherwise : (heard[tie.heard]?.from ?? otherwise);
 
-	/** The first word of a sentence at or after `word`, or `limit` when there is none before it. */
 	const sentenceFrom = (word: number, limit: number): number => {
 		let at = word;
 
@@ -247,7 +228,6 @@ export const align = (
 		return at;
 	};
 
-	/** The first word of the sentence that holds `word`. */
 	const sentenceAt = (word: number, limit: number): number => {
 		let at = word;
 
@@ -262,12 +242,6 @@ export const align = (
 		return at;
 	};
 
-	/**
-	 * Align the words from `from` to `to` in the frames from `from` to `to`, tied down by the
-	 * longest chain of `within`. Text heard out of the book's order shows as runs of candidates
-	 * out of step with that chain: each run is aligned where it was heard, from the first whole
-	 * sentence of its gap in the text to the last, and replaces what the gap had found.
-	 */
 	const place = (
 		within: ReadonlyArray<Tie>,
 		from: Cut,
@@ -278,7 +252,6 @@ export const align = (
 		const placed = region(chain, from, to);
 
 		for (const stray of depth < DEEPEST ? straysOf(within, chain) : []) {
-			// The tie before the gap holds GRAM words in place, and the sentences they are in.
 			const fromWord = sentenceFrom(
 				Math.max(
 					from.word,

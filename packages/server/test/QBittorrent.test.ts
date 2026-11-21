@@ -4,10 +4,8 @@ import { Option } from "effect";
 import type { Torrent } from "../src/QBittorrent.ts";
 import { grabOf, progressOf } from "../src/QBittorrent.ts";
 
-/** Half past twelve, in seconds, on the day the torrent was added at noon. */
 const NOW = 1_800_000_000;
 
-/** A torrent as qBittorrent lists it, added half an hour ago. */
 const torrent = (change: Partial<Torrent>): Torrent => ({
 	hash: "c0ffee",
 	state: "downloading",

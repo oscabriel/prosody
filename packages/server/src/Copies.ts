@@ -1,21 +1,13 @@
 import { Effect, FileSystem, Option } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 
-/** Where the Api's container sees them, read-only. */
 export const COPIES = "/copies";
 
-/**
- * What the reading room may fetch of a copy: its contents, its timeline, its cover, its unpacked
- * pages, its pictures of pages and its audio. The copy's EPUB and what the speech model heard stay
- * private.
- */
 const SERVED =
 	/^(?:contents\.json|timeline\.json|cover\.jpg|text\/.+|pictures\/[^/]+|audio\/[^/]+)$/u;
 
-/** A work id as the press makes them. */
 const WORK = /^w-[0-9a-f]{12}$/u;
 
-/** Content types the platform does not know by extension. */
 const TYPES = new Map([
 	["m4b", "audio/mp4"],
 	["m4a", "audio/mp4"],
@@ -25,10 +17,6 @@ const TYPES = new Map([
 
 const notFound = HttpServerResponse.text("Not Found", { status: 404 });
 
-/**
- * The bytes a `Range` header asks for, as an offset and a length, given the file's size. Only the
- * one-range forms a media element sends: `bytes=a-b`, `bytes=a-` and `bytes=-n`.
- */
 export const rangeOf = (
 	header: string | undefined,
 	size: number
@@ -51,10 +39,6 @@ export const rangeOf = (
 		: Option.some({ offset, length: last - offset + 1 });
 };
 
-/**
- * Serve `GET /copies/<work>/<file>` from the reading copies. Seeking in the audio asks for byte
- * ranges, which are answered 206 with the part asked for.
- */
 export const serveCopy = Effect.gen(function* () {
 	const request = yield* HttpServerRequest.HttpServerRequest;
 	const fs = yield* FileSystem.FileSystem;
@@ -63,7 +47,6 @@ export const serveCopy = Effect.gen(function* () {
 		new URL(request.url, "http://localhost").pathname
 	);
 
-	// "", "copies", the work, then the file's path within its copy.
 	const parts = route.split("/");
 	const work = parts[2] ?? "";
 	const rest = parts.slice(3);

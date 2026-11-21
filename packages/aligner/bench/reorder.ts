@@ -1,12 +1,3 @@
-/**
- * What happens when the audio is not in the book's order: cut a book's saved emissions into blocks,
- * play the blocks in another order, align, and count the sentences still found where they now are.
- *
- *   PROSODY_ALIGNER_MODELS=<dir> CUTS=0.3,0.6 ORDER=1,0,2 bun bench/reorder.ts <book.emissions> <book.epub>
- *
- * CUTS are fractions of the audio; ORDER is the blocks' new order. The default swaps the first two
- * of three blocks, as two audio files in the wrong order would.
- */
 import { readFileSync } from "node:fs";
 
 import { AutoTokenizer, env } from "@huggingface/transformers";
@@ -67,7 +58,6 @@ const edges = [0, ...cuts, emissions.frames];
 
 const order = numbers(process.env.ORDER ?? "1,0,2");
 
-/** Where each block of the old audio starts in the new. */
 const movedTo = new Map<number, number>();
 
 const ids = new Uint16Array(emissions.ids.length);
@@ -97,7 +87,6 @@ for (const block of order) {
 
 const reordered: Emissions = { ...emissions, ids, scores, blank };
 
-/** The frame of the new audio that holds frame `frame` of the old. */
 const moved = (frame: number): number => {
 	const block = edges.findLastIndex((edge) => edge <= frame);
 

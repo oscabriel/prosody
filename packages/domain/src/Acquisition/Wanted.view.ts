@@ -10,19 +10,13 @@ import { Grab } from "./Grab.aggregate.ts";
 import { Release } from "./Release.ts";
 import { Want } from "./Want.aggregate.ts";
 
-/** What the desk shows of one book you want: how its search went, and what it found. */
 export const WantedBook = Schema.Struct({
-	/** As you gave them. */
 	title: Schema.String,
 	author: Schema.String,
-	/** When you wanted it, in milliseconds. */
 	at: Schema.Finite,
 	state: Schema.Literals(["searching", "offered", "failed"]),
-	/** Why the last search failed, or nothing. */
 	note: Schema.String,
-	/** What the last search found. They stay while the next search runs. */
 	offers: Schema.Array(Release),
-	/** The ids of the releases grabbed. A desk kept before grabs has none. */
 	grabbed: Schema.Array(Schema.String).pipe(
 		Schema.withDecodingDefaultKey(Effect.succeed([]))
 	),
@@ -30,7 +24,6 @@ export const WantedBook = Schema.Struct({
 
 export type WantedBook = typeof WantedBook.Type;
 
-/** A wanted book's work, as the catalogues outside know it. */
 export const Catalogued = Schema.Struct({
 	title: Schema.String,
 	author: Schema.String,
@@ -39,22 +32,16 @@ export const Catalogued = Schema.Struct({
 
 export type Catalogued = typeof Catalogued.Type;
 
-/** What the desk shows of one release you grabbed, from its download to the end of its seeding. */
 export const GrabbedRelease = Schema.Struct({
 	work: Schema.String,
-	/** The book, as the desk named it when the download started. */
 	title: Schema.String,
 	author: Schema.String,
 	release: Release,
 	state: Schema.Literals(["downloading", "stalled", "arrived"]),
 	percent: Schema.Int,
-	/** Why it stalled, or why it is not on the shelf yet, or nothing. */
 	note: Schema.String,
-	/** Whole hours seeded. */
 	seeded: Schema.Int,
-	/** When its payload came, in milliseconds: the days to seed it in run from then. */
 	arrived: Schema.NullOr(Schema.Finite),
-	/** The work and folder it was shelved in, once it is. A grab kept before shelving has none. */
 	shelf: Schema.NullOr(
 		Schema.Struct({ work: Schema.String, shelfmark: Shelfmark })
 	).pipe(Schema.withDecodingDefaultKey(Effect.succeed(null))),
@@ -65,7 +52,6 @@ export type GrabbedRelease = typeof GrabbedRelease.Type;
 const State = Schema.Struct({
 	wants: Schema.Record(Schema.String, WantedBook),
 	catalogue: Schema.Record(Schema.String, Catalogued),
-	// A desk kept before grabs has none.
 	grabs: Schema.Record(Schema.String, GrabbedRelease).pipe(
 		Schema.withDecodingDefaultKey(Effect.succeed({}))
 	),
@@ -73,7 +59,6 @@ const State = Schema.Struct({
 
 type State = typeof State.Type;
 
-/** The desk with one of its books changed, if it still wants it. */
 const changed = (
 	desk: State,
 	work: string,
@@ -86,7 +71,6 @@ const changed = (
 		: { ...desk, wants: { ...desk.wants, [work]: change(book) } };
 };
 
-/** The desk with one of its grabs changed, if it still shows it. */
 const changedGrab = (
 	desk: State,
 	grab: string,
@@ -99,13 +83,6 @@ const changedGrab = (
 		: { ...desk, grabs: { ...desk.grabs, [grab]: change(grabbed) } };
 };
 
-/**
- * Every book you want, by work id, with its offers, and its work as the catalogues outside know it,
- * and every release you grabbed, by grab id, until it is released or abandoned. The desk watches it,
- * so offers and downloads move as they happen. There is one, beside the one shelf. The sources have
- * no order between them, so the catalogue and the grabs are kept apart and the page joins them. A
- * book withdrawn leaves its want and its catalogue entry; its grabs stay until they are done.
- */
 export class Wanted extends Domain.View("Wanted", {
 	from: [Want, Work, Grab],
 	key: ShelfName,
@@ -157,7 +134,6 @@ export class Wanted extends Domain.View("Wanted", {
 			wants: Record.remove(desk.wants, source.id),
 			catalogue: Record.remove(desk.catalogue, source.id),
 		}),
-		// Only a work you wanted is described; one the press found is not the desk's.
 		WorkCatalogued: (desk, e, { source }) =>
 			e.description === null
 				? desk
@@ -261,5 +237,4 @@ export class Wanted extends Domain.View("Wanted", {
 	},
 }) {}
 
-/** Any of your devices may read the desk; the Session lets in no one else. */
 export const WantedLive = Wanted.toLayer(Effect.succeed(() => Effect.void));
