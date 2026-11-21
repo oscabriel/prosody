@@ -61,10 +61,7 @@ export default defineConfig(({ mode }) => {
 
 	return {
 		plugins: [foldkit(), worker()],
-		optimizeDeps: {
-			entries: ["src/entry.ts"],
-			include: ["effect", "effect/Function", "effect/http"],
-		},
+		optimizeDeps: { entries: ["src/entry.ts"] },
 		server,
 	};
 });
