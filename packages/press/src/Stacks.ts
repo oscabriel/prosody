@@ -33,7 +33,7 @@ export interface Book {
 }
 
 /** What one walk of the library saw. `unreadable` lists folders that failed, with the reason. */
-export interface Survey {
+export interface Walk {
 	readonly books: ReadonlyArray<Book>;
 	readonly unreadable: ReadonlyArray<string>;
 }
@@ -115,7 +115,7 @@ const lookInto = <A>(
 	});
 
 /**
- * The library, read through Effect's file system. It may be a network share, so `survey` never
+ * The library, read through Effect's file system. It may be a network share, so `walk` never
  * fails: a folder that cannot be read is reported and skipped, and never stops the walk. A failing
  * mount can also list a folder as empty with no error; that costs nothing, because the press only
  * ever adds what it finds.
@@ -124,7 +124,7 @@ export class Stacks extends Context.Service<
 	Stacks,
 	{
 		/** Walk `<root>/ebooks/<Author>/<Title>` and `<root>/audiobooks/<Author>/<Title>`. */
-		readonly survey: (root: string) => Effect.Effect<Survey>;
+		readonly walk: (root: string) => Effect.Effect<Walk>;
 		/** A work's id, made from its shelfmark so every walk gives the same folder the same id. */
 		readonly workIdOf: (shelfmark: string) => Effect.Effect<string>;
 		/**
@@ -177,7 +177,7 @@ export class Stacks extends Context.Service<
 			return [{ file: first.value, bytes: Number(info.size) }];
 		});
 
-		const survey = Effect.fn("Stacks.survey")(function* (root: string) {
+		const walk = Effect.fn("Stacks.walk")(function* (root: string) {
 			const looks = yield* Effect.forEach(
 				HALVES,
 				(half) =>
@@ -364,7 +364,7 @@ export class Stacks extends Context.Service<
 			)
 		);
 
-		return { survey, workIdOf, shelve };
+		return { walk, workIdOf, shelve };
 	}),
 }) {
 	static readonly layer = Layer.effect(this, this.make);

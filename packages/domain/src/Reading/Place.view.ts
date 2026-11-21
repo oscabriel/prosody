@@ -3,14 +3,14 @@ import { Effect, Schema } from "effect";
 
 import { Session } from "../Session.middleware.ts";
 import { Reading } from "./Reading.aggregate.ts";
-import { Bookmark } from "./Sentence.ts";
+import { KeptPlace } from "./Sentence.ts";
 
 /** Your place in each work. Every device watches it, so reading on one moves the others. */
 export class Place extends Domain.View("Place", {
 	from: [Reading],
 	key: Reading,
 	middleware: [Session],
-	state: Schema.Struct({ place: Schema.NullOr(Bookmark) }),
+	state: Schema.Struct({ place: Schema.NullOr(KeptPlace) }),
 	initial: { place: null },
 	evolve: {
 		PlaceKept: (_state, e) => ({

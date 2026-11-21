@@ -1,5 +1,5 @@
 /**
- * Align one book from saved emissions, and write its timeline as JSON: every sentence, its page and
+ * Align one book from saved emissions, and write its timeline as JSON: every sentence, its section and
  * id, its text, and its clip or none.
  *
  *   PROSODY_ALIGNER_MODELS=<dir> bun bench/align.ts <book.emissions> <book.epub> <timeline.json>
@@ -48,18 +48,18 @@ const book = open(new Uint8Array(readFileSync(epubPath ?? "")));
 
 const markups = new Map<string, string>();
 
-const sentences = book.pages
-	.filter((page) => page.narrated)
-	.flatMap((page) => {
+const sentences = book.sections
+	.filter((section) => section.narrated)
+	.flatMap((section) => {
 		const marked = mark(
-			strFromU8(book.files.get(page.path) ?? new Uint8Array()),
+			strFromU8(book.files.get(section.path) ?? new Uint8Array()),
 			"ps-"
 		);
 
-		markups.set(page.path, marked.markup);
+		markups.set(section.path, marked.markup);
 
 		return marked.sentences.map((sentence) => ({
-			page: page.path,
+			section: section.path,
 			...sentence,
 		}));
 	});
@@ -107,7 +107,7 @@ const clips = clipsOf(emissions, placed, {
 });
 
 const timeline = sentences.map((sentence, index) => ({
-	page: sentence.page,
+	section: sentence.section,
 	id: sentence.id,
 	text: sentence.text,
 	words: said[index]?.words.length ?? 0,
@@ -151,7 +151,7 @@ if (audioFile !== "" && outEpub !== "") {
 		book,
 		markups,
 		timeline.map((entry): Entry => {
-			const sentence = `${entry.page}#${entry.id}`;
+			const sentence = `${entry.section}#${entry.id}`;
 
 			return entry.start === undefined || entry.end === undefined
 				? { sentence, state: "unaligned" }

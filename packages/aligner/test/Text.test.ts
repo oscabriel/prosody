@@ -11,7 +11,7 @@ import {
 	year,
 } from "../src/Spoken.ts";
 
-const page = (body: string) =>
+const section = (body: string) =>
 	`<?xml version="1.0" encoding="UTF-8"?>\n<html xmlns="http://www.w3.org/1999/xhtml"><head><title>T</title></head><body>${body}</body></html>`;
 
 describe("sentences", () => {
@@ -33,7 +33,7 @@ describe("sentences", () => {
 
 	it("reads a quote written as an entity as the quote it is", () => {
 		const marked = mark(
-			page(
+			section(
 				"<p>He left.&#8221; She stayed.&#160;&#8220;Why?&#8221; he asked Dr.&#160;No.</p>"
 			),
 			"s"
@@ -51,7 +51,7 @@ describe("sentences", () => {
 
 	it("wraps each sentence in a span, splitting inline markup between them", () => {
 		const { markup, sentences } = mark(
-			page('<p>Then <em id="e">he left. She</em> stayed.</p>'),
+			section('<p>Then <em id="e">he left. She</em> stayed.</p>'),
 			"s"
 		);
 
@@ -66,7 +66,7 @@ describe("sentences", () => {
 
 	it("marks blocks in the order they appear, and leaves entities as written", () => {
 		const { markup, sentences } = mark(
-			page("<div>Before. <p>Inside &amp; out.</p> After.</div>"),
+			section("<div>Before. <p>Inside &amp; out.</p> After.</div>"),
 			"s"
 		);
 
@@ -80,7 +80,7 @@ describe("sentences", () => {
 
 	it("knows a note's marker by the names O'Reilly and accessible books give it", () => {
 		const marked = mark(
-			page(
+			section(
 				'<p>Engineers shied away [<a data-type="noteref" href="#x">18</a>]. It held<a role="doc-noteref" href="#y">2</a>.</p>'
 			),
 			"s"
@@ -94,7 +94,9 @@ describe("sentences", () => {
 
 	it("leaves a note's marker out of what is said", () => {
 		const { sentences } = mark(
-			page('<p>It was cold.<sup><a href="#n1">1</a></sup> Then it snowed.</p>'),
+			section(
+				'<p>It was cold.<sup><a href="#n1">1</a></sup> Then it snowed.</p>'
+			),
 			"s"
 		);
 
@@ -186,7 +188,7 @@ describe("the spoken form", () => {
 describe("what is narrated", () => {
 	it("skips a section headed References, up to the next heading as high", () => {
 		const { sentences } = mark(
-			page(
+			section(
 				"<h2>Summary</h2><p>All done.</p><h5>References</h5><ol><li>Kleppmann, M. 2017.</li></ol><h2>Next</h2><p>Onward.</p>"
 			),
 			"s"
@@ -204,25 +206,25 @@ describe("what is narrated", () => {
 		expect(
 			isNarrated(
 				"OEBPS/c.xhtml",
-				page('<section epub:type="copyright-page"><p>©</p></section>'),
+				section('<section epub:type="copyright-page"><p>©</p></section>'),
 				1,
 				20,
 				undefined
 			)
 		).toBeFalsy();
 		expect(
-			isNarrated("OEBPS/ix01.html", page("<p>A</p>"), 19, 20, undefined)
+			isNarrated("OEBPS/ix01.html", section("<p>A</p>"), 19, 20, undefined)
 		).toBeFalsy();
 		expect(
-			isNarrated("OEBPS/ix01.html", page("<p>A</p>"), 10, 20, undefined)
+			isNarrated("OEBPS/ix01.html", section("<p>A</p>"), 10, 20, undefined)
 		).toBeTruthy();
 		expect(
-			isNarrated("OEBPS/c.xhtml", page("<p>A</p>"), 1, 20, "copyright-page")
+			isNarrated("OEBPS/c.xhtml", section("<p>A</p>"), 1, 20, "copyright-page")
 		).toBeFalsy();
 		expect(
 			isNarrated(
 				"OEBPS/ch01.xhtml",
-				page('<section epub:type="chapter"><p>It began.</p></section>'),
+				section('<section epub:type="chapter"><p>It began.</p></section>'),
 				3,
 				20,
 				undefined
@@ -230,18 +232,20 @@ describe("what is narrated", () => {
 		).toBeTruthy();
 	});
 
-	it("names a page by its first heading, or else its title", () => {
+	it("names a section by its first heading, or else its title", () => {
 		expect(
 			headingOf(
-				page(
+				section(
 					'<h2 class="ch">Chapter 1<br/><em>Loomings</em></h2><p>Call me Ishmael.</p>'
 				)
 			)
 		).toBe("Chapter 1 Loomings");
-		expect(headingOf(page("<p>No heading here.</p>"))).toBe("T");
+		expect(headingOf(section("<p>No heading here.</p>"))).toBe("T");
 		expect(
 			headingOf(
-				page('<h1><img alt="Chapter 1" src="c1.jpg"/></h1><p>Two plus two?</p>')
+				section(
+					'<h1><img alt="Chapter 1" src="c1.jpg"/></h1><p>Two plus two?</p>'
+				)
 			)
 		).toBe("Chapter 1");
 	});

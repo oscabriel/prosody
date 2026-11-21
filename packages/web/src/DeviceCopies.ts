@@ -62,8 +62,8 @@ export const savedCopies = Effect.gen(function* () {
 
 /**
  * Keep all of a work's copy on the device but its audio: its contents, its timeline when it has one,
- * its cover, every page, and the pictures the pages show, or in a book of pages, the picture of
- * each page. Its contents come back.
+ * its cover, every section, and the pictures the sections show, or in a book of pages, the
+ * picture of each page. Its contents come back.
  */
 const keepText = (cache: Cache, work: string) =>
 	Effect.gen(function* () {
@@ -87,7 +87,7 @@ const keepText = (cache: Cache, work: string) =>
 			});
 		}
 
-		const { cover, pages: contentsPages, pictures } = contents.value;
+		const { cover, sections: listed, pictures } = contents.value;
 
 		const timeline =
 			kindOf(contents.value) === "synced"
@@ -96,8 +96,8 @@ const keepText = (cache: Cache, work: string) =>
 
 		const covers = cover === null ? [] : [copyUrl(work, cover)];
 
-		const pages = contentsPages.map((page) =>
-			copyUrl(work, `text/${page.path}`)
+		const sections = listed.map((section) =>
+			copyUrl(work, `text/${section.path}`)
 		);
 
 		const printed = pictures.map((picture) =>
@@ -105,7 +105,7 @@ const keepText = (cache: Cache, work: string) =>
 		);
 
 		yield* attempt(async () => {
-			await cache.addAll([...timeline, ...covers, ...pages]);
+			await cache.addAll([...timeline, ...covers, ...sections]);
 		});
 
 		// A book of pages is many pictures: each is kept as it comes, so a try that stopped part way
@@ -122,13 +122,13 @@ const keepText = (cache: Cache, work: string) =>
 		);
 
 		const shown = yield* Effect.forEach(
-			pages,
-			(page) =>
+			sections,
+			(section) =>
 				attempt(async () => {
-					const response = await cache.match(page);
+					const response = await cache.match(section);
 					const xhtml = (await response?.text()) ?? "";
 
-					return filesOf(bodyOf(xhtml, new URL(page, location.origin).href));
+					return filesOf(bodyOf(xhtml, new URL(section, location.origin).href));
 				}),
 			{ concurrency: 1 }
 		);

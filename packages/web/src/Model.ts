@@ -3,7 +3,7 @@ import { Wanted } from "@prosody/domain/Acquisition/Wanted.view";
 import { Shelf } from "@prosody/domain/Library/Shelf.view";
 import { Contents, Timeline } from "@prosody/domain/Reading/Copy";
 import { Nightstand } from "@prosody/domain/Reading/Nightstand.view";
-import { Bookmark, Position, Sentence } from "@prosody/domain/Reading/Sentence";
+import { KeptPlace, PlaceAt, Sentence } from "@prosody/domain/Reading/Sentence";
 import { Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
 import { UrlRequest } from "foldkit/navigation";
@@ -20,7 +20,7 @@ import { AppRoute } from "./Route.ts";
  * from the model. A place kept here carries the command that sends it until the model answers.
  */
 export const DevicePlace = Schema.Struct({
-	...Position.fields,
+	...PlaceAt.fields,
 	commandId: Schema.NullOr(Schema.String),
 });
 
@@ -129,22 +129,22 @@ export const Book = defineTaggedUnion({
 
 export type Book = typeof Book.Type;
 
-/** One page of a reading copy, as the reading room fetches it. */
-export const Page = defineTaggedUnion({
+/** One section of a reading copy's text, as the reading room fetches it. */
+export const Section = defineTaggedUnion({
 	Fetching: {},
 	Fetched: { html: Schema.String },
 	Failed: { reason: Schema.String },
 });
 
-export type Page = typeof Page.Type;
+export type Section = typeof Section.Type;
 
 /** The reading room of one work. */
 export const Room = Schema.Struct({
 	work: Schema.String,
 	book: Book,
-	/** The pages fetched so far, by path. */
-	pages: Schema.Record(Schema.String, Page),
-	/** The page on show, as an index into the contents, or in a book made of pages, its pictures. */
+	/** The sections fetched so far, by path. */
+	sections: Schema.Record(Schema.String, Section),
+	/** The section on show, as an index into the contents, or in a book made of pages, the page. */
 	shown: Schema.Int,
 	/** Your place here: the sentence underlined. None until the model has said where you were. */
 	sentence: Schema.Option(Sentence),
@@ -152,8 +152,8 @@ export const Room = Schema.Struct({
 	 * Whether the Place view has answered yet, and the place it last gave. With no connection, the
 	 * device's own place stands in for its answer.
 	 */
-	hasHeardPlace: Schema.Boolean,
-	heardPlace: Schema.Option(Position),
+	knowsPlace: Schema.Boolean,
+	knownPlace: Schema.Option(PlaceAt),
 	/** Whether the model has answered this visit's open. Until it has, coming back online sends it again. */
 	hasOpened: Schema.Boolean,
 	/** Where the audio is, in seconds, and whether it plays. */
@@ -161,11 +161,11 @@ export const Room = Schema.Struct({
 	isPlaying: Schema.Boolean,
 	rate: Schema.Finite,
 	/** The last place this page kept. */
-	kept: Schema.Option(Position),
+	kept: Schema.Option(PlaceAt),
 	/** Whether the audio plays from the copy on this device. Chosen as the room opens, never under it. */
 	isKeptHere: Schema.Boolean,
 	/** A newer place kept elsewhere, offered rather than taken while you are here. */
-	elsewhere: Schema.Option(Bookmark),
+	elsewhere: Schema.Option(KeptPlace),
 });
 
 export type Room = typeof Room.Type;
@@ -201,7 +201,7 @@ export const Message = defineMessageUnion({
 	ReceivedShelf: { state: Schema.Option(ShelfState), cursor: Schema.Finite },
 	FailedWatchShelf: { reason: Schema.String },
 	ReceivedPlace: {
-		state: Schema.Option(Schema.Struct({ place: Schema.NullOr(Bookmark) })),
+		state: Schema.Option(Schema.Struct({ place: Schema.NullOr(KeptPlace) })),
 		cursor: Schema.Finite,
 	},
 	FailedWatchPlace: { reason: Schema.String },
@@ -214,12 +214,12 @@ export const Message = defineMessageUnion({
 	FoundUnmade: { work: Schema.String },
 	FailedOpenCopy: { work: Schema.String, reason: Schema.String },
 	WaitedForPlace: { work: Schema.String },
-	FetchedPage: {
+	FetchedSection: {
 		work: Schema.String,
 		path: Schema.String,
 		html: Schema.String,
 	},
-	FailedFetchPage: {
+	FailedFetchSection: {
 		work: Schema.String,
 		path: Schema.String,
 		reason: Schema.String,

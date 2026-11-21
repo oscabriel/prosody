@@ -12,7 +12,7 @@ import type { Book } from "./Epub.ts";
 
 /** One sentence's place in the book and in the audio. */
 export interface Entry {
-	/** `<page path>#<span id>`. */
+	/** `<section path>#<span id>`. */
 	readonly sentence: string;
 	readonly state: "aligned" | "unaligned";
 	readonly start?: number;
@@ -63,9 +63,9 @@ export class TooLargeError extends Schema.TaggedError<TooLargeError>()(
 /** Audio is copied into the archive this many bytes at a time. */
 const AUDIO_PIECE = 4 * 2 ** 20;
 
-/** A page's sentences in order, each with its clip in one track's own time. */
+/** A section's sentences in order, each with its clip in one track's own time. */
 interface Pars {
-	readonly page: string;
+	readonly section: string;
 	readonly smil: string;
 	readonly id: string;
 	readonly pars: Array<{
@@ -108,39 +108,39 @@ const layoutOf = (book: Book, tracks: ReadonlyArray<Track>): Layout => {
 	return { inFolder, audioPaths, offsets };
 };
 
-/** The page's entry in `byPage`, made when its first sentence comes. */
+/** The section's entry in `bySection`, made when its first sentence comes. */
 const parsOf = (
-	byPage: Map<string, Pars>,
-	page: string,
+	bySection: Map<string, Pars>,
+	section: string,
 	inFolder: (path: string) => string
 ): Pars => {
-	const known = byPage.get(page);
+	const known = bySection.get(section);
 
 	if (known) {
 		return known;
 	}
 
 	const name =
-		page
+		section
 			.split("/")
 			.at(-1)
 			?.replace(/\.x?html?$/u, "") ?? "page";
 
-	// Two pages in different folders may share a name; their overlays must not.
-	const taken = new Set([...byPage.values()].map((other) => other.smil));
+	// Two sections in different folders may share a name; their overlays must not.
+	const taken = new Set([...bySection.values()].map((other) => other.smil));
 	const plain = inFolder(`MediaOverlays/${name}.smil`);
 
 	const pars: Pars = {
-		page,
+		section,
 		smil: taken.has(plain)
-			? inFolder(`MediaOverlays/${name}-${byPage.size + 1}.smil`)
+			? inFolder(`MediaOverlays/${name}-${bySection.size + 1}.smil`)
 			: plain,
-		id: `mo-${byPage.size + 1}`,
+		id: `mo-${bySection.size + 1}`,
 		pars: [],
 		seconds: 0,
 	};
 
-	byPage.set(page, pars);
+	bySection.set(section, pars);
 
 	return pars;
 };
@@ -156,13 +156,13 @@ const trackAt = (offsets: ReadonlyArray<number>, seconds: number): number => {
 	return track;
 };
 
-/** The aligned sentences by page, in the book's order, each clip in its own track's time. */
-const byPageOf = (
+/** The aligned sentences by section, in the book's order, each clip in its own track's time. */
+const bySectionOf = (
 	entries: ReadonlyArray<Entry>,
 	tracks: ReadonlyArray<Track>,
 	layout: Layout
 ): Map<string, Pars> => {
-	const byPage = new Map<string, Pars>();
+	const bySection = new Map<string, Pars>();
 
 	for (const entry of entries) {
 		if (
@@ -173,8 +173,8 @@ const byPageOf = (
 			continue;
 		}
 
-		const [page = "", id = ""] = entry.sentence.split("#");
-		const pars = parsOf(byPage, page, layout.inFolder);
+		const [section = "", id = ""] = entry.sentence.split("#");
+		const pars = parsOf(bySection, section, layout.inFolder);
 		const track = trackAt(layout.offsets, entry.start);
 		const begin = entry.start - (layout.offsets[track] ?? 0);
 
@@ -187,7 +187,7 @@ const byPageOf = (
 		pars.seconds += end - begin;
 	}
 
-	return byPage;
+	return bySection;
 };
 
 const append = (parent: Element | undefined, child: Element) => {
@@ -217,7 +217,7 @@ const meta = (property: string, value: string, refines?: string) => {
 /** The package document, upgraded to EPUB 3 and extended with the audio and the overlays. */
 const packageOf = (
 	book: Book,
-	byPage: ReadonlyMap<string, Pars>,
+	bySection: ReadonlyMap<string, Pars>,
 	layout: Layout
 ) => {
 	const opf = parseDocument(book.packageXml, {
@@ -246,7 +246,7 @@ const packageOf = (
 		);
 	}
 
-	for (const pars of byPage.values()) {
+	for (const pars of bySection.values()) {
 		append(
 			manifest,
 			new Element("item", {
@@ -258,19 +258,21 @@ const packageOf = (
 		append(metadata, meta("media:duration", clock(pars.seconds), pars.id));
 	}
 
-	const pageItems = all.filter(
+	const sectionItems = all.filter(
 		(element) =>
 			local(element) === "item" &&
-			byPage.has(
-				book.pages.find((page) => page.id === element.attribs.id)?.path ?? ""
+			bySection.has(
+				book.sections.find((section) => section.id === element.attribs.id)
+					?.path ?? ""
 			)
 	);
 
-	for (const item of pageItems) {
+	for (const item of sectionItems) {
 		const path =
-			book.pages.find((page) => page.id === item.attribs.id)?.path ?? "";
+			book.sections.find((section) => section.id === item.attribs.id)?.path ??
+			"";
 
-		const pars = byPage.get(path);
+		const pars = bySection.get(path);
 
 		if (pars) {
 			item.attribs["media-overlay"] = pars.id;
@@ -278,7 +280,10 @@ const packageOf = (
 	}
 
 	// The book's duration is the sum of its overlays', as EPUB defines it, not the audio's length.
-	const spoken = [...byPage.values()].reduce((n, pars) => n + pars.seconds, 0);
+	const spoken = [...bySection.values()].reduce(
+		(n, pars) => n + pars.seconds,
+		0
+	);
 
 	append(metadata, meta("media:duration", clock(spoken)));
 	append(metadata, meta("media:active-class", "-epub-media-overlay-active"));
@@ -293,9 +298,9 @@ const packageOf = (
 	return opf;
 };
 
-/** A page's media overlay. */
+/** A section's media overlay. */
 const smilOf = (pars: Pars, audioPaths: ReadonlyArray<string>) => {
-	const textref = relative(pars.smil, pars.page);
+	const textref = relative(pars.smil, pars.section);
 
 	const body = pars.pars
 		.map(
@@ -338,7 +343,7 @@ const addAudio = (zip: Zip, path: string, source: string) => {
 };
 
 /**
- * Write the reading copy: the book with its pages marked, a media overlay (SMIL) for every page with
+ * Write the reading copy: the book with its sections marked, a media overlay (SMIL) for every section with
  * an aligned sentence, the audio, and a package document upgraded to EPUB 3 that ties them
  * together. The audio is streamed into the archive, so a long book never sits in memory.
  */
@@ -358,8 +363,8 @@ export const writeReadingCopy = (
 	}
 
 	const layout = layoutOf(book, tracks);
-	const byPage = byPageOf(entries, tracks, layout);
-	const opf = packageOf(book, byPage, layout);
+	const bySection = bySectionOf(entries, tracks, layout);
+	const opf = packageOf(book, bySection, layout);
 
 	// The archive, streamed to disk: mimetype first and stored, as EPUB requires.
 	const fd = openSync(out, "w");
@@ -392,8 +397,8 @@ export const writeReadingCopy = (
 				continue;
 			}
 
-			const page = marked.get(path);
-			add(path, page === undefined ? data : strToU8(page), false);
+			const section = marked.get(path);
+			add(path, section === undefined ? data : strToU8(section), false);
 		}
 
 		add(
@@ -402,7 +407,7 @@ export const writeReadingCopy = (
 			false
 		);
 
-		for (const pars of byPage.values()) {
+		for (const pars of bySection.values()) {
 			add(pars.smil, strToU8(smilOf(pars, layout.audioPaths)), false);
 		}
 

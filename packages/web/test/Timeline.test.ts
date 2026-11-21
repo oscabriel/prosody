@@ -5,7 +5,7 @@ import { Sentence } from "@prosody/domain/Reading/Sentence";
 import {
 	chapterAt,
 	heardOf,
-	leftOnPage,
+	leftInSection,
 	sentenceAt,
 	startOf,
 } from "../src/Timeline.ts";
@@ -34,9 +34,9 @@ describe("the timeline", () => {
 		expect(startOf(timeline, at("ps-9"))).toBeUndefined();
 	});
 
-	it("knows how much audio a page has left", () => {
-		expect(leftOnPage(heardOf(timeline), "OEBPS/ch1.xhtml", 14)).toBe(1.5);
-		expect(leftOnPage(heardOf(timeline), "OEBPS/ch2.xhtml", 14)).toBe(0);
+	it("knows how much audio a section has left", () => {
+		expect(leftInSection(heardOf(timeline), "OEBPS/ch1.xhtml", 14)).toBe(1.5);
+		expect(leftInSection(heardOf(timeline), "OEBPS/ch2.xhtml", 14)).toBe(0);
 	});
 });
 

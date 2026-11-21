@@ -6,7 +6,7 @@ import { Option } from "effect";
 import { update } from "../src/Main.ts";
 import { Message, Model } from "../src/Model.ts";
 import type { Places } from "../src/Model.ts";
-import { answered, heard, sendWaiting } from "../src/Places.ts";
+import { answered, learnPlace, sendWaiting } from "../src/Places.ts";
 import { AppRoute } from "../src/Route.ts";
 import { roomOf } from "../src/Steps.ts";
 
@@ -72,8 +72,8 @@ describe("your places on the device", () => {
 			"w-carl": { ...place("ps-2", 2000), commandId: "s:1" },
 		});
 
-		const [older] = heard(model, "w-carl", place("ps-1", 1000));
-		const [newer] = heard(model, "w-carl", place("ps-7", 3000));
+		const [older] = learnPlace(model, "w-carl", place("ps-1", 1000));
+		const [newer] = learnPlace(model, "w-carl", place("ps-7", 3000));
 
 		expect(older.places["w-carl"]?.sentence).toStrictEqual(at("ps-2"));
 

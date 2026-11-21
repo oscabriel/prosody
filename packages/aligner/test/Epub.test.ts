@@ -3,7 +3,7 @@ import { strToU8, zipSync } from "fflate";
 
 import { open } from "../src/Epub.ts";
 
-/** An EPUB of one page whose package holds `metadata` and `items` beside the page's own. */
+/** An EPUB of one section whose package holds `metadata` and `items` beside the section's own. */
 const epub = (metadata: string, items: string) =>
 	zipSync({
 		"META-INF/container.xml": strToU8(
@@ -39,7 +39,7 @@ describe("an EPUB's cover", () => {
 		expect(book.cover).toBe("OEBPS/images/front.jpg");
 	});
 
-	it("is none when the named item is a page, not a picture", () => {
+	it("is none when the named item is a section, not a picture", () => {
 		const book = open(epub('<meta name="cover" content="p1"/>', ""));
 
 		expect(book.cover).toBeUndefined();
@@ -58,7 +58,7 @@ describe("an EPUB's cover", () => {
 });
 
 describe("an EPUB's table of contents", () => {
-	it("names each page by its first entry in the NCX", () => {
+	it("names each section by its first entry in the NCX", () => {
 		const book = open(
 			zipSync({
 				"META-INF/container.xml": strToU8(

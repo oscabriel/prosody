@@ -18,10 +18,10 @@ import { clipsOf } from "./Boundaries.ts";
 import { decode, encode } from "./Emissions.ts";
 import { open } from "./Epub.ts";
 import type { Book } from "./Epub.ts";
+import { markSections } from "./MarkedSections.ts";
+import type { TitledSection } from "./MarkedSections.ts";
 import type { Entry } from "./Overlay.ts";
 import { writeReadingCopy } from "./Overlay.ts";
-import { markPages } from "./Pages.ts";
-import type { Contents } from "./Pages.ts";
 import { phraseStarts, phrases } from "./Spoken.ts";
 import { SpotCheck } from "./SpotCheck.ts";
 import type { CheckFailed } from "./SpotCheck.ts";
@@ -38,16 +38,16 @@ export interface Pair {
 	/** Where to keep what the speech model heard, so a retry need not listen again. */
 	readonly emissions?: string;
 	/**
-	 * A folder to also write the copy's text into, unpacked: every file of the EPUB with its pages
-	 * marked, so a reader can fetch one page at a time.
+	 * A folder to also write the copy's text into, unpacked: every file of the EPUB with its sections
+	 * marked, so a reader can fetch one section at a time.
 	 */
 	readonly text?: string;
 }
 
-/** A book's text, marked: the pages that hold sentences, in reading order, and how many there are. */
+/** A book's text, marked: the sections that hold sentences, in reading order, and how many there are. */
 export interface Marked {
 	readonly sentences: number;
-	readonly pages: ReadonlyArray<Contents>;
+	readonly sections: ReadonlyArray<TitledSection>;
 	/** The cover picture's path in the text folder, when the book names one. */
 	readonly cover: string | undefined;
 }
@@ -194,7 +194,7 @@ export class Aligner extends Context.Service<
 			return heard;
 		});
 
-		/** Every file of the book under `folder`, its pages marked. A path that leaves the folder is skipped. */
+		/** Every file of the book under `folder`, its sections marked. A path that leaves the folder is skipped. */
 		const writeText = Effect.fnUntraced(function* (
 			book: Book,
 			markups: ReadonlyMap<string, string>,
@@ -233,11 +233,11 @@ export class Aligner extends Context.Service<
 			text: string
 		) {
 			const book = yield* openEpub(epub);
-			const { markups, pages, sentences } = markPages(book);
+			const { markups, sections, sentences } = markSections(book);
 
 			yield* writeText(book, markups, text);
 
-			return { sentences: sentences.length, pages, cover: book.cover };
+			return { sentences: sentences.length, sections, cover: book.cover };
 		});
 
 		const alignPair = Effect.fn("Aligner.align")(function* (pair: Pair) {
@@ -257,7 +257,7 @@ export class Aligner extends Context.Service<
 			}
 
 			const book = yield* openEpub(pair.epub);
-			const { markups, pages, sentences } = markPages(book);
+			const { markups, sections, sentences } = markSections(book);
 
 			const said = yield* Effect.forEach(
 				sentences,
@@ -353,7 +353,7 @@ export class Aligner extends Context.Service<
 				sentences: entries.length,
 				aligned,
 				entries,
-				pages,
+				sections,
 				cover: book.cover,
 				checked,
 				heard,

@@ -3,7 +3,7 @@ import type { Html, HtmlBuilder } from "foldkit/html";
 
 import { Book, Message } from "./Model.ts";
 import type { Model, Room } from "./Model.ts";
-import { bedsideOf, dayOf } from "./Nightstand.ts";
+import { standingOf, dayOf } from "./Nightstand.ts";
 import { sizeIn } from "./OnDevice.ts";
 
 // The moves under a book's author: where it stands on the nightstand, and its copy on this device.
@@ -19,12 +19,12 @@ const moveButton = (
  * Where the work stands with you, and, while the model can be reached, the moves that take it off
  * the nightstand.
  */
-export const bedsideView = (
+export const standingView = (
 	model: Model,
 	room: Room,
 	h: HtmlBuilder<Message>
 ): ReadonlyArray<Html> =>
-	Option.match(bedsideOf(model, room.work), {
+	Option.match(standingOf(model, room.work), {
 		onNone: () => [],
 		onSome: ({ stage, at }) => {
 			if (stage === "reading") {

@@ -7,12 +7,12 @@ import { Reading } from "./Reading.aggregate.ts";
 import { Moment, Stage } from "./Stage.ts";
 
 /** Where you are with one work, and when and on which device that last changed. */
-export const Bedside = Schema.Struct({ stage: Stage, ...Moment.fields });
+export const Standing = Schema.Struct({ stage: Stage, ...Moment.fields });
 
-export type Bedside = typeof Bedside.Type;
+export type Standing = typeof Standing.Type;
 
 /** A work moving to `stage`, at the moment an event names. */
-const to = (stage: Stage, { at, device }: Moment): Bedside => ({
+const to = (stage: Stage, { at, device }: Moment): Standing => ({
 	stage,
 	at,
 	device,
@@ -27,7 +27,7 @@ export class Nightstand extends Domain.View("Nightstand", {
 	key: ShelfName,
 	middleware: [Session],
 	keyOf: { Reading: () => SHELF },
-	state: Schema.Struct({ works: Schema.Record(Schema.String, Bedside) }),
+	state: Schema.Struct({ works: Schema.Record(Schema.String, Standing) }),
 	initial: { works: {} },
 	evolve: {
 		// Reading on moves a work up the nightstand. One finished or set aside stays where it is.

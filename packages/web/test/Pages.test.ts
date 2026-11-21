@@ -12,7 +12,7 @@ import { roomOf } from "../src/Steps.ts";
 /** Domain-Driven Design as a book of pages: 324 pictures and three chapters. */
 const contents = {
 	audio: null,
-	pages: [],
+	sections: [],
 	chapters: [],
 	cover: "cover.jpg",
 	pictures: Array.from(
@@ -96,7 +96,7 @@ describe("a book of pages", () => {
 
 	it("keeps the page you turn to once it is on show", () => {
 		const turned = update(
-			inEvans({ hasHeardPlace: true }),
+			inEvans({ knowsPlace: true }),
 			Message.TurnedPage({ index: 1 })
 		);
 
@@ -118,7 +118,7 @@ describe("a book of pages", () => {
 		expect(names(commands ?? [])).toStrictEqual(["SavePlaces", "KeepPlace"]);
 	});
 
-	it("keeps nothing before your place is heard", () => {
+	it("keeps nothing before your place is known", () => {
 		const turned = update(inEvans(), Message.TurnedPage({ index: 1 }));
 
 		const { model, commands } = update(

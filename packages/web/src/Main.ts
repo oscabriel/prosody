@@ -22,12 +22,12 @@ import {
 } from "./DeviceCopies.ts";
 import { sendGrab, sendGrabMove } from "./Grabs.ts";
 import { announced } from "./LockScreen.ts";
-import { Book, Message, Model, Page } from "./Model.ts";
+import { Book, Message, Model, Section } from "./Model.ts";
 import type { Flags } from "./Model.ts";
 import { Stamp, sendMove } from "./Nightstand.ts";
 import {
 	answered,
-	heard,
+	learnPlace,
 	keepIn,
 	placeOn,
 	sendWaiting,
@@ -68,7 +68,7 @@ import {
 } from "./Steps.ts";
 import type { Return } from "./Steps.ts";
 import { Show } from "./Text.ts";
-import { pageOf, sentenceOf, spanOf, startOf } from "./Timeline.ts";
+import { sectionOf, sentenceOf, spanOf, startOf } from "./Timeline.ts";
 import {
 	changeDesk,
 	deskFailed,
@@ -184,24 +184,24 @@ const handle = (model: Model, message: Message): Return =>
 
 			const [known, saves] = Option.match(Option.product(model.room, place), {
 				onNone: () => [model, []] as const,
-				onSome: ([room, p]) => heard(model, room.work, p),
+				onSome: ([room, p]) => learnPlace(model, room.work, p),
 			});
 
 			return andThen({ model: known, commands: saves }, (next) =>
 				inRoom(next, (room) =>
-					room.hasHeardPlace
+					room.knowsPlace
 						? [
 								{
 									...room,
-									heardPlace: place,
+									knownPlace: place,
 									elsewhere: Option.filter(place, (p) => isElsewhere(room, p)),
 								},
 								[],
 							]
 						: settle({
 								...room,
-								hasHeardPlace: true,
-								heardPlace: placeOn(next, room.work),
+								knowsPlace: true,
+								knownPlace: placeOn(next, room.work),
 							})
 				)
 			);
@@ -240,20 +240,32 @@ const handle = (model: Model, message: Message): Return =>
 				[],
 			]),
 
-		FetchedPage: ({ work, path, html }) =>
+		FetchedSection: ({ work, path, html }) =>
 			withRoom(model, work, (room) => [
-				{ ...room, pages: { ...room.pages, [path]: Page.Fetched({ html }) } },
+				{
+					...room,
+					sections: { ...room.sections, [path]: Section.Fetched({ html }) },
+				},
 				Option.match(
-					Option.filter(room.sentence, (sentence) => pageOf(sentence) === path),
+					Option.filter(
+						room.sentence,
+						(sentence) => sectionOf(sentence) === path
+					),
 					{
 						onNone: () => [],
 						onSome: (sentence) => [Show({ id: spanOf(sentence) })],
 					}
 				),
 			]),
-		FailedFetchPage: ({ work, path, reason }) =>
+		FailedFetchSection: ({ work, path, reason }) =>
 			withRoom(model, work, (room) => [
-				{ ...room, pages: { ...room.pages, [path]: Page.Failed({ reason }) } },
+				{
+					...room,
+					sections: {
+						...room.sections,
+						[path]: Section.Failed({ reason }),
+					},
+				},
 				[],
 			]),
 
@@ -267,7 +279,7 @@ const handle = (model: Model, message: Message): Return =>
 				Book.match<Option.Option<Kept>>(room.book, {
 					Open: ({ contents }) => {
 						const sentence = sentenceOf(
-							contents.pages[room.shown]?.path ?? "",
+							contents.sections[room.shown]?.path ?? "",
 							id
 						);
 
@@ -285,7 +297,7 @@ const handle = (model: Model, message: Message): Return =>
 					Failed: () => Option.none(),
 				})
 			),
-		// Reading on with the audio stopped: the place follows the page, and so does the audio.
+		// Reading on with the audio stopped: the place follows the section, and so does the audio.
 		ReadTo: ({ id, at }) =>
 			Option.exists(model.room, (room) => room.isPlaying)
 				? { model }
@@ -293,7 +305,7 @@ const handle = (model: Model, message: Message): Return =>
 						Book.match<Option.Option<Kept>>(room.book, {
 							Open: ({ contents, timeline }) => {
 								const sentence = sentenceOf(
-									contents.pages[room.shown]?.path ?? "",
+									contents.sections[room.shown]?.path ?? "",
 									id
 								);
 

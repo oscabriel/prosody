@@ -1,7 +1,7 @@
 import type { Contents } from "@prosody/domain/Reading/Copy";
 import type {
-	Bookmark,
-	Position,
+	KeptPlace,
+	PlaceAt,
 	Sentence,
 } from "@prosody/domain/Reading/Sentence";
 import { Option } from "effect";
@@ -9,8 +9,8 @@ import type { HttpClient } from "effect/http";
 import type { Command, Update } from "foldkit";
 import { modifyFields } from "foldkit/struct";
 
-import { FetchPage, kindOf } from "./Copy.ts";
-import { Book, Page, Room } from "./Model.ts";
+import { FetchSection, kindOf } from "./Copy.ts";
+import { Book, Room, Section } from "./Model.ts";
 import type { Message, Model } from "./Model.ts";
 import { Seek } from "./Player.ts";
 import type { Reader } from "./Prosody.ts";
@@ -20,7 +20,7 @@ import {
 	firstOn,
 	heardOf,
 	indexOf,
-	pageOf,
+	sectionOf,
 	sentenceAt,
 	spanOf,
 	startOf,
@@ -42,7 +42,7 @@ export type Step = readonly [Room, Commands];
  * Where you are in a work, as a place keeps it: the sentence, or in audio alone, the time, or in a
  * book made of pages, the page.
  */
-export type Spot = Pick<Position, "sentence" | "time" | "page">;
+export type Spot = Pick<PlaceAt, "sentence" | "time" | "page">;
 
 /**
  * A work's reading room as it opens, before the book or your place has arrived. Its audio plays
@@ -52,11 +52,11 @@ export const roomOf = (work: string, isKeptHere: boolean): Room =>
 	Room.make({
 		work,
 		book: Book.Opening(),
-		pages: {},
+		sections: {},
 		shown: 0,
 		sentence: Option.none(),
-		hasHeardPlace: false,
-		heardPlace: Option.none(),
+		knowsPlace: false,
+		knownPlace: Option.none(),
 		hasOpened: false,
 		time: 0,
 		isPlaying: false,
@@ -106,21 +106,24 @@ export const inRoom = (model: Model, change: (room: Room) => Step): Return =>
 		onSome: (room) => withRoom(model, room.work, change),
 	});
 
-/** Fetch a page unless it is fetched or on its way. */
+/** Fetch a section unless it is fetched or on its way. */
 export const fetchIfNeeded = (room: Room, path: string): Step =>
-	path === "" || room.pages[path] !== undefined
+	path === "" || room.sections[path] !== undefined
 		? [room, []]
 		: [
-				{ ...room, pages: { ...room.pages, [path]: Page.Fetching() } },
-				[FetchPage({ work: room.work, path })],
+				{
+					...room,
+					sections: { ...room.sections, [path]: Section.Fetching() },
+				},
+				[FetchSection({ work: room.work, path })],
 			];
 
-/** Show the page at `index`, fetching it and the one after it. */
+/** Show the section at `index`, fetching it and the one after it. */
 export const turnTo = (room: Room, index: number): Step =>
 	Book.match<Step>(room.book, {
 		Open: ({ contents }) => {
-			const path = contents.pages[index]?.path ?? "";
-			const next = contents.pages[index + 1]?.path ?? "";
+			const path = contents.sections[index]?.path ?? "";
+			const next = contents.sections[index + 1]?.path ?? "";
 			const [fetched, first] = fetchIfNeeded({ ...room, shown: index }, path);
 			const [ahead, second] = fetchIfNeeded(fetched, next);
 
@@ -132,13 +135,13 @@ export const turnTo = (room: Room, index: number): Step =>
 	});
 
 /**
- * Go to a sentence: show its page, underline it, bring it into view, and move the audio to it,
+ * Go to a sentence: show its section, underline it, bring it into view, and move the audio to it,
  * playing on if it was playing.
  */
 export const goTo = (room: Room, sentence: Sentence): Step =>
 	Book.match<Step>(room.book, {
 		Open: ({ contents, timeline }) => {
-			const index = indexOf(contents, pageOf(sentence));
+			const index = indexOf(contents, sectionOf(sentence));
 			const [turned, fetches] = turnTo(room, Math.max(0, index));
 			const start = startOf(timeline, sentence);
 
@@ -171,7 +174,7 @@ export const listenFrom = (room: Room, time: number): Step => [
  * Go to a place kept on a device: its sentence, or, for a place kept while the work had its audio
  * alone, the sentence read at its time. In audio alone, its time; in a book made of pages, its page.
  */
-export const goToPlace = (room: Room, place: Position): Step =>
+export const goToPlace = (room: Room, place: PlaceAt): Step =>
 	Book.match<Step>(room.book, {
 		Open: ({ contents, timeline }) => {
 			if (kindOf(contents) === "audio") {
@@ -198,21 +201,21 @@ export const goToPlace = (room: Room, place: Position): Step =>
 	});
 
 /**
- * Once both the book and your place have arrived, open the book at your place, or at its first
- * page when you have none.
+ * Once both the book and your place have arrived, open the book at your place, or at its start
+ * when you have none.
  */
 export const settle = (room: Room): Step => {
-	if (!room.hasHeardPlace || Option.isSome(room.sentence)) {
+	if (!room.knowsPlace || Option.isSome(room.sentence)) {
 		return [room, []];
 	}
 
 	return Book.match<Step>(room.book, {
 		Open: ({ contents, timeline }) =>
-			Option.match(room.heardPlace, {
+			Option.match(room.knownPlace, {
 				onSome: (place) =>
 					goToPlace({ ...room, kept: Option.some(place) }, place),
 				onNone: () => {
-					const first = firstOn(timeline, contents.pages[0]?.path ?? "");
+					const first = firstOn(timeline, contents.sections[0]?.path ?? "");
 
 					return first === undefined ? turnTo(room, 0) : goTo(room, first);
 				},
@@ -227,7 +230,7 @@ export const settle = (room: Room): Step => {
  * A place kept elsewhere that is newer than anything this page has, and not where you are. A place
  * this page kept is never newer than the last one it kept.
  */
-export const isElsewhere = (room: Room, place: Bookmark): boolean =>
+export const isElsewhere = (room: Room, place: KeptPlace): boolean =>
 	Option.match(room.kept, {
 		onNone: () => true,
 		onSome: (kept) => place.at > kept.at,
@@ -280,7 +283,7 @@ export const spotOf = (room: Room): Option.Option<Spot> =>
 	});
 
 /**
- * What the contents list: the pages of a text, the chapters of audio alone, or the chapters a book
+ * What the contents list: the sections of a text, the chapters of audio alone, or the chapters a book
  * of pages names.
  */
 export const chaptersIn = (
@@ -290,11 +293,11 @@ export const chaptersIn = (
 		return contents.chapters;
 	}
 
-	return kindOf(contents) === "pages" ? contents.headings : contents.pages;
+	return kindOf(contents) === "pages" ? contents.headings : contents.sections;
 };
 
 /**
- * The chapter you are in: the one your place is in, or the page on show when you have no place
+ * The chapter you are in: the one your place is in, or the section on show when you have no place
  * yet. In audio alone, the one playing; in a book of pages, the one the page on show is in.
  */
 export const chapterOf = (room: Room, contents: Contents): number => {
@@ -311,7 +314,7 @@ export const chapterOf = (room: Room, contents: Contents): number => {
 
 	return Option.match(room.sentence, {
 		onNone: () => room.shown,
-		onSome: (sentence) => indexOf(contents, pageOf(sentence)),
+		onSome: (sentence) => indexOf(contents, sectionOf(sentence)),
 	});
 };
 

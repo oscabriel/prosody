@@ -73,10 +73,10 @@ const reasonOf = (error: AlignFailed | Schema.SchemaError): string =>
  *   /copies/<work>/<work>.epub          a pair's reading copy: marked text, its overlays, the audio
  *   /copies/<work>/audio/               the audio, kept to play from
  *   /copies/<work>/timeline.json        a pair's every sentence's place in the audio, or none
- *   /copies/<work>/text/                the copy's pages, unpacked, for the reading room
+ *   /copies/<work>/text/                the copy's sections, unpacked, for the reading room
  *   /copies/<work>/pictures/            a copy of a PDF: a picture of each of its pages
  *   /copies/<work>/cover.jpg            the cover, when the book has a picture
- *   /copies/<work>/contents.json        the audio to play, the pages to read, the chapters to hear
+ *   /copies/<work>/contents.json        the audio to play, the sections to read, the chapters to hear
  *                                       and the cover; written last, so a copy that has one is
  *                                       complete
  *   /copies/<work>/heard-<size>.emissions
@@ -210,7 +210,7 @@ export class ReadingCopies extends Context.Service<
 
 				yield* finish(folder, {
 					audio: request.audio,
-					pages: aligned.pages,
+					sections: aligned.sections,
 					chapters: [],
 					cover: Option.getOrNull(cover),
 					pictures: [],
@@ -231,7 +231,7 @@ export class ReadingCopies extends Context.Service<
 			})
 		);
 
-		/** A text alone: its pages marked, as a pair's are, with no audio to find them in. */
+		/** A text alone: its sections marked, as a pair's are, with no audio to find them in. */
 		const copyText = Effect.fnUntraced(function* (
 			folder: string,
 			source: string
@@ -245,7 +245,7 @@ export class ReadingCopies extends Context.Service<
 			yield* fs.remove(epub, { force: true });
 
 			// A book of pictures, or scanned pages, has nothing to read in the room.
-			if (marked.pages.length === 0) {
+			if (marked.sections.length === 0) {
 				return yield* new Unmade({
 					reason: "its text has no sentences to read",
 				});
@@ -255,14 +255,14 @@ export class ReadingCopies extends Context.Service<
 
 			yield* finish(folder, {
 				audio: null,
-				pages: marked.pages,
+				sections: marked.sections,
 				chapters: [],
 				cover: Option.getOrNull(cover),
 				pictures: [],
 				headings: [],
 			});
 
-			return { chapters: marked.pages.length };
+			return { chapters: marked.sections.length };
 		});
 
 		/**
@@ -296,7 +296,7 @@ export class ReadingCopies extends Context.Service<
 
 			yield* finish(folder, {
 				audio: file,
-				pages: [],
+				sections: [],
 				chapters,
 				cover: Option.getOrNull(cover),
 				pictures: [],
@@ -328,7 +328,7 @@ export class ReadingCopies extends Context.Service<
 
 			yield* finish(folder, {
 				audio: null,
-				pages: [],
+				sections: [],
 				chapters: [],
 				cover: Option.getOrNull(cover),
 				pictures,

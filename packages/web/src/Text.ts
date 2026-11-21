@@ -22,8 +22,8 @@ const isVisible = (element: Element): boolean => {
  * The first marked sentence whose line is below the top of the window: where a reader who scrolled
  * has got to.
  */
-const firstVisible = (page: Element): string | undefined => {
-	for (const span of page.querySelectorAll('span[id^="ps-"]')) {
+const firstVisible = (section: Element): string | undefined => {
+	for (const span of section.querySelectorAll('span[id^="ps-"]')) {
 		if (span.getBoundingClientRect().bottom > 0) {
 			return span.id;
 		}
@@ -33,9 +33,9 @@ const firstVisible = (page: Element): string | undefined => {
 };
 
 /**
- * What a reader does in the text: tapping a sentence, and scrolling to another part of the page.
+ * What a reader does in the text: tapping a sentence, and scrolling to another part of the section.
  * A scroll only counts once it has stopped, and only when it took your place off the screen; the
- * page marks your place in `data-sentence`.
+ * section marks your place in `data-sentence`.
  */
 export const Read = Mount.defineStream("Read", {
 	messages: [Message.PressedSentence, Message.ReadTo],
@@ -78,7 +78,7 @@ export const Read = Mount.defineStream("Read", {
 	},
 });
 
-/** Two animation frames: long enough for a new page to be drawn. */
+/** Two animation frames: long enough for a new section to be drawn. */
 const drawn = Effect.callback<undefined>((resume) => {
 	requestAnimationFrame(() => {
 		requestAnimationFrame(() => {
@@ -106,7 +106,7 @@ export const Show = Command.define("Show", {
 		),
 });
 
-/** Go to the top of a newly turned page. */
+/** Go to the top of a newly shown section. */
 export const ToTop = Command.define("ToTop", {
 	messages: [Message.CompletedShow],
 	execute: drawn.pipe(

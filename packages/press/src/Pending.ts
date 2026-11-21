@@ -17,33 +17,35 @@ import type { PlatformError } from "effect";
 import { COPIES } from "./ReadingCopies.ts";
 
 /** What the model asks of the press: to align a pair, to copy an edition alone, or to shelve a payload. */
-const Job = Schema.Union([AlignRequest, CopyRequest, ShelveRequest]);
+const PressRequest = Schema.Union([AlignRequest, CopyRequest, ShelveRequest]);
 
-type Job = typeof Job.Type;
+type PressRequest = typeof PressRequest.Type;
 
 export const isCopy = Schema.is(CopyRequest);
 
 const isShelve = Schema.is(ShelveRequest);
 
-/** A job's file in the queue on disk. */
-const nameOf = (job: Job) => {
-	if (isShelve(job)) {
-		return `${job.grab}.shelve.json`;
+/** A request's file in the queue on disk. */
+const nameOf = (request: PressRequest) => {
+	if (isShelve(request)) {
+		return `${request.grab}.shelve.json`;
 	}
 
-	return isCopy(job)
-		? `${job.work}.${job.attempt}.copy.json`
-		: `${job.work}.json`;
+	return isCopy(request)
+		? `${request.work}.${request.attempt}.copy.json`
+		: `${request.work}.json`;
 };
 
-/** A job as the press keeps it on disk until it has answered. */
-const decodeJob = Schema.decodeUnknownEffect(Schema.fromJsonString(Job));
+/** A request as the press keeps it on disk until it has answered. */
+const decodeRequest = Schema.decodeUnknownEffect(
+	Schema.fromJsonString(PressRequest)
+);
 
-const encodeJob = Schema.encodeEffect(Schema.fromJsonString(Job));
+const encodeRequest = Schema.encodeEffect(Schema.fromJsonString(PressRequest));
 
 /**
  * The press's queue: what the model asked, in two lines, pairs and copies in one and payloads in
- * the other. Each job waits in `/copies/.pending` as well, until the press has answered it, so a
+ * the other. Each request waits in `/copies/.pending` as well, until the press has answered it, so a
  * restart (a deploy, a crash) picks up where it left off instead of waiting out a deadline. A pair
  * waits as `<work>.json`; a copy as `<work>.<attempt>.copy.json`, since a remake can overtake a try
  * still waiting, and each try's file is removed only when that try is answered; a payload as
@@ -54,9 +56,9 @@ export class Pending extends Context.Service<
 	{
 		readonly waiting: Queue.Queue<AlignRequest | CopyRequest>;
 		readonly shelving: Queue.Queue<ShelveRequest>;
-		/** Queue a job, once: a policy may ask twice for the same try. */
+		/** Queue a request, once: a policy may ask twice for the same try. */
 		readonly enqueue: (
-			job: Job
+			request: PressRequest
 		) => Effect.Effect<void, PlatformError.PlatformError | Schema.SchemaError>;
 		/**
 		 * Put back what was waiting when the press last stopped. A file that won't decode is skipped.
@@ -64,9 +66,9 @@ export class Pending extends Context.Service<
 		 * (`<work>.json`), which was asked for later and replaces it.
 		 */
 		readonly resume: Effect.Effect<void, PlatformError.PlatformError>;
-		/** Take an answered job off the disk. */
+		/** Take an answered request off the disk. */
 		readonly done: (
-			job: Job
+			request: PressRequest
 		) => Effect.Effect<void, PlatformError.PlatformError>;
 	}
 >()("@prosody/press/Pending", {
@@ -78,9 +80,11 @@ export class Pending extends Context.Service<
 		const shelving = yield* Queue.unbounded<ShelveRequest>();
 		const asked = yield* Ref.make(HashSet.empty<string>());
 
-		const enqueue = Effect.fn("Pending.enqueue")(function* (job: Job) {
+		const enqueue = Effect.fn("Pending.enqueue")(function* (
+			request: PressRequest
+		) {
 			const isNew = yield* Ref.modify(asked, (seen) => {
-				const key = nameOf(job);
+				const key = nameOf(request);
 
 				return HashSet.has(seen, key)
 					? [false, seen]
@@ -90,12 +94,12 @@ export class Pending extends Context.Service<
 			if (isNew) {
 				yield* fs.makeDirectory(folder, { recursive: true });
 				yield* fs.writeFileString(
-					path.join(folder, nameOf(job)),
-					yield* encodeJob(job)
+					path.join(folder, nameOf(request)),
+					yield* encodeRequest(request)
 				);
-				yield* isShelve(job)
-					? Queue.offer(shelving, job)
-					: Queue.offer(waiting, job);
+				yield* isShelve(request)
+					? Queue.offer(shelving, request)
+					: Queue.offer(waiting, request);
 			}
 		});
 
@@ -106,15 +110,15 @@ export class Pending extends Context.Service<
 				yield* fs
 					.readFileString(path.join(folder, name))
 					.pipe(
-						Effect.flatMap(decodeJob),
+						Effect.flatMap(decodeRequest),
 						Effect.flatMap(enqueue),
 						Effect.catchCause(Effect.logWarning)
 					);
 			}
 		}).pipe(Effect.withSpan("Pending.resume"));
 
-		const done = (job: Job) =>
-			fs.remove(path.join(folder, nameOf(job)), { force: true });
+		const done = (request: PressRequest) =>
+			fs.remove(path.join(folder, nameOf(request)), { force: true });
 
 		return { waiting, shelving, enqueue, resume, done };
 	}),

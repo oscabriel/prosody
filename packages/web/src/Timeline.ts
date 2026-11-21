@@ -33,17 +33,17 @@ export const heardOf = (timeline: Timeline): ReadonlyArray<Heard> => {
 	return heard;
 };
 
-/** The page a sentence is on. */
-export const pageOf = (sentence: string): string =>
+/** The section a sentence is in. */
+export const sectionOf = (sentence: string): string =>
 	sentence.split("#")[0] ?? "";
 
-/** The span a sentence is marked with on its page. */
+/** The span a sentence is marked with in its section. */
 export const spanOf = (sentence: string): string =>
 	sentence.split("#")[1] ?? "";
 
-/** A page's index in the contents, or -1. */
+/** A section's index in the contents, or -1. */
 export const indexOf = (contents: Contents, path: string): number =>
-	contents.pages.findIndex((page) => page.path === path);
+	contents.sections.findIndex((section) => section.path === path);
 
 /**
  * The sentence being read at `time`: the last one to start at or before it. Between two sentences
@@ -89,23 +89,23 @@ export const startOf = (
 	return timeline.slice(at).find(isHeard)?.start;
 };
 
-/** The seconds of audio left on a page from `time`, or 0 when its audio is behind. */
-export const leftOnPage = (
+/** The seconds of audio left in a section from `time`, or 0 when its audio is behind. */
+export const leftInSection = (
 	heard: ReadonlyArray<Heard>,
 	path: string,
 	time: number
 ): number => {
-	const last = heard.findLast((entry) => pageOf(entry.sentence) === path);
+	const last = heard.findLast((entry) => sectionOf(entry.sentence) === path);
 
 	return last === undefined ? 0 : Math.max(0, last.end - time);
 };
 
-/** The first sentence on a page, read or not. */
+/** The first sentence in a section, read or not. */
 export const firstOn = (
 	timeline: Timeline,
 	path: string
 ): Sentence | undefined =>
-	timeline.find((entry) => pageOf(entry.sentence) === path)?.sentence;
+	timeline.find((entry) => sectionOf(entry.sentence) === path)?.sentence;
 
 /** The chapter of the audio playing at `time`: the last to start at or before it. */
 export const chapterAt = (

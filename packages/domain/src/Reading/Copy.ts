@@ -24,14 +24,14 @@ export type Heading = typeof Heading.Type;
 
 /**
  * What a reading copy holds, as the press writes it beside the copy in `contents.json`: the audio
- * file to play, the pages that hold sentences in reading order, the audio's chapters, and the cover
- * picture. A copy of the text alone has no audio; one of the audio alone has no pages, and lists its
- * chapters instead. A copy made of a book's pages has neither: it has a picture of each page, and
+ * file to play, the sections that hold sentences in reading order, the audio's chapters, and the
+ * cover picture. A copy of the text alone has no audio; one of the audio alone has no sections, and
+ * lists its chapters instead. A copy made of a book's pages has neither: it has a picture of each page, and
  * the chapters its PDF lists.
  */
 export const Contents = Schema.Struct({
 	audio: Schema.NullOr(Schema.String),
-	pages: Schema.Array(
+	sections: Schema.Array(
 		Schema.Struct({ path: Schema.String, title: Schema.String })
 	),
 	// A copy made before there were copies of one edition has no chapters and no cover.
@@ -49,7 +49,10 @@ export const Contents = Schema.Struct({
 	headings: Schema.Array(Heading).pipe(
 		Schema.withDecodingDefaultKey(Effect.succeed([]))
 	),
-});
+}).pipe(
+	// A text's sections were first called its pages, and every copy made says so.
+	Schema.encodeKeys({ sections: "pages" })
+);
 
 export type Contents = typeof Contents.Type;
 

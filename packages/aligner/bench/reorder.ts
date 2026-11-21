@@ -43,11 +43,11 @@ const emissions = decode(new Uint8Array(readFileSync(emissionsPath)));
 
 const book = open(new Uint8Array(readFileSync(epubPath)));
 
-const said = book.pages
-	.filter((page) => page.narrated)
+const said = book.sections
+	.filter((section) => section.narrated)
 	.flatMap(
-		(page) =>
-			mark(strFromU8(book.files.get(page.path) ?? new Uint8Array()), "ps-")
+		(section) =>
+			mark(strFromU8(book.files.get(section.path) ?? new Uint8Array()), "ps-")
 				.sentences
 	)
 	.map((sentence) => {

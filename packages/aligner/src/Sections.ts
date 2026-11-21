@@ -1,12 +1,12 @@
 import { decodeHTML } from "entities";
 
 /**
- * Which pages of a book a narrator reads. A cover, a title page, the contents, an index, a glossary,
+ * Which sections of a book a narrator reads. A cover, a title page, the contents, an index, a glossary,
  * a bibliography, the copyright page or the notes are never narrated; marking them would only count
  * sentences no one could ever find, and make every book look less in sync than it is.
  */
 
-/** Kinds of page that are never read aloud, as EPUB 3 names them. */
+/** Kinds of section that are never read aloud, as EPUB 3 names them. */
 const UNREAD = new Set([
 	"cover",
 	"titlepage",
@@ -45,15 +45,15 @@ const UNREAD_IN_GUIDE = new Set([
 	"notes",
 ]);
 
-/** Titles of pages that are never read aloud. */
+/** Titles of sections that are never read aloud. */
 const UNREAD_TITLE =
 	/^\s*(?:index|glossary|bibliography|copyright|colophon|contents|table of contents|notes|endnotes)\s*$/iu;
 
-/** File names of such pages, trusted only near the front or the back of the book. */
+/** File names of such sections, trusted only near the front or the back of the book. */
 const UNREAD_FILE =
 	/^(?:cover|title|titlepage|halftitle|copyright|toc|contents|index|ix\d*|glossary|colophon|bibliography|bib\d*|notes|endnotes)\b/iu;
 
-/** The `epub:type` values on a page's body and its first section. */
+/** The `epub:type` values on a section's body and its first `<section>`. */
 const typesOf = (xhtml: string): Array<string> => {
 	const body = xhtml.search(/<body\b/iu);
 
@@ -72,7 +72,7 @@ const typesOf = (xhtml: string): Array<string> => {
 	return values.flatMap((match) => (match.groups?.types ?? "").split(/\s+/u));
 };
 
-/** A page's title, from its `<title>`. */
+/** A section's title, from its `<title>`. */
 const titleOf = (xhtml: string): string =>
 	/<title>(?<title>[^<]*)<\/title>/iu.exec(xhtml)?.groups?.title ?? "";
 
@@ -87,7 +87,7 @@ const plain = (markup: string): string =>
 		.trim();
 
 /**
- * What a reader would call a page: its first heading, or its `<title>` when that says nothing, as
+ * What a reader would call a section: its first heading, or its `<title>` when that says nothing, as
  * plain text. Empty when it has neither.
  */
 export const headingOf = (xhtml: string): string => {
@@ -100,7 +100,7 @@ export const headingOf = (xhtml: string): string => {
 };
 
 /**
- * Whether a narrator reads the page at `index` of `count` spine pages. `guideType` is what the EPUB 2
+ * Whether a narrator reads the section at `index` of `count` spine sections. `guideType` is what the EPUB 2
  * guide calls it, if anything.
  */
 export const isNarrated = (

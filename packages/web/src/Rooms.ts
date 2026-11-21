@@ -25,7 +25,7 @@ import {
 } from "./Steps.ts";
 import type { Return, Step } from "./Steps.ts";
 import { Show, ToTop } from "./Text.ts";
-import { heardOf, indexOf, pageOf, sentenceAt, spanOf } from "./Timeline.ts";
+import { heardOf, indexOf, sectionOf, sentenceAt, spanOf } from "./Timeline.ts";
 
 // The reading room's steps that open it, follow the audio through it, and close it.
 
@@ -69,7 +69,7 @@ export const follow = (model: Model, time: number, at: number): Return => {
 					return [moved, []];
 				}
 
-				const index = indexOf(contents, pageOf(sentence));
+				const index = indexOf(contents, sectionOf(sentence));
 
 				const [turned, fetches] =
 					index === room.shown || index === -1
@@ -99,7 +99,7 @@ export const follow = (model: Model, time: number, at: number): Return => {
 };
 
 /**
- * Go to a chapter in the contents: turn to its page, or in audio alone, play from its start. In a
+ * Go to a chapter in the contents: turn to its section, or in audio alone, play from its start. In a
  * book of pages, turn to the page it begins on, and bring the page into view.
  */
 export const toChapter = (model: Model, index: number): Return =>
@@ -146,7 +146,7 @@ export const turnPage = (model: Model, index: number): Return =>
 /**
  * A page of a book of pages is on show, which makes it your place: it is kept, unless it is the
  * place you were at already, as when the book opens there, or on its first page with no place yet.
- * Nothing is kept before your place is heard, or a page turned to meanwhile would replace it.
+ * Nothing is kept before your place is known, or a page turned to meanwhile would replace it.
  */
 export const showedPage = (model: Model, index: number, at: number): Return =>
 	keepIn(model, (room) => {
@@ -159,7 +159,7 @@ export const showedPage = (model: Model, index: number, at: number): Return =>
 			Option.filter(
 				spotOf(room),
 				(spot) =>
-					room.hasHeardPlace && spot.page === index + 1 && spot.page !== was
+					room.knowsPlace && spot.page === index + 1 && spot.page !== was
 			),
 			(spot) => [room, spot, at, []] as const
 		);
@@ -193,12 +193,12 @@ export const stampIn = (model: Model, move: Move): Return =>
 /** With no connection, the device's own place stands in for the model's answer. */
 export const hearOwn = (model: Model): Return =>
 	inRoom(model, (room) =>
-		room.hasHeardPlace
+		room.knowsPlace
 			? [room, []]
 			: settle({
 					...room,
-					hasHeardPlace: true,
-					heardPlace: placeOn(model, room.work),
+					knowsPlace: true,
+					knownPlace: placeOn(model, room.work),
 				})
 	);
 

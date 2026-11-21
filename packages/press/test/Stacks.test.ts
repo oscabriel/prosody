@@ -51,7 +51,7 @@ layer(StacksTest)("the stacks", (it) => {
 			const stacks = yield* Stacks;
 			const root = yield* library;
 
-			const { books, unreadable } = yield* stacks.survey(root);
+			const { books, unreadable } = yield* stacks.walk(root);
 
 			assert.deepStrictEqual(unreadable, []);
 			assert.deepStrictEqual(books, [
@@ -98,7 +98,7 @@ layer(StacksTest)("the stacks", (it) => {
 			const path = yield* Path.Path;
 			const root = yield* library;
 
-			const { books, unreadable } = yield* stacks.survey(
+			const { books, unreadable } = yield* stacks.walk(
 				path.join(root, "ebooks")
 			);
 

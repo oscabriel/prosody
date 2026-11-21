@@ -7,7 +7,7 @@ import { Message } from "./Model.ts";
 
 /**
  * What a reading copy holds: the text and the audio joined, the text alone (no audio), the audio
- * alone (no pages, only chapters), or a book's pages (a picture of each).
+ * alone (no sections, only chapters), or a book's pages (a picture of each).
  */
 export type Kind = "synced" | "text" | "audio" | "pages";
 
@@ -20,7 +20,7 @@ export const kindOf = (contents: Contents): Kind => {
 		return "text";
 	}
 
-	return contents.pages.length === 0 ? "audio" : "synced";
+	return contents.sections.length === 0 ? "audio" : "synced";
 };
 
 /** Where a work's reading copy is served from. */
@@ -29,8 +29,8 @@ export const copyUrl = (work: string, file: string): string =>
 
 /**
  * Open a work's reading copy: its contents, and the timeline that joins its text and audio when it
- * has both. A copy with no contents is not made yet, or was made before the reading room had pages
- * to show.
+ * has both. A copy with no contents is not made yet, or was made before the reading room, so it says
+ * nothing of what to show.
  */
 export const OpenCopy = Command.define("OpenCopy", {
 	args: { work: Schema.String },
@@ -70,9 +70,9 @@ export const OpenCopy = Command.define("OpenCopy", {
 const DROPPED = "script, style, link, meta, title";
 
 /**
- * A page's body as markup for the reading room. Every link to a file of the copy (an image, a
- * figure) is made absolute, and links between pages are dropped, since the room turns its own
- * pages.
+ * A section's body as markup for the reading room. Every link to a file of the copy (an image, a
+ * figure) is made absolute, and links between sections are dropped, since the room turns to
+ * them itself.
  */
 export const bodyOf = (xhtml: string, base: string): string => {
 	const parsed = new DOMParser().parseFromString(
@@ -114,7 +114,7 @@ export const bodyOf = (xhtml: string, base: string): string => {
 	return body.innerHTML;
 };
 
-/** The files a page shows, such as its pictures, as `bodyOf` leaves their paths. */
+/** The files a section shows, such as its pictures, as `bodyOf` leaves their paths. */
 export const filesOf = (html: string): ReadonlyArray<string> => {
 	const { body } = new DOMParser().parseFromString(html, "text/html");
 
@@ -126,10 +126,10 @@ export const filesOf = (html: string): ReadonlyArray<string> => {
 	);
 };
 
-/** Fetch one page of a work's reading copy, ready to show. */
-export const FetchPage = Command.define("FetchPage", {
+/** Fetch one section of a work's reading copy, ready to show. */
+export const FetchSection = Command.define("FetchSection", {
 	args: { work: Schema.String, path: Schema.String },
-	messages: [Message.FetchedPage, Message.FailedFetchPage],
+	messages: [Message.FetchedSection, Message.FailedFetchSection],
 	execute: ({ work, path }) =>
 		Effect.gen(function* () {
 			const client = yield* HttpClient.HttpClient;
@@ -140,7 +140,7 @@ export const FetchPage = Command.define("FetchPage", {
 				Effect.flatMap((response) => response.text)
 			);
 
-			return Message.FetchedPage({
+			return Message.FetchedSection({
 				work,
 				path,
 				html: bodyOf(xhtml, new URL(url, location.origin).href),
@@ -148,7 +148,7 @@ export const FetchPage = Command.define("FetchPage", {
 		}).pipe(
 			Effect.catchCause((cause) =>
 				Effect.succeed(
-					Message.FailedFetchPage({ work, path, reason: String(cause) })
+					Message.FailedFetchSection({ work, path, reason: String(cause) })
 				)
 			)
 		),

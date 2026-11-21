@@ -6,12 +6,12 @@ import { WorkId } from "../Library/Work.id.ts";
 import { BookFinished, FinishBook } from "./FinishBook.command.ts";
 import { KeepPlace, PlaceKept, StalePlace } from "./KeepPlace.command.ts";
 import { BookOpened, OpenBook } from "./OpenBook.command.ts";
-import { Bookmark } from "./Sentence.ts";
+import { KeptPlace } from "./Sentence.ts";
 import { BookSetAside, NotReading, SetAside } from "./SetAside.command.ts";
 import { Stage } from "./Stage.ts";
 
 const State = Schema.Struct({
-	place: Schema.NullOr(Bookmark),
+	place: Schema.NullOr(KeptPlace),
 	// A state kept before the nightstand existed: the work goes on it when it is next opened.
 	stage: Stage.pipe(
 		Schema.withDecodingDefaultKey(Effect.succeed<Stage>("unopened"))

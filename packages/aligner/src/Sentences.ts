@@ -4,13 +4,13 @@ import type { AnyNode, ChildNode, ParentNode } from "domhandler";
 import { decodeHTML } from "entities";
 import { parseDocument } from "htmlparser2";
 
-/** One sentence of a page: the id of the span that now holds it, and its text. */
+/** One sentence of a section: the id of the span that now holds it, and its text. */
 export interface Sentence {
 	readonly id: string;
 	readonly text: string;
 }
 
-/** A page with every sentence wrapped in a span of its own. */
+/** A section with every sentence wrapped in a span of its own. */
 export interface Marked {
 	readonly markup: string;
 	readonly sentences: ReadonlyArray<Sentence>;
@@ -70,7 +70,7 @@ const FILLER = "\u2060";
 
 /**
  * Text with each entity read as its character, at the same length: `&#8221;` becomes a closing
- * quote and six fillers, and an entity for a space becomes spaces. The page keeps its entities as
+ * quote and six fillers, and an entity for a space becomes spaces. The section keeps its entities as
  * written, so offsets must not move, but a sentence cannot be told from `.&#8221; She`.
  */
 const entitiesRead = (text: string): string =>
@@ -353,7 +353,7 @@ const markRun = (
 };
 
 /** Mark every block under `node`: a run of inline content is a block of its own. */
-/** Headings of parts of a page no narrator reads. */
+/** Headings of parts of a section no narrator reads. */
 const UNREAD_HEADING =
 	/^\s*(?:references|footnotes|notes|endnotes|bibliography|further reading)\s*$/iu;
 
@@ -441,11 +441,11 @@ const markIn = (
 };
 
 /**
- * Wrap every sentence of a page in `<span id="...">`. Ids are `<prefix><n>`, so the prefix should be
- * one the page does not use.
+ * Wrap every sentence of a section in `<span id="...">`. Ids are `<prefix><n>`, so the prefix should be
+ * one the section does not use.
  */
 export const mark = (xhtml: string, prefix: string): Marked => {
-	// Entities stay as written, so the page comes back out byte for byte apart from the spans.
+	// Entities stay as written, so the section comes back out byte for byte apart from the spans.
 	const document = parseDocument(xhtml, {
 		xmlMode: true,
 		decodeEntities: false,

@@ -3,7 +3,7 @@ import { Schema } from "effect";
 
 import { WorkId } from "../Library/Work.id.ts";
 
-/** The reading copy is made. `chapters` is how many the reading room lists: pages of text, or chapters of audio. */
+/** The reading copy is made. `chapters` is how many the reading room lists: sections of text, or chapters of audio. */
 export class CopyMade extends Domain.Event("CopyMade", {
 	chapters: Schema.Int,
 }) {}

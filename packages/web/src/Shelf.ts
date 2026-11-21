@@ -185,10 +185,10 @@ const nightstandView = (
 	const works = Option.match(model.shelf, {
 		onNone: () => [],
 		onSome: ({ works: shelved }) =>
-			readingNow(model).flatMap(([id, bedside]) => {
+			readingNow(model).flatMap(([id, standing]) => {
 				const entry = shelved[id];
 
-				return entry === undefined ? [] : [{ id, entry, bedside }];
+				return entry === undefined ? [] : [{ id, entry, standing }];
 			}),
 	});
 
@@ -200,7 +200,7 @@ const nightstandView = (
 		h.p([h.Class("label shelf-label")], ["On the nightstand"]),
 		h.ol(
 			[h.Class("contents nightstand")],
-			works.map(({ id, entry, bedside }) =>
+			works.map(({ id, entry, standing }) =>
 				h.keyed("li")(
 					id,
 					[h.Class("entry")],
@@ -216,7 +216,7 @@ const nightstandView = (
 								h.p([h.Class("byline")], [entry.author]),
 								h.p(
 									[h.Class("note")],
-									[`Last read on ${bedside.device}, ${dayOf(bedside.at)}`]
+									[`Last read on ${standing.device}, ${dayOf(standing.at)}`]
 								),
 								...keptNote(model, id, h),
 							]

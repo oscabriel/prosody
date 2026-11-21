@@ -5,14 +5,14 @@ import type { Document, Html, HtmlBuilder } from "foldkit/html";
 import { copyUrl, kindOf } from "./Copy.ts";
 import { bookView, offlineView } from "./Layout.ts";
 import { listeningView, playerView } from "./Listening.ts";
-import { Book, Message, Page } from "./Model.ts";
+import { Book, Message, Section } from "./Model.ts";
 import type { Model, Room } from "./Model.ts";
-import { bedsideView, copyView } from "./Moves.ts";
+import { standingView, copyView } from "./Moves.ts";
 import { pagesView } from "./Pages.ts";
 import { copyFailureOf, isAlone } from "./Rooms.ts";
 import { chapterOf, chaptersIn, entryOf, titleOf } from "./Steps.ts";
 import { Read } from "./Text.ts";
-import { pageOf, spanOf } from "./Timeline.ts";
+import { sectionOf, spanOf } from "./Timeline.ts";
 
 /**
  * The contents, on the leaf: a manicule at the chapter you are in, and the chapters before it
@@ -86,7 +86,7 @@ const leafView = (model: Model, room: Room, h: HtmlBuilder<Message>) => {
 		...offlineView(model, h),
 		h.p([h.Class("book-title")], [entry?.title ?? ""]),
 		h.p([h.Class("book-author")], [entry?.author ?? ""]),
-		...bedsideView(model, room, h),
+		...standingView(model, room, h),
 		...copyView(model, room, h),
 	];
 
@@ -183,16 +183,16 @@ const turnsView = (
 	return h.nav([h.Class("turns")], turns);
 };
 
-/** The page on show: its text, marked with your place, or why it is not there yet. */
+/** The section on show: its text, marked with your place, or why it is not there yet. */
 const textView = (
 	room: Room,
 	contents: Contents,
 	h: HtmlBuilder<Message>
 ): Html => {
-	const path = contents.pages[room.shown]?.path ?? "";
-	const page = room.pages[path] ?? Page.Fetching();
+	const path = contents.sections[room.shown]?.path ?? "";
+	const section = room.sections[path] ?? Section.Fetching();
 
-	return Page.match(page, {
+	return Section.match(section, {
 		Fetching: () => h.p([h.Class("label status")], ["Turning the page"]),
 		Failed: ({ reason }) =>
 			h.p([h.Class("status")], [`This page could not be fetched: ${reason}`]),
@@ -204,7 +204,7 @@ const textView = (
 					h.DataAttribute(
 						"sentence",
 						Option.match(
-							Option.filter(room.sentence, (s) => pageOf(s) === path),
+							Option.filter(room.sentence, (s) => sectionOf(s) === path),
 							{ onNone: () => "", onSome: spanOf }
 						)
 					),

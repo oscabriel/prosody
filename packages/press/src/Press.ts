@@ -212,7 +212,7 @@ export default class Press extends Docker.Service<Press>()(
 
 		/** Walk the library once and report everything in it. */
 		const walk = Effect.fn("Press.walk")(function* () {
-			const { books, unreadable } = yield* stacks.survey(LIBRARY);
+			const { books, unreadable } = yield* stacks.walk(LIBRARY);
 
 			const refused = Array.getSomes(
 				yield* Effect.forEach(books, refusalOf, { concurrency: 1 })
@@ -350,11 +350,14 @@ export default class Press extends Docker.Service<Press>()(
 		// back in line five minutes later, so the payloads behind it go on.
 		yield* host.run(
 			Queue.take(pending.shelving).pipe(
-				Effect.flatMap((job) =>
-					shelve(job).pipe(
+				Effect.flatMap((request) =>
+					shelve(request).pipe(
 						Effect.catchTag("StacksUnavailable", () =>
 							Effect.forkDetach(
-								Effect.delay(Queue.offer(pending.shelving, job), "5 minutes")
+								Effect.delay(
+									Queue.offer(pending.shelving, request),
+									"5 minutes"
+								)
 							)
 						),
 						Effect.catchCause(Effect.logError)
@@ -375,8 +378,8 @@ export default class Press extends Docker.Service<Press>()(
 				Effect.orDie,
 				Effect.andThen(
 					Queue.take(pending.waiting).pipe(
-						Effect.flatMap((job) =>
-							(isCopy(job) ? copy(job) : align(job)).pipe(
+						Effect.flatMap((request) =>
+							(isCopy(request) ? copy(request) : align(request)).pipe(
 								Effect.catchCause(Effect.logError)
 							)
 						),

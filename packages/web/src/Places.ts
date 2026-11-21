@@ -1,6 +1,6 @@
 import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
 import { WorkId } from "@prosody/domain/Library/Work.id";
-import type { Position } from "@prosody/domain/Reading/Sentence";
+import type { PlaceAt } from "@prosody/domain/Reading/Sentence";
 import { Duration, Effect, Option, Schema } from "effect";
 import { Command } from "foldkit";
 import { modifyFields } from "foldkit/struct";
@@ -49,7 +49,7 @@ const SavePlaces = Command.define("SavePlaces", {
 });
 
 /** A place this device knows, as a device sends it. */
-const positionOf = ({ sentence, time, page, at }: DevicePlace): Position => ({
+const placeAtOf = ({ sentence, time, page, at }: DevicePlace): PlaceAt => ({
 	sentence,
 	time,
 	page,
@@ -57,7 +57,7 @@ const positionOf = ({ sentence, time, page, at }: DevicePlace): Position => ({
 });
 
 /** Send a place to the model. Which device sent it, the Session says. */
-const send = (work: string, commandId: string, place: Position) =>
+const send = (work: string, commandId: string, place: PlaceAt) =>
 	Command.mapMessage(
 		Prosody.KeepPlace({ target: WorkId.make(work), input: place, commandId }),
 		(result) => Message.ReceivedResult({ result })
@@ -71,7 +71,7 @@ export const sendWaiting = (model: Model): Commands =>
 	Object.entries(model.places).flatMap(([work, place]) =>
 		place.commandId === null
 			? []
-			: [send(work, place.commandId, positionOf(place))]
+			: [send(work, place.commandId, placeAtOf(place))]
 	);
 
 /** The model with your places changed, and the change kept on the device. */
@@ -94,7 +94,7 @@ const keep = (
 	at: number
 ): readonly [Model, Room, Commands] => {
 	const allocation = DomainFoldkit.next(model.commandIds);
-	const place: Position = { ...spot, at };
+	const place: PlaceAt = { ...spot, at };
 
 	const [saved, saves] = withPlaces(
 		modifyFields(model, { commandIds: () => allocation.commandIds }),
@@ -178,17 +178,17 @@ export const WaitForPlace = Command.define("WaitForPlace", {
 });
 
 /** Your place in a work on this device, if it has one. */
-export const placeOn = (model: Model, work: string): Option.Option<Position> =>
-	Option.map(Option.fromUndefinedOr(model.places[work]), positionOf);
+export const placeOn = (model: Model, work: string): Option.Option<PlaceAt> =>
+	Option.map(Option.fromUndefinedOr(model.places[work]), placeAtOf);
 
 /**
- * Take a place heard from the model when it is newer than the device's own. One still waiting to be
+ * Take a place the model told this device of when it is newer than the device's own. One still waiting to be
  * sent is older, and the model will refuse it.
  */
-export const heard = (
+export const learnPlace = (
 	model: Model,
 	work: string,
-	place: Position
+	place: PlaceAt
 ): readonly [Model, Commands] => {
 	const own = model.places[work];
 

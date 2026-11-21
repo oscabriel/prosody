@@ -27,7 +27,7 @@ const inCarl = Model.make({
 		book: Book.Open({
 			contents: {
 				audio: "audio.m4b",
-				pages: [],
+				sections: [],
 				chapters: [],
 				cover: null,
 				pictures: [],
@@ -85,7 +85,7 @@ const inAlice = Model.make({
 		book: Book.Open({
 			contents: {
 				audio: "alice.m4b",
-				pages: [],
+				sections: [],
 				chapters: [
 					{ title: "Down the Rabbit-Hole", start: 0, end: 640.6 },
 					{ title: "The Pool of Tears", start: 640.6, end: 1376.4 },

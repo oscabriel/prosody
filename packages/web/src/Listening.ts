@@ -6,7 +6,7 @@ import { Message } from "./Model.ts";
 import type { Room } from "./Model.ts";
 import { Listen, PLAYER, SKIP_AHEAD, SKIP_BACK } from "./Player.ts";
 import { chapterOf, titleOf } from "./Steps.ts";
-import { heardOf, leftOnPage } from "./Timeline.ts";
+import { heardOf, leftInSection } from "./Timeline.ts";
 
 // What the reading room shows of the audio: the player at the foot of every page that has audio,
 // and, for a work with its audio alone, the page where the text would be.
@@ -104,9 +104,9 @@ const leftInChapter = (
 		return Math.max(0, (contents.chapters[index]?.end ?? 0) - room.time);
 	}
 
-	const page = contents.pages[index]?.path ?? "";
+	const section = contents.sections[index]?.path ?? "";
 
-	return leftOnPage(heardOf(timeline), page, room.time);
+	return leftInSection(heardOf(timeline), section, room.time);
 };
 
 /**

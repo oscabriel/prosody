@@ -6,23 +6,23 @@ import { parseDocument } from "htmlparser2";
 
 import { isNarrated } from "./Sections.ts";
 
-/** An EPUB opened in memory: its files by path, its package document, and its pages in order. */
+/** An EPUB opened in memory: its files by path, its package document, and its sections in order. */
 export interface Book {
 	readonly files: Map<string, Uint8Array>;
 	/** The package document's path, e.g. `OEBPS/content.opf`. */
 	readonly packagePath: string;
 	readonly packageXml: string;
-	/** The spine's pages, as paths in the archive. */
-	readonly pages: ReadonlyArray<Page>;
+	/** The spine's sections, as paths in the archive. */
+	readonly sections: ReadonlyArray<Section>;
 	/** The cover picture's path in the archive, when the package names one. */
 	readonly cover: string | undefined;
-	/** What the book's own table of contents calls its pages, by path: the first entry for each. */
+	/** What the book's own table of contents calls its sections, by path: the first entry for each. */
 	readonly titles: ReadonlyMap<string, string>;
 }
 
-export interface Page {
+export interface Section {
 	readonly path: string;
-	/** The page's manifest id. */
+	/** The section's manifest id. */
 	readonly id: string;
 	/** Whether a narrator reads it: not a cover, an index, the copyright page and the like. */
 	readonly narrated: boolean;
@@ -153,7 +153,7 @@ export const open = (bytes: Uint8Array): Book => {
 			.map((item) => [item.attribs.id ?? "", item.attribs] as const)
 	);
 
-	const pages = all
+	const sections = all
 		.filter((element) => local(element) === "itemref")
 		.flatMap((ref) => {
 			const item = manifest.get(ref.attribs.idref ?? "");
@@ -164,7 +164,7 @@ export const open = (bytes: Uint8Array): Book => {
 				? [{ path: resolve(packagePath, href), id: item?.id ?? "" }]
 				: [];
 		})
-		.filter((page) => files.has(page.path));
+		.filter((section) => files.has(section.path));
 
 	// An EPUB 2 package names its cover, index and the like in its guide.
 	const guide = new Map(
@@ -211,14 +211,14 @@ export const open = (bytes: Uint8Array): Book => {
 		packageXml,
 		cover: cover !== undefined && files.has(cover) ? cover : undefined,
 		titles: ncx === undefined ? new Map() : titlesIn(strFromU8(ncx), ncxPath),
-		pages: pages.map((page, index) => ({
-			...page,
+		sections: sections.map((section, index) => ({
+			...section,
 			narrated: isNarrated(
-				page.path,
-				strFromU8(files.get(page.path) ?? new Uint8Array()),
+				section.path,
+				strFromU8(files.get(section.path) ?? new Uint8Array()),
 				index,
-				pages.length,
-				guide.get(page.path)
+				sections.length,
+				guide.get(section.path)
 			),
 		})),
 	};

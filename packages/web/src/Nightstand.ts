@@ -1,6 +1,6 @@
 import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
 import { WorkId } from "@prosody/domain/Library/Work.id";
-import type { Bedside } from "@prosody/domain/Reading/Nightstand.view";
+import type { Standing } from "@prosody/domain/Reading/Nightstand.view";
 import { Clock, Effect, Match, Option, Schema } from "effect";
 import { Command } from "foldkit";
 import { modifyFields } from "foldkit/struct";
@@ -58,7 +58,10 @@ export const sendMove = (
 };
 
 /** Where you are with a work, once the nightstand has answered. */
-export const bedsideOf = (model: Model, work: string): Option.Option<Bedside> =>
+export const standingOf = (
+	model: Model,
+	work: string
+): Option.Option<Standing> =>
 	Option.flatMap(model.nightstand, ({ works }) =>
 		Option.fromUndefinedOr(works[work])
 	);
@@ -66,12 +69,12 @@ export const bedsideOf = (model: Model, work: string): Option.Option<Bedside> =>
 /** The works on the nightstand, by id, the one read most lately first. */
 export const readingNow = (
 	model: Model
-): ReadonlyArray<readonly [string, Bedside]> =>
+): ReadonlyArray<readonly [string, Standing]> =>
 	Option.match(model.nightstand, {
 		onNone: () => [],
 		onSome: ({ works }) =>
 			Object.entries(works)
-				.filter(([, bedside]) => bedside.stage === "reading")
+				.filter(([, standing]) => standing.stage === "reading")
 				.toSorted(([, a], [, b]) => b.at - a.at),
 	});
 
