@@ -4,12 +4,12 @@
 
 ## What is wrong
 
-In Alchemy `2.0.0-beta.87`, a `Docker.Service` whose settings depend on other resources (such as Docker networks) is not redeployed when only its bundled TypeScript source changes. To force a redeploy, `sourceFingerprint` hashes every file under `packages/domain/src`, `packages/server/src`, and `packages/press/src`, and both `Api` and `Press` pass that hash as the `PROSODY_SOURCE` environment variable.
+In Alchemy `2.0.0-beta.87`, a `Docker.Service` whose settings depend on other resources (such as Docker networks) is not redeployed when only its bundled TypeScript source changes. To force a redeploy, `sourceFingerprint` hashes every file under `packages/domain/src`, `packages/server/src`, `packages/press/src`, and `packages/aligner/src`, and both `Api` and `Press` pass that hash as the `PROSODY_SOURCE` environment variable.
 
 ## What it costs
 
 - Any new service must wire `PROSODY_SOURCE: yield* sourceFingerprint` into its environment or code-only changes will silently fail to deploy.
-- Because one fingerprint covers all three packages, a change in `packages/press/src` redeploys `Api` and a change in `packages/server/src` redeploys `Press`.
+- Because one fingerprint covers all four packages, a change in `packages/press/src` redeploys `Api` and a change in `packages/server/src` redeploys `Press`.
 
 ## How to fix
 

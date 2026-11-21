@@ -40,4 +40,5 @@ export const sourceFingerprint = fingerprintOf([
 	"packages/domain/src",
 	"packages/server/src",
 	"packages/press/src",
+	"packages/aligner/src",
 ]);
