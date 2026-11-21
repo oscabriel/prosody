@@ -6,11 +6,12 @@
 	"scripts": {
 		"prepare": "effect-tsgo patch --oxlint --tsrs",
 		"fmt": "oxfmt",
-		"lint": "oxlint",
+		"lint": "oxlint && pnpm comments",
+		"comments": "node tools/oxlint/prosody/comments.ts check",
 		"fix": "oxlint --fix && oxfmt",
 		"typecheck": "tsc --noEmit && pnpm -r typecheck",
 		"test": "vitest run --passWithNoTests",
-		"check": "oxfmt --check && oxlint && pnpm typecheck && pnpm test",
+		"check": "oxfmt --check && pnpm lint && pnpm typecheck && pnpm test",
 		"plan": "pnpm --filter @prosody/web build && bunx --bun alchemy plan",
 		"deploy": "pnpm --filter @prosody/web build && bunx --bun alchemy deploy",
 		"destroy": "bunx --bun alchemy destroy"

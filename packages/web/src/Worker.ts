@@ -1,28 +1,13 @@
-/// <reference lib="webworker" />
-
-// The service worker: it keeps the app on the device, so it opens with no network, and answers for
-// the reading copies kept on it.
-
 import { PIECE, pieceOf, rangeOf } from "./OnDevice.ts";
 
 declare const self: ServiceWorkerGlobalScope;
 
-/** The paths of the page, its icon and every built file, written in by the build (`vite.config.ts`). */
 declare const SHELL: ReadonlyArray<string>;
 
-/** Where the app is kept on the device. */
 const APP = "app";
 
-/**
- * How long the network has to answer before the device does. With a network but no server, a fetch
- * can wait a long time before it fails.
- */
 const PATIENCE = 3000;
 
-/**
- * The network's answer, or a failure once it has kept us waiting too long. Only the answer's start
- * is timed: a long body, once begun, is left to come.
- */
 const soon = async (network: Promise<Response>): Promise<Response> => {
 	const late = Promise.withResolvers<never>();
 
@@ -37,10 +22,6 @@ const soon = async (network: Promise<Response>): Promise<Response> => {
 	}
 };
 
-/**
- * The page, from the network while it answers, and as kept when it does not. With nothing kept, it
- * waits for the network after all.
- */
 const page = async (request: Request): Promise<Response> => {
 	const cache = await caches.open(APP);
 	const network = fetch(request);
@@ -58,17 +39,12 @@ const page = async (request: Request): Promise<Response> => {
 	}
 };
 
-/** A built file never changes under its name, so the one kept is as good as the network's. */
 const built = async (request: Request): Promise<Response> => {
 	const kept = await caches.match(request);
 
 	return kept ?? (await fetch(request));
 };
 
-/**
- * A file of a reading copy: from the network while it answers, and from the copy kept on the device
- * when it does not. Not kept, it waits for the network after all.
- */
 const copyFile = async (request: Request): Promise<Response> => {
 	const network = fetch(request);
 
@@ -79,11 +55,6 @@ const copyFile = async (request: Request): Promise<Response> => {
 	}
 };
 
-/**
- * A kept copy's audio, put together from its pieces: the part a range asks for, as the Api would
- * answer it. Its own address (`?kept`) keeps it apart from the network's, since a media element
- * fails when one address gives it bytes from both. Not kept, it comes from the network.
- */
 const keptAudio = async (request: Request, path: string): Promise<Response> => {
 	const first = await caches.match(pieceOf(path, 0));
 	const size = Number(first?.headers.get("content-range")?.split("/")[1]);
@@ -119,7 +90,6 @@ const keptAudio = async (request: Request, path: string): Promise<Response> => {
 
 	const found = parts.filter((part) => part !== undefined);
 
-	// A piece is missing, so the copy is not whole.
 	if (found.length < parts.length) {
 		return Response.error();
 	}
@@ -135,7 +105,6 @@ const keptAudio = async (request: Request, path: string): Promise<Response> => {
 	});
 };
 
-/** Keep the page and every built file, and take over from an older worker at once. */
 const install = async (): Promise<void> => {
 	const cache = await caches.open(APP);
 
@@ -143,7 +112,6 @@ const install = async (): Promise<void> => {
 	await self.skipWaiting();
 };
 
-/** Drop what an older build kept, and take over the pages already open. */
 const activate = async (): Promise<void> => {
 	const cache = await caches.open(APP);
 	const current = new Set(SHELL);
@@ -174,7 +142,6 @@ self.addEventListener("fetch", (event) => {
 		return;
 	}
 
-	// The app's own pages: the shelf, the reading rooms and the desk. Any other address is the Api's.
 	if (
 		request.mode === "navigate" &&
 		(url.pathname === "/" ||

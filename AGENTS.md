@@ -16,6 +16,10 @@ The repository is public and names no real machine. Everything about one host is
 
 `GLOSSARY.md` defines the project's words: a work and its editions, a pair, a shelfmark, a reading copy, a place, a want, a grab, a payload, the press. Use each as it is defined there, in code, comments, tests, the app's text and commit messages, and add a word there when the model gains one.
 
+## Comments
+
+Code carries no comments, of any kind: a doc comment, a note, a `TODO` and a directive to a tool are all refused. A decision is an ADR in `docs/adr/`, a hack is an issue in `docs/issues/`, and a word is in `GLOSSARY.md`; write each there as you make it. `pnpm check` fails on a comment: the lint rule `prosody/no-comments` (`tools/oxlint/prosody`) reports each one in TypeScript, and `pnpm comments` catches one hidden behind a disable directive, or in CSS, HTML, a Dockerfile or YAML. So an error is fixed in the code or the config, never silenced in place. `/delete-comment` sorts and clears comments in bulk.
+
 ## How each part works
 
 `docs/how-it-works.md` holds what the source does not say about each part: why it is built as it is, and what breaks when it changes. Read the section for the part you are about to change:
@@ -29,6 +33,8 @@ The repository is public and names no real machine. Everything about one host is
 - "The desk": wanting, searching, cataloguing.
 - "Grabs and shelving": downloads, sharing, payloads, shelving.
 - "Known limits": the bugs, and what is untested.
+
+`docs/adr/` records why the code is as it is, one decision to a file, and `docs/issues/` the hacks still to fix. Read the titles in both before changing a part, and the ADRs that touch it.
 
 ## Rules
 
