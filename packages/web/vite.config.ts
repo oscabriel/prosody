@@ -40,6 +40,42 @@ const worker = (): Plugin => {
 	};
 };
 
+const themeBoot = (): Plugin => ({
+	name: "prosody-theme-boot",
+	async transformIndexHtml() {
+		const built = await build({
+			configFile: false,
+			root: import.meta.dirname,
+			logLevel: "warn",
+			build: {
+				write: false,
+				lib: {
+					entry: "src/ThemeBoot.ts",
+					formats: ["iife"],
+					name: "themeBoot",
+					fileName: () => "theme-boot.js",
+				},
+			},
+		});
+
+		const outputs = Array.isArray(built) ? built : [built];
+
+		const scripts = outputs.flatMap((result) =>
+			"output" in result
+				? result.output.flatMap((chunk) =>
+						chunk.type === "chunk" ? [chunk.code] : []
+					)
+				: []
+		);
+
+		return scripts.map((children) => ({
+			tag: "script",
+			children,
+			injectTo: "head" as const,
+		}));
+	},
+});
+
 export default defineConfig(({ mode }) => {
 	const root = `${import.meta.dirname}/../..`;
 	const relay = loadEnv(mode, root, "PROSODY_").PROSODY_RELAY ?? "";
@@ -60,7 +96,7 @@ export default defineConfig(({ mode }) => {
 	}
 
 	return {
-		plugins: [foldkit(), worker()],
+		plugins: [foldkit(), themeBoot(), worker()],
 		optimizeDeps: { entries: ["src/entry.ts"] },
 		server,
 	};

@@ -21,15 +21,16 @@ While audio is playing, Prosody publishes the book's title, author, current chap
 
 A service worker caches the app shell so Prosody opens even when your device is offline. When it cannot reach your host:
 
-- The side panel displays **Offline**: `Your place is kept on this device, and sent when you are back.`
-- The shelf shows the books you have kept on that device under `Can't reach the shelf. These are the books kept on this device.`
+- An offline banner appears at the top of each screen. Inside a reading room, it confirms that your place is saved on the device and will be sent when you reconnect.
+- The shelf shows only the books kept on that device. Clicking **Show all titles** reveals the rest of the library, labelled `Not on this device`, until you are back online.
+- The desk disables its form and action buttons until the connection returns.
 - Every place you reach while offline is stored in local browser storage and sent to the host as soon as the connection returns.
 
 ## Keeping a book on a device
 
-To read or listen offline, open a book while online and click **Keep on this device** in its side panel. Prosody downloads the book's entire reading copy into browser cache storage: its text, timeline, cover, rendered PDF pages and audio (fetched in 8 MB pieces).
+To read or listen offline, open a book while online and click **Keep on this device** in the book menu (**···**), or **Keep** in the full player. Prosody downloads the book's entire reading copy into browser cache storage: its text, timeline, cover, rendered PDF pages and audio (fetched in 8 MB pieces).
 
-While downloading, the side panel shows progress and a **Stop** button. Once stored, the shelf displays the total space used (`Kept on this device: <n> books, <size>.`).
+While downloading, the book menu displays progress and a **Stop** button, and the top bar on the shelf and desk tracks progress as well. Once stored, the book shows `Kept` on the shelf, and the **On this device** filter chip shows how many books are kept and how much space they occupy.
 
 | Edition type | Typical size on device |
 |---|---|
@@ -37,7 +38,7 @@ While downloading, the side panel shows progress and a **Stop** button. Once sto
 | Text alone (EPUB) | A few megabytes |
 | Printed pages (PDF) | Depends on page count; each page is stored as a 1600 px JPEG |
 
-To free space, open the book and click **Remove it**. Removing a kept copy deletes only the browser cache on that device; your reading place and the copy on your host are untouched.
+To free space, open the book menu, click **Remove** and confirm. Removing a kept copy deletes only the browser cache on that device; your reading place and the copy on your host are untouched.
 
 ## Limits to keep in mind
 

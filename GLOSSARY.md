@@ -85,7 +85,7 @@ Matching each sentence of a pair's text to the start and end times where it is s
 _Avoid_: Sync (for the process), matching, transcription
 
 **Synced**:
-The shelf's label for a paired work whose alignment succeeded (`Sync.state` `"synced"` in `packages/domain/src/Library/Shelf.view.ts` and `packages/web/src/Shelf.ts`). While alignment is running, the shelf calls it `"syncing"`; if it fails, `"not synced"`.
+The shelf's label for a paired work whose alignment succeeded (`Sync.state` `"synced"` in `packages/domain/src/Library/Shelf.view.ts`, rendered as `Synced` by `packages/web/src/ShelfBooks.ts`). While alignment is running, the shelf shows `Syncing…`; if it fails, `Not synced`.
 _Avoid_: Aligned (in the app's own text), matched
 
 **Try**:
@@ -165,6 +165,38 @@ _Avoid_: Archive, pause, hide
 **Kept copy**:
 A reading copy stored in full in a device's browser Cache Storage (`packages/web/src/DeviceCopies.ts`) so the work can be opened offline.
 _Avoid_: Download, offline cache
+
+**Bar**:
+The top strip of a reading room (`barView` in `packages/web/src/Room.ts`): the link back to the shelf, the book's title and current chapter, and the buttons for contents, display or appearance settings, and the book menu. In pairs and text alone it hides when scrolling down.
+_Avoid_: Header, toolbar, navbar
+
+**Dock**:
+The persistent player bar at the foot of a pair's reading room (`dockView` in `packages/web/src/Listening.ts`): play/pause, skip back and forward, the chapter scrubber, remaining chapter time, and playback speed. Tapping its middle section opens the full player sheet. Audio alone has no dock; its player fills the room.
+_Avoid_: Mini player, footer, toolbar
+
+**Panel**:
+An overlay opened on demand inside a reading room, one at a time (`RoomPanel` in `packages/web/src/Model.ts`, stored in `room.openPanel`): contents, the full player sheet, appearance or page display, the book menu, playback speed, the sleep timer, and go-to-page.
+_Avoid_: Modal, sidebar, drawer (for the concept)
+
+**Book menu**:
+The panel opened from the bar's `···` button (`bookMenuView` in `packages/web/src/Moves.ts`). It holds once-per-book actions: marking finished, setting aside, keeping on the device or removing a kept copy, and (for an online pair) **Synced** with the press's note and realignment.
+_Avoid_: Side panel, settings, options
+
+**Following**:
+A pair's reading room automatically scrolling to keep the spoken sentence in view during playback (`room.isFollowing`, `follow` in `packages/web/src/Rooms.ts`, `Follow` in `packages/web/src/Text.ts`).
+_Avoid_: Auto-scroll, tracking, karaoke
+
+**Yielding**:
+Stopping automatic following when the reader scrolls manually (`YieldedFollow` from `roomYield` in `packages/web/src/RoomSubscriptions.ts`). The highlight keeps advancing with the audio, and following resumes when the reader clicks **Back to playing**, presses `F` or play, or taps a sentence.
+_Avoid_: Pausing sync, unlocking, detaching
+
+**Sleep timer**:
+A scheduled pause for a room's audio, either after a set number of minutes or at the end of the current chapter (`packages/web/src/RoomSleep.ts`). It lives only in the room's client state and is discarded when leaving the room; the model never sees it.
+_Avoid_: Alarm, auto-stop, snooze
+
+**Appearance**:
+Device-local display preferences (`Appearance` in `packages/web/src/Appearance.ts`): theme (`Auto`, `Paper`, or `Ink`), reading-room text size, line spacing, column width, focus dimming while listening, and pages fit and dark-mode brightness. Stored in `localStorage`, never in the model.
+_Avoid_: Settings, preferences, theme (for the whole set)
 
 **Device**:
 One of your own machines on your tailnet (`Device` request context in `packages/domain/src/Device.context.ts`), identified by its Tailscale `ComputedName` (`packages/server/src/Tailscale.ts`). Tagged nodes and nodes owned by other users are refused.

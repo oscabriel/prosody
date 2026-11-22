@@ -1,0 +1,190 @@
+@font-face {
+	font-family: "EB Garamond";
+	font-style: normal;
+	font-weight: 400 800;
+	font-display: swap;
+	src: url("../fonts/eb-garamond-roman.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "EB Garamond";
+	font-style: italic;
+	font-weight: 400 800;
+	font-display: swap;
+	src: url("../fonts/eb-garamond-italic.woff2") format("woff2");
+}
+
+:root {
+	--paper: #fafafa;
+	--surface: #f2efe9;
+	--surface-hover: #eae6de;
+	--surface-raised: #ffffff;
+	--surface-glass: rgba(250, 250, 250, 0.88);
+	--scrim: rgba(28, 25, 20, 0.42);
+
+	--ink: #2a2722;
+	--ink-soft: #5e5a53;
+	--ink-muted: #666159;
+	--ink-on-accent: #fafafa;
+
+	--rule: #e2ded7;
+	--border-control: #8a847a;
+	--border-strong: #5e5a53;
+
+	--highlight-bg: rgba(181, 134, 58, 0.17);
+	--highlight-bg-paused: rgba(42, 39, 34, 0.065);
+	--highlight-bar: #8f631d;
+
+	--danger: #9b2f23;
+	--danger-surface: rgba(155, 47, 35, 0.08);
+	--danger-on: #fafafa;
+	--warn: #835411;
+	--warn-surface: rgba(131, 84, 17, 0.1);
+	--ok: #2b6542;
+	--ok-surface: rgba(43, 101, 66, 0.09);
+
+	--font-serif: "EB Garamond", Garamond, "Iowan Old Style", Georgia, serif;
+	--font-ui:
+		-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+	--font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+	--text-xs: 0.75rem;
+	--text-sm: 0.875rem;
+	--text-base: 1rem;
+	--text-lg: 1.1875rem;
+
+	--space-1: 0.25rem;
+	--space-2: 0.5rem;
+	--space-3: 0.75rem;
+	--space-4: 1rem;
+	--space-5: 1.25rem;
+	--space-6: 1.5rem;
+	--space-8: 2rem;
+	--space-10: 2.5rem;
+	--space-12: 3rem;
+
+	--radius-xs: 4px;
+	--radius-sm: 6px;
+	--radius-md: 10px;
+	--radius-lg: 14px;
+	--radius-pill: 999px;
+
+	--shadow-sm:
+		0 1px 3px rgba(26, 23, 19, 0.08), 0 1px 2px rgba(26, 23, 19, 0.04);
+	--shadow-md:
+		0 6px 20px rgba(26, 23, 19, 0.1), 0 2px 6px rgba(26, 23, 19, 0.05);
+	--shadow-lg:
+		0 16px 40px rgba(26, 23, 19, 0.16), 0 4px 12px rgba(26, 23, 19, 0.07);
+	--shadow-cover:
+		0 2px 8px rgba(26, 23, 19, 0.12), 0 1px 2px rgba(26, 23, 19, 0.08);
+	--shadow-dock: 0 -4px 16px rgba(26, 23, 19, 0.08);
+
+	--z-sticky: 10;
+	--z-chrome: 20;
+	--z-drawer: 40;
+	--z-modal: 50;
+	--z-toast: 60;
+
+	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+	--dur-press: 120ms;
+	--dur-fast: 160ms;
+	--dur-ui: 200ms;
+	--dur-sheet: 280ms;
+
+	--target-min: 44px;
+	--topbar-h: 56px;
+	--tabbar-h: 56px;
+	--dock-h: 72px;
+
+	--reader-size: 1.25rem;
+	--reader-leading: 1.6;
+	--reader-measure: 64ch;
+
+	color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--paper: #2a2722;
+		--surface: #34302a;
+		--surface-hover: #3e3932;
+		--surface-raised: #3c3730;
+		--surface-glass: rgba(42, 39, 34, 0.88);
+		--scrim: rgba(10, 9, 7, 0.64);
+
+		--ink: #fafafa;
+		--ink-soft: #b5b0a8;
+		--ink-muted: #aba69d;
+		--ink-on-accent: #2a2722;
+
+		--rule: #433e37;
+		--border-control: #9b958b;
+		--border-strong: #b5b0a8;
+
+		--highlight-bg: rgba(217, 176, 102, 0.21);
+		--highlight-bg-paused: rgba(250, 250, 250, 0.08);
+		--highlight-bar: #d9b066;
+
+		--danger: #f4a59b;
+		--danger-surface: rgba(244, 165, 155, 0.14);
+		--danger-on: #2a2722;
+		--warn: #e0b05e;
+		--warn-surface: rgba(224, 176, 94, 0.14);
+		--ok: #8fd0a7;
+		--ok-surface: rgba(143, 208, 167, 0.14);
+
+		--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.28);
+		--shadow-md: 0 8px 24px rgba(0, 0, 0, 0.36);
+		--shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.5);
+		--shadow-cover: 0 4px 12px rgba(0, 0, 0, 0.4);
+		--shadow-dock: 0 -6px 20px rgba(0, 0, 0, 0.36);
+	}
+}
+
+:root[data-theme="dark"] {
+	--paper: #2a2722;
+	--surface: #34302a;
+	--surface-hover: #3e3932;
+	--surface-raised: #3c3730;
+	--surface-glass: rgba(42, 39, 34, 0.88);
+	--scrim: rgba(10, 9, 7, 0.64);
+
+	--ink: #fafafa;
+	--ink-soft: #b5b0a8;
+	--ink-muted: #aba69d;
+	--ink-on-accent: #2a2722;
+
+	--rule: #433e37;
+	--border-control: #9b958b;
+	--border-strong: #b5b0a8;
+
+	--highlight-bg: rgba(217, 176, 102, 0.21);
+	--highlight-bg-paused: rgba(250, 250, 250, 0.08);
+	--highlight-bar: #d9b066;
+
+	--danger: #f4a59b;
+	--danger-surface: rgba(244, 165, 155, 0.14);
+	--danger-on: #2a2722;
+	--warn: #e0b05e;
+	--warn-surface: rgba(224, 176, 94, 0.14);
+	--ok: #8fd0a7;
+	--ok-surface: rgba(143, 208, 167, 0.14);
+
+	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.28);
+	--shadow-md: 0 8px 24px rgba(0, 0, 0, 0.36);
+	--shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.5);
+	--shadow-cover: 0 4px 12px rgba(0, 0, 0, 0.4);
+	--shadow-dock: 0 -6px 20px rgba(0, 0, 0, 0.36);
+	color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+	color-scheme: light;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+	:root {
+		--surface-glass: var(--paper);
+	}
+}

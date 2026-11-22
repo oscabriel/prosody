@@ -8,7 +8,7 @@ Three views each exist as a single instance keyed by `SHELF` (`ShelfName.make("m
 - `Wanted` (`packages/domain/src/Acquisition/Wanted.view.ts`): fed by `Want`, `Work` and `Grab`, storing `wants`, `catalogue` and `grabs` as separate records.
 - `Nightstand` (`packages/domain/src/Reading/Nightstand.view.ts`): fed by `Reading`, storing `works` (each work's `Standing`).
 
-The web app joins these records when rendering (`packages/web/src/Shelf.ts`, `packages/web/src/Desk.ts`, `packages/web/src/Main.ts`).
+The web app joins these records when rendering (`booksOf` in `packages/web/src/ShelfBooks.ts`, `packages/web/src/Desk.ts`, `packages/web/src/Grabbed.ts`).
 
 ## Why
 

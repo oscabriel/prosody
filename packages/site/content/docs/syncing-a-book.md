@@ -12,7 +12,7 @@ When a work has both an `.epub` and an `.m4b` under the same `<Author>/<Title>`,
 2. **Listen once.** A speech model listens to the entire audiobook on the CPU. For a 21-hour book this takes roughly an hour on an 8-core CPU.
 3. **Align sentences.** Every sentence in the book's narrated sections is matched to its timestamps in the audio, leaving unread sentences unplaced.
 4. **Spot check.** A second speech model (Whisper) listens to up to 40 placed sentences between 3 and 15 seconds long, spread across the book, and compares what it hears against the text. Each clip passes if the words match with at least 80% likeness, and at least three in four checked sentences must pass.
-5. **Publish the reading copy.** Once the spot check passes, the press writes the reading copy and the shelf marks the book `synced`.
+5. **Publish the reading copy.** Once the spot check passes, the press writes the reading copy and the shelf marks the book `Synced`.
 
 Books are queued and processed one at a time in the order they arrive. Everything else on the shelf stays open while a book is syncing. Each alignment attempt has a six-hour deadline.
 
@@ -28,9 +28,9 @@ Expect a novel to place almost all of its sentences (97% to 99% in testing). A t
 
 ## When a sync is refused
 
-Prosody refuses an alignment rather than showing a highlight that drifts from the voice. When a sync fails, the shelf marks the book `not synced` and prints the exact reason beneath the author's name. Opening a `not synced` pair shows the same reason in the reading room, with an **Align it again →** button.
+Prosody refuses an alignment rather than showing a highlight that drifts from the voice. When a sync fails, the shelf marks the book `Not synced`; opening it shows an **Align it again** button in the reading room with the refusal reason under **Technical details**.
 
-| Reason shown on the shelf | What it means |
+| Reason shown in the room | What it means |
 |---|---|
 | `its audio is <format>, which ffmpeg can't decode whole` | The audio uses a codec Prosody does not accept, such as xHE-AAC. Re-encode the file to AAC-LC and replace it. |
 | `ffmpeg decoded <n> of its audio's <m> seconds` | The decoded length does not match the file's stated duration. The file is likely truncated or damaged. |
@@ -47,10 +47,10 @@ What the speech model heard is saved in `PROSODY_COPIES` beside each reading cop
 
 You can re-align a pair from its reading room while you are online:
 
-- **A synced book:** open **Synced** in the side panel and click **Align it again**. The book closes in that room until the press finishes, then opens again by itself.
-- **A `not synced` book, or one whose reading copy predates the reading room format:** the room shows an **Align it again →** button in place of the text.
+- **A synced book:** open the book menu (**···**), expand **Synced**, click **Align it again…** and confirm. The book closes in that room until the press finishes, then reopens automatically.
+- **A `Not synced` book, or one whose reading copy predates the reading room format:** the room displays an **Align it again** button in place of the text.
 
-If a re-alignment fails, the previous reading copy is gone and the book is `not synced` until a later try succeeds.
+If a re-alignment fails, the previous reading copy is gone and the book is `Not synced` until a later try succeeds.
 
 ## Audio format requirements
 

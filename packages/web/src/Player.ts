@@ -1,5 +1,5 @@
-import { Effect, Option, Schema, Stream } from "effect";
-import { Command, Mount } from "foldkit";
+import { Duration, Effect, Option, Schema, Stream } from "effect";
+import { Command, Dom, Mount, Render } from "foldkit";
 
 import { Message } from "./Model.ts";
 
@@ -130,24 +130,14 @@ export const Pause = Command.define("Pause", {
 	),
 });
 
-const frame = Effect.callback<undefined>((resume) => {
-	requestAnimationFrame(() => {
-		resume(Effect.undefined);
-	});
-});
+const playerOnPage = Effect.suspend(() => {
+	const audio = player();
 
-const playerOnPage = Effect.gen(function* () {
-	for (let tries = 0; tries < 60; tries += 1) {
-		const audio = player();
-
-		if (audio !== undefined) {
-			return Option.some(audio);
-		}
-
-		yield* frame;
-	}
-
-	return Option.none<HTMLAudioElement>();
+	return audio === undefined
+		? Render.afterCommit.pipe(
+				Effect.map(() => Option.fromUndefinedOr(player()))
+			)
+		: Effect.succeedSome(audio);
 });
 
 export const Seek = Command.define("Seek", {
@@ -196,4 +186,46 @@ export const SetRate = Command.define("SetRate", {
 				audio.playbackRate = rate;
 			}
 		}).pipe(Effect.as(Message.CompletedPlayer())),
+});
+
+const RELEASE = Duration.millis(180);
+
+const timeOn = (range: Element): number | undefined => {
+	if (!(range instanceof HTMLInputElement)) {
+		return undefined;
+	}
+
+	const start = Number(range.dataset.start ?? "0");
+	const within = Number(range.value);
+
+	return Number.isFinite(start) && Number.isFinite(within)
+		? start + within
+		: undefined;
+};
+
+export const Scrub = Mount.defineStream("Scrub", {
+	messages: [Message.ScrubbedAudio, Message.CommittedScrub],
+	execute: ({ element }) => {
+		const moved = Dom.streamFromEventFilterMap({
+			target: element,
+			type: "input",
+			filterMapEvent: () =>
+				Option.map(Option.fromUndefinedOr(timeOn(element)), (time) =>
+					Message.ScrubbedAudio({ time })
+				),
+		});
+
+		const released = Stream.fromEventListener(element, "change").pipe(
+			Stream.debounce(RELEASE),
+			Stream.flatMap(() =>
+				Option.match(Option.fromUndefinedOr(timeOn(element)), {
+					onNone: () => Stream.empty,
+					onSome: (time) =>
+						Stream.succeed(Message.CommittedScrub({ time, at: Date.now() })),
+				})
+			)
+		);
+
+		return Stream.merge(moved, released);
+	},
 });

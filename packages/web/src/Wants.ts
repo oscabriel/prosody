@@ -17,6 +17,7 @@ import { Message } from "./Model.ts";
 import type { Desk, Model } from "./Model.ts";
 import { Prosody } from "./Prosody.ts";
 import type { Return } from "./Steps.ts";
+import { showToast } from "./Ui.ts";
 
 const MintWork = Command.define("MintWork", {
 	args: { title: Schema.String, author: Schema.String },
@@ -62,13 +63,18 @@ export const submitWant = (model: Model): Return => {
 		};
 	}
 
-	return {
-		model: changeDesk(model, (desk) => ({
+	const emptied = modifyFields(model, {
+		desk: (desk) => ({
 			...desk,
 			title: "",
 			author: "",
 			problem: Option.none(),
-		})),
+		}),
+		deskUi: (ui) => ({ ...ui, tab: "wants" as const }),
+	});
+
+	return {
+		model: showToast(emptied, `Added “${title}” — searching for offers`),
 		commands: [MintWork({ title, author })],
 	};
 };
@@ -96,6 +102,13 @@ export const sendWant = (
 	};
 };
 
+export const wantTitleOf = (model: Model, work: string): string =>
+	Option.match(model.wanted, {
+		onNone: () => "the book",
+		onSome: ({ wants, catalogue }) =>
+			catalogue[work]?.title ?? wants[work]?.title ?? "the book",
+	});
+
 export const sendAbout = (
 	model: Model,
 	work: string,
@@ -109,11 +122,16 @@ export const sendAbout = (
 		commandId: allocation.commandId,
 	};
 
+	const sent = modifyFields(model, {
+		commandIds: () => allocation.commandIds,
+		desk: (desk) => ({ ...desk, problem: Option.none() }),
+	});
+
 	return {
-		model: modifyFields(model, {
-			commandIds: () => allocation.commandIds,
-			desk: (desk) => ({ ...desk, problem: Option.none() }),
-		}),
+		model:
+			move === "searchAgain"
+				? showToast(sent, `Searching again for ${wantTitleOf(model, work)}`)
+				: sent,
 		commands: [
 			move === "searchAgain"
 				? Command.mapMessage(Prosody.SearchAgain(args), toMessage)

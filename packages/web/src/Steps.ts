@@ -10,6 +10,7 @@ import type { Command, Update } from "foldkit";
 import { modifyFields } from "foldkit/struct";
 
 import { FetchSection, kindOf } from "./Copy.ts";
+import type { Kind } from "./Copy.ts";
 import { Book, Room, Section } from "./Model.ts";
 import type { Message, Model } from "./Model.ts";
 import { Seek } from "./Player.ts";
@@ -93,8 +94,11 @@ export const inRoom = (model: Model, change: (room: Room) => Step): Return =>
 		onSome: (room) => withRoom(model, room.work, change),
 	});
 
+const isHeld = (section: Section | undefined): boolean =>
+	section !== undefined && !Section.guards.Failed(section);
+
 export const fetchIfNeeded = (room: Room, path: string): Step =>
-	path === "" || room.sections[path] !== undefined
+	path === "" || isHeld(room.sections[path])
 		? [room, []]
 		: [
 				{
@@ -136,6 +140,8 @@ export const goTo = (room: Room, sentence: Sentence): Step =>
 					...turned,
 					sentence: Option.some(sentence),
 					time: start ?? room.time,
+					isFollowing: true,
+					returnChapter: Option.none(),
 				},
 				[...fetches, ...seek, Show({ id: spanOf(sentence) })],
 			];
@@ -221,6 +227,14 @@ export const entryOf = (
 		),
 		() => Option.fromUndefinedOr(model.copies[work])
 	);
+
+export const kindIn = (room: Room): Option.Option<Kind> =>
+	Book.match(room.book, {
+		Open: ({ contents }) => Option.some(kindOf(contents)),
+		Opening: () => Option.none(),
+		Unmade: () => Option.none(),
+		Failed: () => Option.none(),
+	});
 
 export const spotOf = (room: Room): Option.Option<Spot> =>
 	Book.match(room.book, {

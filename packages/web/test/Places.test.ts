@@ -3,8 +3,14 @@ import { describe, expect, it } from "@effect/vitest";
 import { Sentence } from "@prosody/domain/Reading/Sentence";
 import { Option } from "effect";
 
+import { DEFAULT_APPEARANCE } from "../src/Appearance.ts";
 import { update } from "../src/Main.ts";
-import { Message, Model } from "../src/Model.ts";
+import {
+	DEFAULT_DESK_UI,
+	DEFAULT_SHELF_UI,
+	Message,
+	Model,
+} from "../src/Model.ts";
 import type { Places } from "../src/Model.ts";
 import { answered, learnPlace, sendWaiting } from "../src/Places.ts";
 import { AppRoute } from "../src/Route.ts";
@@ -39,6 +45,13 @@ const withPlaces = (places: Places) =>
 			correcting: Option.none(),
 			problem: Option.none(),
 		},
+		appearance: DEFAULT_APPEARANCE,
+		systemDark: false,
+		toast: Option.none(),
+		confirm: Option.none(),
+		announcement: "",
+		shelfUi: DEFAULT_SHELF_UI,
+		deskUi: DEFAULT_DESK_UI,
 	});
 
 const names = (commands: ReadonlyArray<{ readonly name: string }>) =>

@@ -9,6 +9,8 @@ import { Message } from "./Model.ts";
 import type { GrabMove, Model } from "./Model.ts";
 import { Prosody } from "./Prosody.ts";
 import type { Return } from "./Steps.ts";
+import { showToast } from "./Ui.ts";
+import { wantTitleOf } from "./Wants.ts";
 
 const toMessage = (result: typeof Prosody.Message.Type) =>
 	Message.ReceivedResult({ result });
@@ -25,6 +27,12 @@ const allocate = (model: Model) => {
 	};
 };
 
+const grabTitleOf = (model: Model, grab: string): string =>
+	Option.match(model.wanted, {
+		onNone: () => "the grab",
+		onSome: ({ grabs }) => grabs[grab]?.title ?? "the grab",
+	});
+
 export const sendGrab = (
 	model: Model,
 	work: string,
@@ -33,7 +41,7 @@ export const sendGrab = (
 	const { commandId, model: next } = allocate(model);
 
 	return {
-		model: next,
+		model: showToast(next, `Grabbed ${wantTitleOf(model, work)}`),
 		commands: [
 			Command.mapMessage(
 				Prosody.GrabRelease({
@@ -68,5 +76,11 @@ export const sendGrabMove = (
 		Match.exhaustive
 	);
 
-	return { model: next, commands: [command] };
+	return {
+		model:
+			move === "resume"
+				? showToast(next, `Resumed ${grabTitleOf(model, grab)}`)
+				: next,
+		commands: [command],
+	};
 };

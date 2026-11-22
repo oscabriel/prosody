@@ -10,7 +10,7 @@ When a book has both an EPUB and an audiobook, Prosody aligns them on your machi
 
 ## What Prosody handles
 
-- **Synced books.** Read and listen together. The sentence being spoken is underlined and marked in the margin, and the page scrolls to follow it.
+- **Synced books.** Read and listen together. The sentence being spoken is highlighted and marked in the margin, and the page scrolls to follow it.
 - **Single editions.** An EPUB alone opens to read, an audiobook alone plays chapter by chapter, and a PDF opens one page at a time.
 - **One place per book.** Your place (a sentence, a timestamp or a page number) is stored on your host and stays in sync across your devices.
 - **Phone and offline reading.** Install the web app to your home screen, control playback from the lock screen, keep full books on a device and read without a network.

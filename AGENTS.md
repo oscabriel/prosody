@@ -45,8 +45,8 @@ Before changing any area, scan the titles in `docs/adr/` and `docs/issues/` and 
 | "Signing in" | Caddy, the relay, Tailscale, `Session` |
 | "The model" | Policies or views in `packages/domain` |
 | "The press" | The walk, reading copies, its queue, covers, the aligner |
-| "The reading room" | Places, the nightstand, the lock screen, pages |
-| "Offline" | The service worker, offline places, kept copies |
+| "The reading room" | Places, the nightstand, the bar, panels and keys, following and yielding, the player, appearance, the lock screen, pages |
+| "Offline" | The service worker, offline places, the shelf offline, kept copies |
 | "The site" | The landing page, docs and blog in `packages/site` |
 | "Known limits" | Known bugs and untested behaviour |
 

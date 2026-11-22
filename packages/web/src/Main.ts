@@ -1,17 +1,24 @@
 import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
 import { SHELF } from "@prosody/domain/Library/Shelf.view";
 import { WorkId } from "@prosody/domain/Library/Work.id";
-import { Effect, Match, Option, Schema, Stream } from "effect";
-import { Command, Subscription } from "foldkit";
+import { Duration, Effect, Match, Option, Schema, Stream } from "effect";
+import { Command, Dom, Subscription } from "foldkit";
 import type { Document, HtmlBuilder } from "foldkit/html";
 import { load, pushUrl, replaceUrl } from "foldkit/navigation";
 import { modifyFields } from "foldkit/struct";
 import type { Url } from "foldkit/url";
 import { toString as urlToString } from "foldkit/url";
 
+import { DEFAULT_APPEARANCE } from "./Appearance.ts";
+import type { Appearance } from "./Appearance.ts";
 import { lostConnection, networkChanges } from "./Connection.ts";
-import { startCorrecting, submitCorrection } from "./Correcting.ts";
+import {
+	cancelCorrecting,
+	startCorrecting,
+	submitCorrection,
+} from "./Correcting.ts";
 import { deskView } from "./Desk.ts";
+import { updateDesk } from "./DeskUpdate.ts";
 import {
 	changeCopying,
 	keepCopy,
@@ -22,7 +29,15 @@ import {
 } from "./DeviceCopies.ts";
 import { sendGrab, sendGrabMove } from "./Grabs.ts";
 import { announced } from "./LockScreen.ts";
-import { Book, Message, Model, Section } from "./Model.ts";
+import {
+	Book,
+	ConfirmAction,
+	DEFAULT_DESK_UI,
+	DEFAULT_SHELF_UI,
+	Message,
+	Model,
+	Section,
+} from "./Model.ts";
 import type { Flags } from "./Model.ts";
 import { Stamp, sendMove } from "./Nightstand.ts";
 import {
@@ -34,7 +49,7 @@ import {
 	WaitForPlace,
 } from "./Places.ts";
 import type { Kept } from "./Places.ts";
-import { Pause, Play, Seek, SetRate } from "./Player.ts";
+import { Pause, Play } from "./Player.ts";
 import { Prosody } from "./Prosody.ts";
 import type { Reader } from "./Prosody.ts";
 import { roomView } from "./Room.ts";
@@ -42,6 +57,8 @@ import {
 	answeredRemake,
 	follow,
 	hearOwn,
+	played,
+	readTo,
 	realigned,
 	remake,
 	reopen,
@@ -53,10 +70,14 @@ import {
 	turnPage,
 	unmade,
 } from "./Rooms.ts";
-import { AppRoute, shelfRouter, urlToAppRoute } from "./Route.ts";
+import { roomSubscriptions } from "./RoomSubscriptions.ts";
+import { updateRoom } from "./RoomUpdate.ts";
+import { AppRoute, roomRouter, shelfRouter, urlToAppRoute } from "./Route.ts";
 import { shelfView } from "./Shelf.ts";
+import { shelfSubscriptions, updateShelf } from "./ShelfUpdate.ts";
 import {
 	andThen,
+	entryOf,
 	goTo,
 	goToPlace,
 	inRoom,
@@ -68,7 +89,19 @@ import {
 } from "./Steps.ts";
 import type { Return } from "./Steps.ts";
 import { Show } from "./Text.ts";
-import { sectionOf, sentenceOf, spanOf, startOf } from "./Timeline.ts";
+import { sectionOf, sentenceOf, spanOf } from "./Timeline.ts";
+import {
+	ApplyAppearance,
+	CloseConfirmDialog,
+	confirmDialogView,
+	liveRegionView,
+	notFoundView,
+	OpenConfirmDialog,
+	ReleaseConfirmDialog,
+	shellView,
+	showToast,
+	toastView,
+} from "./Ui.ts";
 import {
 	changeDesk,
 	deskFailed,
@@ -77,18 +110,26 @@ import {
 	submitWant,
 } from "./Wants.ts";
 
-const RATES = [1, 1.2, 1.5, 1.8, 2, 0.8];
+const TOAST_DURATION = Duration.millis(4200);
+
+const toTop = Effect.sync(() => {
+	window.scrollTo({ top: 0 });
+});
 
 const Navigate = Command.define("Navigate", {
 	args: { url: Schema.String },
 	messages: [Message.CompletedNavigate],
 	execute: ({ url }) =>
-		pushUrl(url).pipe(Effect.as(Message.CompletedNavigate())),
+		pushUrl(url).pipe(
+			Effect.andThen(toTop),
+			Effect.as(Message.CompletedNavigate())
+		),
 });
 
 const CloseRoom = Command.define("CloseRoom", {
 	messages: [Message.CompletedNavigate],
 	execute: replaceUrl(shelfRouter()).pipe(
+		Effect.andThen(toTop),
 		Effect.as(Message.CompletedNavigate())
 	),
 });
@@ -99,6 +140,38 @@ const Leave = Command.define("Leave", {
 	execute: ({ href }) =>
 		load(href).pipe(Effect.as(Message.CompletedNavigate())),
 });
+
+const executeConfirm = (model: Model, action: ConfirmAction): Return =>
+	ConfirmAction.match(action, {
+		Realign: () =>
+			andThen(remake(model), (next) => ({
+				model: showToast(next, "Asked the press to align it again"),
+			})),
+		RemoveCopy: () => removeCopy(model),
+		Withdraw: ({ work }) =>
+			andThen(sendAbout(model, work, "withdraw"), (next) => ({
+				model: showToast(next, "Withdrew want"),
+			})),
+		Abandon: ({ grab }) =>
+			andThen(sendGrabMove(model, grab, "abandon"), (next) => ({
+				model: showToast(next, "Abandoned grab"),
+			})),
+		Release: ({ grab }) =>
+			andThen(sendGrabMove(model, grab, "release"), (next) => ({
+				model: showToast(next, "Released payload"),
+			})),
+	});
+
+const updateAppearance = (model: Model, appearance: Appearance): Return => ({
+	model: modifyFields(model, { appearance: () => appearance }),
+	commands: [ApplyAppearance({ appearance })],
+});
+
+const workTitleOf = (model: Model, work: string): string =>
+	Option.match(entryOf(model, work), {
+		onNone: () => "Book",
+		onSome: (entry) => entry.title,
+	});
 
 export const init = (flags: Flags, url: Url): Return =>
 	andThen(
@@ -125,6 +198,16 @@ export const init = (flags: Flags, url: Url): Return =>
 					correcting: Option.none(),
 					problem: Option.none(),
 				},
+				appearance: flags.appearance,
+				systemDark: flags.systemDark,
+				toast: Option.none(),
+				confirm: Option.none(),
+				announcement: "",
+				shelfUi: {
+					...DEFAULT_SHELF_UI,
+					layout: flags.shelfLayout,
+				},
+				deskUi: DEFAULT_DESK_UI,
 			}),
 			urlToAppRoute(url)
 		),
@@ -149,7 +232,26 @@ const handle = (model: Model, message: Message): Return =>
 					External: ({ href }) => ({ model, commands: [Leave({ href })] }),
 				})
 			),
-		ChangedUrl: ({ url }) => route(model, urlToAppRoute(url)),
+		ChangedUrl: ({ url }) => {
+			const hadConfirm = Option.isSome(model.confirm);
+
+			const cleared = hadConfirm
+				? modifyFields(model, { confirm: () => Option.none() })
+				: model;
+
+			const navigated = route(cleared, urlToAppRoute(url));
+
+			if (!hadConfirm) {
+				return navigated;
+			}
+
+			const existing = navigated.commands ?? [];
+
+			return {
+				model: navigated.model,
+				commands: [CloseConfirmDialog(), ReleaseConfirmDialog(), ...existing],
+			};
+		},
 		CompletedNavigate: () => ({ model }),
 
 		ReceivedShelf: ({ state }) =>
@@ -284,46 +386,10 @@ const handle = (model: Model, message: Message): Return =>
 					Failed: () => Option.none(),
 				})
 			),
-		ReadTo: ({ id, at }) =>
-			Option.exists(model.room, (room) => room.isPlaying)
-				? { model }
-				: keepIn(model, (room) =>
-						Book.match<Option.Option<Kept>>(room.book, {
-							Open: ({ contents, timeline }) => {
-								const sentence = sentenceOf(
-									contents.sections[room.shown]?.path ?? "",
-									id
-								);
-
-								const start = startOf(timeline, sentence);
-
-								return Option.some([
-									{
-										...room,
-										sentence: Option.some(sentence),
-										time: start ?? room.time,
-									},
-									{ sentence, time: null, page: null },
-									at,
-									start === undefined
-										? []
-										: [Seek({ time: start, play: false })],
-								] as const);
-							},
-							Opening: () => Option.none(),
-							Unmade: () => Option.none(),
-							Failed: () => Option.none(),
-						})
-					),
+		ReadTo: ({ id, at }) => readTo(model, id, at),
 
 		ClickedPlay: () => ({ model, commands: [Play()] }),
 		ClickedPause: () => ({ model, commands: [Pause()] }),
-		ClickedRate: () =>
-			inRoom(model, (room) => {
-				const rate = RATES[(RATES.indexOf(room.rate) + 1) % RATES.length] ?? 1;
-
-				return [{ ...room, rate }, [SetRate({ rate })]];
-			}),
 		ClickedElsewhere: () =>
 			inRoom(model, (room) =>
 				Option.match(room.elsewhere, {
@@ -339,12 +405,28 @@ const handle = (model: Model, message: Message): Return =>
 		ClickedFinish: () => stampIn(model, "finish"),
 		ClickedSetAside: () => stampIn(model, "setAside"),
 		Stamped: ({ work, move, at }) =>
-			andThen(sendMove(model, work, move, at), (next) => ({
-				model: next,
-				commands: move === "open" ? [] : [CloseRoom()],
-			})),
+			andThen(sendMove(model, work, move, at), (next) => {
+				if (move === "open") {
+					return { model: next, commands: [] };
+				}
 
-		Played: () => inRoom(model, (room) => [{ ...room, isPlaying: true }, []]),
+				const title = workTitleOf(next, work);
+
+				const notice =
+					move === "finish"
+						? `${title} marked finished.`
+						: `${title} set aside.`;
+
+				return {
+					model: showToast(next, notice, {
+						label: "Open again",
+						href: roomRouter({ work }),
+					}),
+					commands: [CloseRoom()],
+				};
+			}),
+
+		Played: () => played(model),
 		Paused: ({ time, at }) =>
 			keepIn(model, (room) => {
 				const paused = { ...room, isPlaying: false, time };
@@ -406,18 +488,27 @@ const handle = (model: Model, message: Message): Return =>
 		ClickedRemoveCopy: () => removeCopy(model),
 		CopiedPart: ({ work, done, of }) =>
 			changeCopying(model, work, (copying) => ({ ...copying, done, of })),
-		KeptCopy: ({ work, copy }) => keptCopy(model, work, copy),
+		KeptCopy: ({ work, copy }) =>
+			andThen(keptCopy(model, work, copy), (next) => ({
+				model: showToast(next, `${copy.title} kept on this device`),
+			})),
 		FailedCopy: ({ work, reason }) =>
 			changeCopying(model, work, (copying) => ({
 				...copying,
 				problem: reason,
 			})),
-		RemovedCopy: ({ work }) => withoutCopy(model, work),
+		RemovedCopy: ({ work }) =>
+			andThen(withoutCopy(model, work), (next) => ({
+				model: showToast(next, "Removed from this device"),
+			})),
 
 		WentOnline: () =>
 			andThen(
 				{
-					model: modifyFields(model, { isOnline: () => true }),
+					model: modifyFields(model, {
+						isOnline: () => true,
+						shelfUi: (ui) => ({ ...ui, showAllOffline: false }),
+					}),
 					commands: sendWaiting(model),
 				},
 				reopen
@@ -468,25 +559,124 @@ const handle = (model: Model, message: Message): Return =>
 			})),
 		}),
 		SubmittedCorrection: () => submitCorrection(model),
-		ClickedCancelCorrection: () => ({
-			model: changeDesk(model, (desk) => ({
-				...desk,
-				correcting: Option.none(),
-			})),
-		}),
+		ClickedCancelCorrection: () => cancelCorrecting(model),
 		ClickedGrab: ({ work, release }) => sendGrab(model, work, release),
 		ClickedGrabMove: ({ grab, move }) => sendGrabMove(model, grab, move),
+
+		ChangedShelfQuery: (msg) => updateShelf(model, msg),
+		ClearedShelfQuery: (msg) => updateShelf(model, msg),
+		ClearedShelfFilters: (msg) => updateShelf(model, msg),
+		ChangedShelfSort: (msg) => updateShelf(model, msg),
+		SelectedShelfFilter: (msg) => updateShelf(model, msg),
+		SelectedShelfLayout: (msg) => updateShelf(model, msg),
+		ToggledOfflineAll: (msg) => updateShelf(model, msg),
+		CompletedShelfAction: (msg) => updateShelf(model, msg),
+
+		SelectedDeskTab: (msg) => updateDesk(model, msg),
+		CompletedDeskAction: (msg) => updateDesk(model, msg),
+
+		ToggledChrome: (msg) => updateRoom(model, msg),
+		SetChromeHidden: (msg) => updateRoom(model, msg),
+		OpenedPanel: (msg) => updateRoom(model, msg),
+		ClosedPanels: (msg) => updateRoom(model, msg),
+		ScrubbedAudio: (msg) => updateRoom(model, msg),
+		CommittedScrub: (msg) => updateRoom(model, msg),
+		SetSpeed: (msg) => updateRoom(model, msg),
+		SetSleepTimer: (msg) => updateRoom(model, msg),
+		SleepTimerFired: (msg) => updateRoom(model, msg),
+		YieldedFollow: (msg) => updateRoom(model, msg),
+		ClickedBackToPlaying: (msg) => updateRoom(model, msg),
+		ClickedReturnChapter: (msg) => updateRoom(model, msg),
+		JumpedToPage: (msg) => updateRoom(model, msg),
+		CompletedRoomDom: (msg) => updateRoom(model, msg),
+		SleepTimerTicked: (msg) => updateRoom(model, msg),
+		PressedRoomKey: (msg) => updateRoom(model, msg),
+		DismissedElsewhere: (msg) => updateRoom(model, msg),
+		ClickedOpenAgain: (msg) => updateRoom(model, msg),
+
+		ChangedAppearance: ({ appearance }) => updateAppearance(model, appearance),
+		ResetAppearance: () => updateAppearance(model, DEFAULT_APPEARANCE),
+		ChangedSystemTheme: ({ isDark }) => ({
+			model: modifyFields(model, { systemDark: () => isDark }),
+		}),
+		SavedAppearance: () => ({ model }),
+
+		RequestedConfirm: ({ action }) => ({
+			model: modifyFields(model, { confirm: () => Option.some(action) }),
+			commands: [OpenConfirmDialog()],
+		}),
+		ConfirmedAction: () =>
+			Option.match(model.confirm, {
+				onNone: () => ({ model }),
+				onSome: (action) =>
+					andThen(
+						{
+							model: modifyFields(model, { confirm: () => Option.none() }),
+							commands: [CloseConfirmDialog()],
+						},
+						(next) => executeConfirm(next, action)
+					),
+			}),
+		CancelledConfirm: () => ({
+			model: modifyFields(model, { confirm: () => Option.none() }),
+			commands: [CloseConfirmDialog()],
+		}),
+		CompletedDialog: () => ({ model }),
+		CompletedCover: () => ({ model }),
+
+		ShownToast: ({ message: text, action }) => ({
+			model: showToast(model, text, Option.getOrUndefined(action)),
+		}),
+		PausedToast: () => ({
+			model: modifyFields(model, {
+				toast: (toast) => Option.map(toast, (t) => ({ ...t, paused: true })),
+			}),
+		}),
+		ResumedToast: () => ({
+			model: modifyFields(model, {
+				toast: (toast) => Option.map(toast, (t) => ({ ...t, paused: false })),
+			}),
+		}),
+		DismissedToast: () => ({
+			model: modifyFields(model, { toast: () => Option.none() }),
+		}),
+		AnnouncedStatus: ({ text }) => ({
+			model: modifyFields(model, { announcement: () => text }),
+		}),
 	});
 
 const NO_ROOM = WorkId.make("w-none");
 
-export const subscriptions = Subscription.make<Model, Message, Reader>()(
+const coreSubscriptions = Subscription.make<Model, Message, Reader>()(
 	(entry) => ({
 		network: entry(
 			{},
 			{
 				modelToDependencies: () => ({}),
 				dependenciesToStream: () => networkChanges,
+			}
+		),
+		systemTheme: Subscription.persistentEntry(
+			Dom.streamFromMediaQuery({
+				query: "(prefers-color-scheme: dark)",
+				mapMatches: (isDark) => Message.ChangedSystemTheme({ isDark }),
+			})
+		),
+		toastTimer: entry(
+			{ id: Schema.Option(Schema.Int), paused: Schema.Boolean },
+			{
+				modelToDependencies: (model) => ({
+					id: Option.map(model.toast, (toast) => toast.id),
+					paused: Option.exists(model.toast, (toast) => toast.paused),
+				}),
+				dependenciesToStream: ({ id, paused }) =>
+					Option.isNone(id) || paused
+						? Stream.empty
+						: Stream.fromEffect(
+								Effect.sleep(TOAST_DURATION).pipe(
+									Effect.as(Message.DismissedToast())
+								)
+							),
 			}
 		),
 		copying: entry(
@@ -557,10 +747,66 @@ export const subscriptions = Subscription.make<Model, Message, Reader>()(
 	})
 );
 
-export const view = (model: Model, h: HtmlBuilder<Message>): Document =>
-	AppRoute.guards.Desk(model.route)
-		? deskView(model, h)
-		: Option.match(model.room, {
-				onNone: () => shelfView(model, h),
+export const subscriptions: Subscription.Subscriptions<Model, Message, Reader> =
+	Subscription.aggregate<Model, Message, Reader>()(
+		coreSubscriptions,
+		shelfSubscriptions,
+		roomSubscriptions
+	);
+
+const pageView = (model: Model, h: HtmlBuilder<Message>): Document =>
+	AppRoute.match<Document>(model.route, {
+		Shelf: () => {
+			const doc = shelfView(model, h);
+
+			return {
+				...doc,
+				body: shellView(model, "shelf", false, [doc.body], h),
+			};
+		},
+		Desk: () => {
+			const doc = deskView(model, h);
+
+			return {
+				...doc,
+				body: shellView(model, "desk", true, [doc.body], h),
+			};
+		},
+		NotFound: ({ path }) => {
+			const doc = notFoundView(path, h);
+
+			return {
+				...doc,
+				body: shellView(model, "none", false, [doc.body], h),
+			};
+		},
+		Room: () =>
+			Option.match(model.room, {
+				onNone: () => {
+					const doc = shelfView(model, h);
+
+					return {
+						...doc,
+						body: shellView(model, "shelf", false, [doc.body], h),
+					};
+				},
 				onSome: (room) => roomView(model, room, h),
-			});
+			}),
+	});
+
+export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
+	const page = pageView(model, h);
+
+	return {
+		...page,
+		body: h.div(
+			[],
+			[
+				page.body,
+				confirmDialogView(model, h),
+				toastView(model, h),
+				liveRegionView(model, h),
+			]
+		),
+	};
+};

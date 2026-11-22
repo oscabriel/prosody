@@ -14,4 +14,4 @@ CTC models emit tokens as sharp spikes rather than full phoneme durations, so th
 
 - Using raw CTC frame times cuts off the first and last syllables of sentences when seeking or highlighting.
 - Removing `bridge` clips sentences prematurely at internal plosives (`p`, `t`, `k`).
-- Removing the overlap resolution pass produces overlapping `clipBegin`/`clipEnd` ranges, causing the reading room underline to jump unpredictably and violating clean SMIL sequencing.
+- Removing the overlap resolution pass produces overlapping `clipBegin`/`clipEnd` ranges, causing the reading room highlight to jump unpredictably and violating clean SMIL sequencing.

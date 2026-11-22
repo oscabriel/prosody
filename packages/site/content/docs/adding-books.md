@@ -42,8 +42,8 @@ The filenames inside each title folder do not matter. If a folder holds more tha
 
 The press walks the entire library when it starts and every five minutes after that. Any new folder appears on the shelf on the next walk:
 
-- A **pair** (EPUB + M4B) starts syncing automatically. On the shelf it shows `syncing` until the press finishes. See [Syncing a book](/docs/syncing-a-book).
-- An **edition alone** is copied into a reading copy automatically. On the shelf it shows `copying`, then `to read` (EPUB or PDF) or `to hear` (M4B).
+- A **pair** (EPUB + M4B) starts syncing automatically. On the shelf it shows `Syncing…` until the press finishes. See [Syncing a book](/docs/syncing-a-book).
+- An **edition alone** is copied into a reading copy automatically. On the shelf it shows `Copying…` until the copy is ready, then opens to read (EPUB or PDF) or listen (M4B).
 
 ## Your files stay untouched
 
@@ -57,6 +57,6 @@ If the author or title folder is spelled differently under `ebooks/` and `audiob
 
 ## The desk
 
-**The desk** (linked from the shelf) lets you keep a list of books you want. Enter a title and author and click **Want it**; Prosody looks up the book's details in public catalogues (Open Library, Audible and Audnexus) and keeps it on the desk until you click **Withdraw**.
+**The desk** (next to **The shelf** in the top bar, or the **Desk** tab at the bottom on a phone) lets you keep a list of books you want. Enter a title and author and click **Want it**; Prosody looks up the book's details in public catalogues (Open Library, Audible and Audnexus) and lists it under **Wants** until you click **Withdraw** and confirm.
 
 The desk can also be configured to fetch books through external services you run yourself. That integration is optional and disabled by default; see `docs/acquiring/README.md` in the repository if you want to enable it.

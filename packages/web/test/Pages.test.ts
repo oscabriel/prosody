@@ -2,8 +2,15 @@ import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
 import { describe, expect, it } from "@effect/vitest";
 import { Option } from "effect";
 
+import { DEFAULT_APPEARANCE } from "../src/Appearance.ts";
 import { update } from "../src/Main.ts";
-import { Book, Message, Model } from "../src/Model.ts";
+import {
+	Book,
+	DEFAULT_DESK_UI,
+	DEFAULT_SHELF_UI,
+	Message,
+	Model,
+} from "../src/Model.ts";
 import type { Room } from "../src/Model.ts";
 import { turnOf } from "../src/Pages.ts";
 import { AppRoute } from "../src/Route.ts";
@@ -49,6 +56,13 @@ const inEvans = (room: Partial<Room> = {}) =>
 			correcting: Option.none(),
 			problem: Option.none(),
 		},
+		appearance: DEFAULT_APPEARANCE,
+		systemDark: false,
+		toast: Option.none(),
+		confirm: Option.none(),
+		announcement: "",
+		shelfUi: DEFAULT_SHELF_UI,
+		deskUi: DEFAULT_DESK_UI,
 	});
 
 const names = (commands: ReadonlyArray<{ readonly name: string }>) =>
@@ -153,17 +167,126 @@ describe("a book of pages", () => {
 describe("a touch on a page", () => {
 	const page = { left: 100, width: 300 };
 
-	it("turns on when it taps the right of the page, and back on its left third", () => {
-		expect(turnOf({ x: 300, y: 50 }, { x: 302, y: 52 }, page)).toBe(1);
-		expect(turnOf({ x: 150, y: 50 }, { x: 150, y: 50 }, page)).toBe(-1);
+	it("turns on when it taps the right quarter, and back on the left quarter", () => {
+		expect(turnOf({ x: 380, y: 50 }, { x: 382, y: 52 }, page)).toBe("next");
+		expect(turnOf({ x: 150, y: 50 }, { x: 150, y: 50 }, page)).toBe("prev");
+	});
+
+	it("shows or hides the controls when it taps the middle half", () => {
+		expect(turnOf({ x: 250, y: 50 }, { x: 250, y: 50 }, page)).toBe("toggle");
+		expect(turnOf({ x: 180, y: 50 }, { x: 180, y: 50 }, page)).toBe("toggle");
+		expect(turnOf({ x: 320, y: 50 }, { x: 320, y: 50 }, page)).toBe("toggle");
 	});
 
 	it("turns on when it swipes to the left, and back to the right", () => {
-		expect(turnOf({ x: 300, y: 50 }, { x: 200, y: 70 }, page)).toBe(1);
-		expect(turnOf({ x: 200, y: 50 }, { x: 300, y: 30 }, page)).toBe(-1);
+		expect(turnOf({ x: 300, y: 50 }, { x: 200, y: 70 }, page)).toBe("next");
+		expect(turnOf({ x: 200, y: 50 }, { x: 300, y: 30 }, page)).toBe("prev");
 	});
 
-	it("turns nothing when it scrolls", () => {
-		expect(turnOf({ x: 200, y: 300 }, { x: 230, y: 100 }, page)).toBe(0);
+	it("turns nothing when it scrolls or drags a little", () => {
+		expect(turnOf({ x: 200, y: 300 }, { x: 230, y: 100 }, page)).toBe("none");
+		expect(turnOf({ x: 200, y: 300 }, { x: 230, y: 300 }, page)).toBe("none");
+	});
+});
+
+describe("the page bar", () => {
+	it("shows the page the scrubber is held at, and turns to it when let go", () => {
+		const held = update(inEvans(), Message.ScrubbedAudio({ time: 120 }));
+
+		expect(
+			Option.flatMap(held.model.room, (room) => room.scrubbingTime)
+		).toStrictEqual(Option.some(120));
+		expect(shownIn(held.model)).toStrictEqual(Option.some(0));
+
+		const let_go = update(held.model, Message.TurnedPage({ index: 119 }));
+
+		expect(shownIn(let_go.model)).toStrictEqual(Option.some(119));
+		expect(
+			Option.flatMap(let_go.model.room, (room) => room.scrubbingTime)
+		).toStrictEqual(Option.none());
+	});
+
+	it("goes to the page asked for, and closes the question", () => {
+		const asked = update(
+			inEvans(),
+			Message.OpenedPanel({ panel: "jump", fromPlayerSheet: false })
+		);
+
+		const { model, commands } = update(
+			asked.model,
+			Message.JumpedToPage({ page: 200 })
+		);
+
+		expect(shownIn(model)).toStrictEqual(Option.some(199));
+		expect(Option.flatMap(model.room, (room) => room.openPanel)).toStrictEqual(
+			Option.none()
+		);
+		expect(names(commands ?? [])).toStrictEqual(["FocusOn"]);
+	});
+
+	it("goes to no page the book does not have", () => {
+		const asked = update(
+			inEvans({ shown: 10 }),
+			Message.OpenedPanel({ panel: "jump", fromPlayerSheet: false })
+		);
+
+		for (const page of [0, 325, -3]) {
+			const { model } = update(asked.model, Message.JumpedToPage({ page }));
+
+			expect(shownIn(model)).toStrictEqual(Option.some(10));
+			expect(
+				Option.flatMap(model.room, (room) => room.openPanel)
+			).toStrictEqual(Option.some("jump"));
+		}
+	});
+});
+
+describe("the keys of a book of pages", () => {
+	it("turn the page on the arrows and the page keys", () => {
+		const on = update(inEvans(), Message.PressedRoomKey({ key: "ArrowRight" }));
+
+		expect(shownIn(on.model)).toStrictEqual(Option.some(1));
+
+		const further = update(
+			on.model,
+			Message.PressedRoomKey({ key: "PageDown" })
+		);
+
+		expect(shownIn(further.model)).toStrictEqual(Option.some(2));
+
+		const back = update(
+			further.model,
+			Message.PressedRoomKey({ key: "PageUp" })
+		);
+
+		expect(shownIn(back.model)).toStrictEqual(Option.some(1));
+		expect(
+			shownIn(
+				update(inEvans(), Message.PressedRoomKey({ key: "ArrowLeft" })).model
+			)
+		).toStrictEqual(Option.some(0));
+	});
+
+	it("ask for a page on G, and move by heading on the brackets", () => {
+		const asked = update(inEvans(), Message.PressedRoomKey({ key: "G" }));
+
+		expect(
+			Option.flatMap(asked.model.room, (room) => room.openPanel)
+		).toStrictEqual(Option.some("jump"));
+
+		const next = update(
+			inEvans({ shown: 1 }),
+			Message.PressedRoomKey({ key: "BracketRight" })
+		);
+
+		expect(shownIn(next.model)).toStrictEqual(Option.some(11));
+	});
+
+	it("show and hide the controls from a tap on the page", () => {
+		const hidden = update(inEvans(), Message.ToggledChrome());
+
+		expect(
+			Option.map(hidden.model.room, (room) => room.chromeHidden)
+		).toStrictEqual(Option.some(true));
 	});
 });

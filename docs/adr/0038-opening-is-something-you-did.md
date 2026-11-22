@@ -5,7 +5,8 @@
 In `packages/web/src/Main.ts` and `packages/web/src/Rooms.ts`:
 
 - `OpenBook` is sent only when a copy opens (`OpenedCopy`, or `reopen` after coming back online) and `room.hasOpened` is still `false`. Once `SucceededOpenBook` returns, `hasOpened` becomes `true` for the rest of the visit.
-- Clicking Finish (`ClickedFinish`) or Set aside (`ClickedSetAside`) sends `FinishBook` or `SetAside` and immediately runs `CloseRoom`, which calls `replaceUrl(shelfRouter())` rather than `pushUrl`.
+- Choosing **Mark as finished** (`ClickedFinish`) or **Set it aside** (`ClickedSetAside`) from the book menu sends `FinishBook` or `SetAside` and immediately runs `CloseRoom`, which calls `replaceUrl(shelfRouter())` rather than `pushUrl`.
+- The shelf toast that follows includes an **Open again** link. Because it is a normal navigation link back to the room, following it starts a new visit and intentionally sends `OpenBook`.
 
 ## Why
 

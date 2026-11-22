@@ -63,16 +63,11 @@ export const standingOf = (
 		Option.fromUndefinedOr(works[work])
 	);
 
-export const readingNow = (
-	model: Model
-): ReadonlyArray<readonly [string, Standing]> =>
-	Option.match(model.nightstand, {
-		onNone: () => [],
-		onSome: ({ works }) =>
-			Object.entries(works)
-				.filter(([, standing]) => standing.stage === "reading")
-				.toSorted(([, a], [, b]) => b.at - a.at),
-	});
-
 export const dayOf = (at: number): string =>
 	new Date(at).toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+
+const shortDayOf = (at: number): string =>
+	new Date(at).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+
+export const lastReadOf = (device: string, at: number): string =>
+	device === "" ? shortDayOf(at) : `${device} · ${shortDayOf(at)}`;

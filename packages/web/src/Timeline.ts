@@ -76,16 +76,6 @@ export const startOf = (
 	return timeline.slice(at).find(isHeard)?.start;
 };
 
-export const leftInSection = (
-	heard: ReadonlyArray<Heard>,
-	path: string,
-	time: number
-): number => {
-	const last = heard.findLast((entry) => sectionOf(entry.sentence) === path);
-
-	return last === undefined ? 0 : Math.max(0, last.end - time);
-};
-
 export const firstOn = (
 	timeline: Timeline,
 	path: string
@@ -103,3 +93,74 @@ export const chapterAt = (
 
 export const sentenceOf = (path: string, span: string): Sentence =>
 	Sentence.make(`${path}#${span}`);
+
+export interface Stretch {
+	readonly start: number;
+	readonly end: number;
+}
+
+const stretchCache = new WeakMap<
+	ReadonlyArray<Heard>,
+	ReadonlyMap<string, Stretch>
+>();
+
+const stretchesOf = (
+	heard: ReadonlyArray<Heard>
+): ReadonlyMap<string, Stretch> => {
+	const cached = stretchCache.get(heard);
+
+	if (cached !== undefined) {
+		return cached;
+	}
+
+	const stretches = new Map<string, Stretch>();
+
+	for (const { sentence, start, end } of heard) {
+		const path = sectionOf(sentence);
+		const known = stretches.get(path);
+
+		stretches.set(
+			path,
+			known === undefined
+				? { start, end }
+				: {
+						start: Math.min(known.start, start),
+						end: Math.max(known.end, end),
+					}
+		);
+	}
+
+	stretchCache.set(heard, stretches);
+
+	return stretches;
+};
+
+export const sectionBounds = (
+	heard: ReadonlyArray<Heard>,
+	path: string
+): Stretch | undefined => stretchesOf(heard).get(path);
+
+export const sectionDuration = (
+	heard: ReadonlyArray<Heard>,
+	path: string
+): number => {
+	const bounds = sectionBounds(heard, path);
+
+	return bounds === undefined ? 0 : bounds.end - bounds.start;
+};
+
+export const bookDuration = (heard: ReadonlyArray<Heard>): number => {
+	let latest = 0;
+
+	for (const stretch of stretchesOf(heard).values()) {
+		latest = Math.max(latest, stretch.end);
+	}
+
+	return latest;
+};
+
+export const lengthOf = (stretch: Stretch): number =>
+	Math.max(0, stretch.end - stretch.start);
+
+export const timeIn = (stretch: Stretch, time: number): number =>
+	Math.min(lengthOf(stretch), Math.max(0, time - stretch.start));

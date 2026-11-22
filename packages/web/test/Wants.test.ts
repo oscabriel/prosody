@@ -3,8 +3,14 @@ import { describe, expect, it } from "@effect/vitest";
 import { StillObligated } from "@prosody/domain/Acquisition/ReleasePayload.command";
 import { Option, Schema } from "effect";
 
+import { DEFAULT_APPEARANCE } from "../src/Appearance.ts";
 import { update } from "../src/Main.ts";
-import { Message, Model } from "../src/Model.ts";
+import {
+	DEFAULT_DESK_UI,
+	DEFAULT_SHELF_UI,
+	Message,
+	Model,
+} from "../src/Model.ts";
 import { Prosody } from "../src/Prosody.ts";
 import { AppRoute } from "../src/Route.ts";
 
@@ -23,6 +29,13 @@ const atDesk = (title: string, author: string) =>
 		room: Option.none(),
 		wanted: Option.none(),
 		desk: { title, author, correcting: Option.none(), problem: Option.none() },
+		appearance: DEFAULT_APPEARANCE,
+		systemDark: false,
+		toast: Option.none(),
+		confirm: Option.none(),
+		announcement: "",
+		shelfUi: DEFAULT_SHELF_UI,
+		deskUi: DEFAULT_DESK_UI,
 	});
 
 const Lost = Schema.TaggedStruct("Unknown", {});
@@ -176,7 +189,10 @@ describe("correcting a title at the desk", () => {
 
 		const { model, commands } = update(changed, Message.SubmittedCorrection());
 
-		expect(names(commands ?? [])).toStrictEqual(["CorrectTitle"]);
+		expect(names(commands ?? [])).toStrictEqual([
+			"CorrectTitle",
+			"FocusOnDesk",
+		]);
 		expect(model.desk.correcting).toStrictEqual(Option.none());
 	});
 

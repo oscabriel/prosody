@@ -15,6 +15,9 @@ export const sizeIn = (bytes: number): string =>
 		? `${(bytes / 1e9).toFixed(1)}\u00A0GB`
 		: `${Math.max(1, Math.round(bytes / 1e6))}\u00A0MB`;
 
+export const percentOf = (done: number, of: number): number =>
+	of > 0 ? Math.min(100, Math.round((done / of) * 100)) : 0;
+
 export const rangeOf = (
 	header: string | null,
 	size: number

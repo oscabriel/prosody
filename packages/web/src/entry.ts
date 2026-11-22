@@ -6,6 +6,11 @@ import { FetchHttpClient } from "effect/http";
 import { Socket } from "effect/socket";
 import { Runtime } from "foldkit";
 
+import {
+	applyAppearance,
+	savedAppearance,
+	savedShelfLayout,
+} from "./Appearance.ts";
 import { savedCopies } from "./DeviceCopies.ts";
 import { init, subscriptions, update, view } from "./Main.ts";
 import { Flags, Message, Model } from "./Model.ts";
@@ -23,12 +28,18 @@ if (import.meta.env.PROD) {
 
 const flags = Effect.gen(function* () {
 	const random = yield* SecureRandom.SecureRandom;
+	const appearance = yield* savedAppearance;
+
+	applyAppearance(appearance);
 
 	return {
 		session: yield* random.uuidV4(),
 		isOnline: navigator.onLine,
 		places: yield* savedPlaces,
 		copies: yield* savedCopies,
+		appearance,
+		shelfLayout: yield* savedShelfLayout,
+		systemDark: window.matchMedia("(prefers-color-scheme: dark)").matches,
 	};
 }).pipe(Effect.provide(SecureRandom.layerWebCrypto));
 

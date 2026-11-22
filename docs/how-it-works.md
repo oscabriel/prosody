@@ -130,8 +130,8 @@ A work with one edition is managed by the `Copy` aggregate (`packages/domain/src
 
 The Api serves `/copies/<work>/` read-only ([`packages/server/src/Copies.ts`](../packages/server/src/Copies.ts)), exposing only `contents.json`, `timeline.json`, `cover.jpg`, `text/`, `pictures/` and `audio/` ([ADR 0022](adr/0022-copy-whole-once-contents-written.md)).
 
-- **`contents.json`** is written last; a folder without it is unfinished, failed or predates the reading room, and the room offers `RealignNarration` or `RemakeCopy`. An open pair's room also offers `RealignNarration`, under **Synced** in its side panel. In the file, `audio` is `null` for text alone and pages; `sections` is encoded under the legacy key `pages` ([ADR 0007](adr/0007-stored-state-read-with-defaults.md)); `chapters` holds ffprobe chapters for audio alone (or one full-length chapter if none are embedded); `pictures` and `headings` hold PDF page images and outline entries. Only pairs have `timeline.json`.
-- **Covers** (`cover.jpg`) are extracted with `ffmpeg`, scaled to at most 800 px tall ([`packages/press/src/Covers.ts`](../packages/press/src/Covers.ts)), from the EPUB's cover image, else the audio's embedded art, or for a PDF from its first rendered page. Copies made before cover support have none until remade; the shelf draws a plain binding with the title's first letter behind every cover as a fallback.
+- **`contents.json`** is written last; a folder without it is unfinished, failed or predates the reading room, and the room offers `RealignNarration` or `RemakeCopy`. An open pair's room also offers `RealignNarration` under **Synced** in the book menu. In the file, `audio` is `null` for text alone and pages; `sections` is encoded under the legacy key `pages` ([ADR 0007](adr/0007-stored-state-read-with-defaults.md)); `chapters` holds ffprobe chapters for audio alone (or one full-length chapter if none are embedded); `pictures` and `headings` hold PDF page images and outline entries. Only pairs have `timeline.json`.
+- **Covers** (`cover.jpg`) are extracted with `ffmpeg`, scaled to at most 800 px tall ([`packages/press/src/Covers.ts`](../packages/press/src/Covers.ts)), from the EPUB's cover image, else the audio's embedded art, or for a PDF from its first rendered page. Copies made before cover support have none until remade; the shelf draws a plain binding with the title's first letter behind every cover as a fallback, and hides any cover image that fails to load (`HideBrokenCover` in [`packages/web/src/Ui.ts`](../packages/web/src/Ui.ts)).
 - **Section titles and filtering:** `Epub.open` reads the EPUB's NCX table of contents for section titles and falls back to the first `h1`–`h3` heading or `<title>` ([`packages/aligner/src/Epub.ts`](../packages/aligner/src/Epub.ts), [`packages/aligner/src/Sections.ts`](../packages/aligner/src/Sections.ts)). Non-narrated sections (covers, contents, indexes, colophons, etc.) are filtered out for both pairs and text alone so both kinds mark the same sections.
 
 ### The aligner and emissions
@@ -150,12 +150,59 @@ Emissions are cached beside the copy as `heard-<size>.emissions` so realigning n
 
 - A book heard as audio alone and later paired opens at the sentence spoken at its kept `time` (`goToPlace` in [`packages/web/src/Steps.ts`](../packages/web/src/Steps.ts)).
 - While audio plays (paired or audio alone), the place is kept every 15 seconds (`KEEP_EVERY` in [`packages/web/src/Places.ts`](../packages/web/src/Places.ts)) and on pause. In audio alone, moving the audio by more than 1 second while paused (chapter jump, skip or lock-screen seek) also keeps the place (`isMovedByHand` in [`packages/web/src/Rooms.ts`](../packages/web/src/Rooms.ts)).
+- Dragging an audio scrubber updates only `room.scrubbingTime`; releasing it seeks and keeps the place once, and only when `room.knowsPlace` is true (`scrubbed` in [`packages/web/src/Rooms.ts`](../packages/web/src/Rooms.ts)).
 
 ### The nightstand
 
 The nightstand is driven by `OpenBook`, `FinishBook` and `SetAside` on `Reading` and projected by the `Nightstand` view (keyed by `SHELF`, like `Shelf`).
 
-`OpenBook` puts a finished or set-aside book back on the nightstand, so it is sent once a room's copy has opened (and retried on reconnect until `SucceededOpenBook`, tracked by `room.hasOpened`). Finishing a book or setting it aside navigates to the shelf with `replaceUrl` (`CloseRoom` in [`packages/web/src/Main.ts`](../packages/web/src/Main.ts)), never `pushUrl`, so reloading or pressing Back cannot land in the room and send `OpenBook` again ([ADR 0038](adr/0038-opening-is-something-you-did.md)). Readings stored before stages existed decode as `unopened` and join the nightstand the next time they are opened.
+`OpenBook` puts a finished or set-aside book back on the nightstand, so it is sent once a room's copy has opened (and retried on reconnect until `SucceededOpenBook`, tracked by `room.hasOpened`). Finishing a book or setting it aside from the book menu navigates to the shelf with `replaceUrl` (`CloseRoom` in [`packages/web/src/Main.ts`](../packages/web/src/Main.ts)), never `pushUrl`, so reloading or pressing Back cannot land in the room and send `OpenBook` again ([ADR 0038](adr/0038-opening-is-something-you-did.md)). The shelf then shows a toast whose **Open again** link is an ordinary link to the room ([ADR 0050](adr/0050-confirm-what-cannot-be-undone.md)). Readings stored before stages existed decode as `unopened` and join the nightstand the next time they are opened.
+
+### The room's bar, panels and keys
+
+The reading room has no permanent side panel ([ADR 0049](adr/0049-a-room-without-a-side-panel.md)). [`packages/web/src/Room.ts`](../packages/web/src/Room.ts) renders a top bar, the book stage, and at most one panel at a time (`room.openPanel`: `toc`, `player`, `aa`, `menu`, `speed`, `sleep` or `jump`).
+
+- **Panels** ([`packages/web/src/RoomPanels.ts`](../packages/web/src/RoomPanels.ts)): opening a panel moves focus to its first interactive control after commit (`EnterPanel`); closing restores focus to its opener (`FocusOn`). A panel opened from the full player sheet closes back to the sheet (`room.returnToPlayerSheet`), and selecting a chapter closes the contents.
+- **Auto-hiding the bar** (`roomChrome` in [`packages/web/src/RoomSubscriptions.ts`](../packages/web/src/RoomSubscriptions.ts), pairs and text alone): scrolling down more than 80 px hides the bar; scrolling up more than 12 px or reaching within 40 px of the top brings it back (`chromeAfter`), ignoring programmatic jumps (`isJumpingItself` in [`packages/web/src/Text.ts`](../packages/web/src/Text.ts)). Moving the pointer into the top 24 px `.room-peek-zone`, focusing the bar, opening a panel or pressing `Escape` also reveals it. Text alone can additionally toggle the bar from its section footer button; pages toggle both bars by tapping the middle half of the page.
+- **Keyboard shortcuts** live in subscriptions rather than element mounts: `roomKeys` binds each kind's shortcuts via `Dom.streamFromKeyBindings` (ignoring form inputs), `roomSpace` toggles playback unless focus is on an interactive control, and `roomEscape` is active only when a panel is open or the bar is hidden. All dispatch `PressedRoomKey` (`pressKey` in [`packages/web/src/RoomUpdate.ts`](../packages/web/src/RoomUpdate.ts)) and do nothing while a confirmation dialog is open.
+
+| Key | Action | Applies to |
+|---|---|---|
+| `Space` | Play or pause | Pairs, audio alone |
+| `ArrowLeft`, `ArrowRight` | Skip back 15 s, skip forward 30 s | Pairs, audio alone |
+| `,` `.` | Decrease or increase speed by 0.1 | Pairs, audio alone |
+| `F` | Return to the spoken sentence | Pairs |
+| `-` `=` `0` | Decrease, increase or reset text size | Pairs, text alone |
+| `T` | Toggle contents | Every kind |
+| `[` `]` | Previous or next chapter | Every kind |
+| `ArrowLeft`, `PageUp`, `ArrowRight`, `PageDown` | Turn page | Pages |
+| `G` | Open go-to-page | Pages |
+| `Alt+ArrowUp`, `Alt+ArrowDown`, `Enter` | Move focus between sentences, jump to the focused sentence | Pairs, text alone (`Read` in `Text.ts`) |
+
+### Following, yielding and returning
+
+In a pair, the text follows playback until the reader scrolls manually, then stays out of the way ([ADR 0039](adr/0039-room-follows-the-audio.md)).
+
+- **Following:** on each `Ticked`, `follow` ([`packages/web/src/Rooms.ts`](../packages/web/src/Rooms.ts)) highlights the active sentence. While `room.isFollowing` is true, it switches to the sentence's section if needed and dispatches `Follow` ([`packages/web/src/Text.ts`](../packages/web/src/Text.ts)), which scrolls only when the sentence leaves the safe band (100 px from the top to 150 px from the bottom), jumping rather than smooth-scrolling under reduced motion or across large distances.
+- **Yielding:** while a pair is playing and following, `roomYield` emits `YieldedFollow` when manual scrolling moves more than 14 px (either any scroll outside `isScrollingItself()`, or any scroll within 250 ms of a `wheel` or `touchmove`). `isFollowing` becomes `false`, the highlight keeps moving while the viewport stays still, and **Back to playing** appears.
+- **Returning:** clicking **Back to playing**, pressing `F`, pressing play or tapping a sentence sets `isFollowing` back to `true` (`backToPlaying`, `played`, `goTo`).
+- **Chapter lookup:** jumping to another chapter from contents while paused records the original chapter in `room.returnChapter` and shows **Back to \<chapter\>** (`lookedUp`, `returnToChapter`). The article sets `data-lookup="true"`, extending the scroll-settle wait from 1.5 s (`SETTLE`) to 6 s (`LOOKUP`) before updating the saved place.
+- **Reading by scrolling:** `Read` emits `ReadTo` for the first sentence visible between the top bar and the dock once scrolling settles. `readTo` ignores it during playback, before `room.knowsPlace` is true, or while any panel is open.
+
+### The player
+
+- **Single audio element:** `audioView` ([`packages/web/src/Listening.ts`](../packages/web/src/Listening.ts)) mounts a keyed `<audio id="prosody-player">` at the room root so opening or closing the player sheet never remounts it. `Seek` waits for commit (`Render.afterCommit`) when the element is not yet in the DOM, matching `Show`, `Follow` and `ToTop` for text.
+- **Chapter-scoped scrubber:** `hearingOf` reads chapter bounds from `contents.chapters` (audio alone) or from the section's first and last aligned sentence (`sectionBounds` in [`packages/web/src/Timeline.ts`](../packages/web/src/Timeline.ts)). The `Scrub` mount ([`packages/web/src/Player.ts`](../packages/web/src/Player.ts)) emits `ScrubbedAudio` on `input` and debounces `CommittedScrub` 180 ms after `change`. Skipping clamps to the end of the heard audio (`bookEnd`).
+- **Speed:** `SetSpeed` rounds to 0.05× steps between 0.75× and 2.5× (`rateOf` in `RoomUpdate.ts`). Speed is per-visit only; every room starts at 1×.
+- **Sleep timer** ([`packages/web/src/RoomSleep.ts`](../packages/web/src/RoomSleep.ts)): stored only in room state, so leaving the room clears it. Because `Stream.tick` fires immediately on its first pull, `roomSleep` sets `room.sleepEndsAt` at once, refreshes the remaining minutes every 20 seconds (`sleepClock`), and schedules `SleepTimerFired` for `endsAt` (`sleepEnd`). **End of chapter** pauses when playback advances naturally into a later chapter (`playedOn`: a forward step under 5 seconds). `sleptThrough` checks both conditions on every `Ticked` so a throttled background tab still pauses on the next audio tick.
+
+### Appearance
+
+Theme, text size, line spacing, column width, focus dimming, page fit and dark-mode page brightness live in one `Appearance` struct ([`packages/web/src/Appearance.ts`](../packages/web/src/Appearance.ts)) saved in `localStorage` under `prosody:appearance`; the shelf's grid or list layout is saved under `prosody:shelf-view`. Neither is synced through the model ([ADR 0051](adr/0051-appearance-stays-on-the-device.md)), and storage errors fall back to defaults.
+
+- `applyAppearance` updates `data-theme` on `document.documentElement` (removed for `auto`), sets `--reader-size`, `--reader-leading` and `--reader-measure`, and updates both `theme-color` `<meta>` tags (`paintTheme` in [`packages/web/src/Theme.ts`](../packages/web/src/Theme.ts)).
+- The `themeBoot` plugin in [`packages/web/vite.config.ts`](../packages/web/vite.config.ts) bundles [`packages/web/src/ThemeBoot.ts`](../packages/web/src/ThemeBoot.ts) inline into `<head>` so a forced theme paints before the app loads. Keep `Theme.ts` free of `effect` imports so that script stays minimal.
+- Text size steps through fixed stops (85, 90, then increments of 10 from 100 to 150 via `stepTextSize`) so stepping down and back up lands on the same values.
 
 ### Lock screen
 
@@ -166,7 +213,8 @@ The nightstand is driven by `OpenBook`, `FinishBook` and `SetAside` on `Reading`
 A work's `pages` edition is the first `.pdf` in its `ebooks/<Author>/<Title>/` folder. MOBI and CBZ files are ignored.
 
 - **Press rendering** ([`packages/press/src/Pages.ts`](../packages/press/src/Pages.ts)): `pdftoppm` renders every page to `pictures/` as JPEG (quality 80, 1600 px on the longer side, roughly 250 KB per page; a 324-page book is about 82 MB on disk and 85 MB in the Cache API), and `pdftohtml -xml` extracts top-level outline entries as `headings`. The first page becomes `cover.jpg`. Any failure in `pdftoppm` fails the copy with its reason.
-- **Navigation and zoom** ([`packages/web/src/Pages.ts`](../packages/web/src/Pages.ts)): One page is shown at a time. Tapping the left third or swiping right turns back; tapping elsewhere or swiping left turns on; `ArrowLeft`, `ArrowRight`, `PageUp` and `PageDown` also turn. Touch handling reads `touchstart`/`touchend` directly and ignores multi-touch or any touch while `visualViewport.scale > 1`, so a pinch-zoomed page pans without turning.
+- **Navigation and zoom** ([`packages/web/src/Pages.ts`](../packages/web/src/Pages.ts)): One page is shown at a time. Tapping the left quarter or swiping right turns back; tapping the right quarter or swiping left turns forward; tapping the middle half toggles both the top bar and the bottom page bar (`turnOf`, `ToggledChrome`). Keyboard page turns are handled by `roomKeys` rather than `Leaf`. Touch input reads `touchstart`/`touchend` directly and ignores multi-touch or touches while `visualViewport.scale > 1` so pinch-zoomed pages pan without turning; mouse clicks are read from `pointerdown`/`pointerup` filtered to `pointerType === "mouse"` so touch taps never fire twice.
+- **The page bar:** dragging its scrubber previews the page number (`ScrubbedAudio`) and releasing turns to that page (`TurnedPage` on `change`); **Go to page** dispatches `JumpedToPage`. Page fit (`page` or `width`) and dark-mode page brightness (`original`, `dimmed` or `inverted`) are stored in `Appearance`.
 - **Keeping a page place:** The `Leaf` mount waits 1 second before emitting `ShowedPage`, so flipping through pages only records where you stop. Nothing is kept before `room.knowsPlace` is true or if the page matches the last kept page (`showedPage` in [`packages/web/src/Rooms.ts`](../packages/web/src/Rooms.ts)).
 - **Keeping offline:** Page pictures are cached 6 at a time, skipping any picture already in the work's cache (`keepText` in [`packages/web/src/DeviceCopies.ts`](../packages/web/src/DeviceCopies.ts)).
 
@@ -192,7 +240,12 @@ Offline writes are queued intent ([ADR 0037](adr/0037-offline-is-queued-intent.m
 - An `Unknown` transport failure marks the app offline and starts polling `HEAD /` every 5 seconds until a 2xx response returns; the browser's `online` event also triggers reconnection ([`packages/web/src/Connection.ts`](../packages/web/src/Connection.ts)).
 - When opening a book online, the room waits up to 3 seconds (`WaitForPlace`) for the model's `Place` snapshot before settling on the device's own saved place.
 
-Desk commands (wants, title corrections, grabs) are not queued offline ([issue 0011](issues/0011-desk-commands-lost-offline.md)).
+Desk commands (wants, title corrections, grabs) are not queued offline; the desk disables its form and action buttons while `!model.isOnline` instead ([issue 0011](issues/0011-desk-commands-lost-offline.md)).
+
+### The shelf offline
+
+- While offline, `listedBooks` and `nightstandBooks` ([`packages/web/src/ShelfBooks.ts`](../packages/web/src/ShelfBooks.ts)) show kept works only. Clicking **Show all titles** (`shelfUi.showAllOffline`) reveals unkept works as well, labelled `Not on this device` and non-openable (`isAvailable`). `WentOnline` resets the toggle so the next offline visit starts with kept works again.
+- When launched cold offline with no `Shelf` snapshot, `booksOf` builds the shelf from local kept-copy records (`kept.json`): titles and authors only, with no edition kinds and no nightstand.
 
 ### Kept copies
 
@@ -219,4 +272,6 @@ Desk commands (wants, title corrections, grabs) are not queued offline ([issue 0
 - **Remaking empties the copy first:** `freshFolder` in [`packages/press/src/ReadingCopies.ts`](../packages/press/src/ReadingCopies.ts) deletes the work's copy folder (keeping only `heard-<size>.emissions` when aligning, or `heard-*` when copying) before rebuilding, so the book cannot be opened while it is being remade ([issue 0002](issues/0002-remaking-a-copy-empties-it.md)).
 - **Queue time counts toward the alignment deadline:** An alignment's 6-hour window starts when requested rather than when the press begins work, so a large batch of new pairs can expire in the queue ([issue 0006](issues/0006-deadline-counts-queue-time.md)).
 - **Phone audio is only lightly tested:** Background playback, lock-screen controls and offline playback were only verified on an iPhone in a prototype for runs of one to four minutes. Long sessions, interruptions (calls, other apps, Bluetooth), iOS cache eviction and Android are untested.
-- **Chapter jump on narrow screens:** Choosing a chapter from the folded contents in a text or synced book calls `ToTop()`, which scrolls to the top of the document (above the folded leaf on a phone) rather than to the text itself. Pages books scroll the page into view (`Show({ id: PRINTED })`).
+- **Focus after route changes:** Navigating between the shelf, the desk and a reading room leaves keyboard focus on `document.body`, relying on the updated document title to inform screen readers. The same occurs when a confirmed action removes the button that triggered it.
+- **Playback speed is not persisted:** Every room opens at 1× (`roomOf` in [`packages/web/src/Steps.ts`](../packages/web/src/Steps.ts)); playback rate is stored neither in `localStorage` nor in the model.
+- **Duplicate `h1` in EPUB sections:** The reading room renders the book title as a visually hidden `h1`, and an EPUB section may contain its own `h1`, so text-alone and synced rooms can contain two `h1` elements.
