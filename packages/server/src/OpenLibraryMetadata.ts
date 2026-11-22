@@ -65,6 +65,7 @@ export type Chapters = typeof Chapters.Type;
 export const comparable = (title: string): string =>
 	title
 		.normalize("NFKD")
+		.replaceAll(/\p{M}+/gu, "")
 		.toLowerCase()
 		.replaceAll(/[^\p{L}\p{N}]+/gu, " ")
 		.trim();

@@ -9,6 +9,8 @@ describe("a name Open Library gives", () => {
 		expect(
 			completes("Alice in Wonderland", "Alice's Adventures in Wonderland")
 		).toBeTruthy();
+		expect(completes("naive", "Naïve")).toBeTruthy();
+		expect(completes("Garcia Marquez", "Gabriel García Márquez")).toBeTruthy();
 	});
 
 	it("is not taken when it would replace what you gave", () => {
