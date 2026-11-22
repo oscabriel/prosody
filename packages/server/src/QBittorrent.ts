@@ -44,7 +44,7 @@ export class QBittorrentFailed extends Schema.TaggedError<QBittorrentFailed>()(
 
 const failed = (reason: string) => new QBittorrentFailed({ reason });
 
-const unreachable = () => failed("qBittorrent did not answer");
+const unreachable = () => failed("The downloads client did not answer");
 
 export const grabOf = (torrent: Torrent): Option.Option<GrabId> =>
 	Option.fromUndefinedOr(
@@ -66,13 +66,13 @@ const stallOf = (torrent: Torrent, now: number): Option.Option<string> => {
 
 	return Match.value(torrent.state).pipe(
 		Match.when("error", () =>
-			Option.some("qBittorrent reports an error with it")
+			Option.some("The downloads client reports an error with it")
 		),
 		Match.when("missingFiles", () =>
-			Option.some("qBittorrent can't find its files")
+			Option.some("The downloads client can't find its files")
 		),
 		Match.whenOr("stoppedDL", "pausedDL", () =>
-			Option.some("It was stopped in qBittorrent")
+			Option.some("It was stopped in the downloads client")
 		),
 		Match.whenOr("stalledDL", "metaDL", "forcedMetaDL", () =>
 			now - lastCame >= STALL_TIME
@@ -145,8 +145,8 @@ export const signIn = Effect.fn("QBittorrent.signIn")(function* () {
 	if (login.status >= 300 || Cookies.isEmpty(login.cookies)) {
 		return yield* failed(
 			login.status === 403
-				? "qBittorrent refused the sign-in, after too many tries"
-				: "qBittorrent refused its user and password"
+				? "The downloads client refused the sign-in, after too many tries"
+				: "The downloads client refused its user and password"
 		);
 	}
 
@@ -163,7 +163,7 @@ export const signIn = Effect.fn("QBittorrent.signIn")(function* () {
 		).pipe(
 			Effect.filterOrFail(
 				(response) => response.status === 200,
-				(response) => failed(`qBittorrent answered ${response.status}`)
+				(response) => failed(`The downloads client answered ${response.status}`)
 			),
 			Effect.asVoid
 		);
@@ -186,7 +186,9 @@ export const signIn = Effect.fn("QBittorrent.signIn")(function* () {
 			return yield* HttpClientResponse.schemaBodyJson(Schema.Array(Torrent))(
 				response
 			).pipe(
-				Effect.mapError(() => failed("qBittorrent's answer could not be read"))
+				Effect.mapError(() =>
+					failed("The downloads client's answer could not be read")
+				)
 			);
 		}),
 
@@ -213,7 +215,7 @@ export const signIn = Effect.fn("QBittorrent.signIn")(function* () {
 			return yield* response.status === 200 && text !== "Fails."
 				? Effect.void
 				: failed(
-						"qBittorrent would not add it: it may have this torrent already"
+						"The downloads client would not add it: it may have this download already"
 					);
 		}),
 

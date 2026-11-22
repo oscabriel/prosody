@@ -191,7 +191,6 @@ const offerView = (
 								[`· ${countedOf(release.seeders, "seeder", "seeders")}`]
 							),
 							h.span([], [`· ${dateOf(release.published)}`]),
-							h.span([], [`· ${release.indexer}`]),
 						]
 					),
 				]

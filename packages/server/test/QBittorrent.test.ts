@@ -38,7 +38,7 @@ describe("a torrent", () => {
 		});
 	});
 
-	it("is stalled once nothing has come for half an hour, or when qBittorrent stopped it", () => {
+	it("is stalled once nothing has come for half an hour, or when stopped in the downloads client", () => {
 		const quiet = torrent({ state: "stalledDL", last_activity: NOW - 1800 });
 		const waiting = torrent({ state: "stalledDL", last_activity: NOW - 1799 });
 
@@ -48,7 +48,7 @@ describe("a torrent", () => {
 		expect(progressOf(waiting, NOW).stall).toStrictEqual(Option.none());
 		expect(
 			progressOf(torrent({ state: "stoppedDL" }), NOW).stall
-		).toStrictEqual(Option.some("It was stopped in qBittorrent"));
+		).toStrictEqual(Option.some("It was stopped in the downloads client"));
 	});
 
 	it("all come names its payload inside the downloads, and the hours it seeded", () => {

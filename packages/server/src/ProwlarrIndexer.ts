@@ -110,17 +110,17 @@ export const torrentOf = Effect.fn("Prowlarr.torrent")(function* (
 		.get(`${url}${link}`, { headers: { "X-Api-Key": Redacted.value(key) } })
 		.pipe(
 			Effect.timeout(SEARCH_TIME),
-			Effect.mapError(() => failed("Prowlarr did not answer"))
+			Effect.mapError(() => failed("The indexer did not answer"))
 		);
 
 	if (response.status !== 200) {
 		return yield* failed(
-			`Prowlarr could not fetch its torrent: it answered ${response.status}`
+			`The indexer could not fetch the release: it answered ${response.status}`
 		);
 	}
 
 	const bytes = yield* response.arrayBuffer.pipe(
-		Effect.mapError(() => failed("Prowlarr's torrent could not be read"))
+		Effect.mapError(() => failed("The indexer's release could not be read"))
 	);
 
 	return new Uint8Array(bytes);
@@ -146,21 +146,23 @@ export const ProwlarrIndexer = Indexer.toLayer(
 					})
 					.pipe(
 						Effect.timeout(SEARCH_TIME),
-						Effect.mapError(() => failed("Prowlarr did not answer"))
+						Effect.mapError(() => failed("The indexer did not answer"))
 					);
 
 				if (response.status === 401) {
-					return yield* failed("Prowlarr refused its API key");
+					return yield* failed("The indexer refused its API key");
 				}
 
 				if (response.status !== 200) {
-					return yield* failed(`Prowlarr answered ${response.status}`);
+					return yield* failed(`The indexer answered ${response.status}`);
 				}
 
 				const results = yield* HttpClientResponse.schemaBodyJson(
 					Schema.Array(Found)
 				)(response).pipe(
-					Effect.mapError(() => failed("Prowlarr's answer could not be read"))
+					Effect.mapError(() =>
+						failed("The indexer's answer could not be read")
+					)
 				);
 
 				return { releases: releasesOf(results) };
