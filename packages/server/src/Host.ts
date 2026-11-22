@@ -30,3 +30,27 @@ export const copiesOnHost = onHost("PROSODY_COPIES", "/srv/prosody/copies");
 export const pressUser = onHost("PROSODY_UID", "1000");
 
 export const relayOnHost = onHost("PROSODY_RELAY", "127.0.0.1:3023");
+
+export const publicUrlOnHost = onHost("PROSODY_PUBLIC_URL", "");
+
+export const oidcIssuerOnHost = onHost("OIDC_ISSUER_URL", "");
+
+export const oidcInternalUrlOnHost = onHost("OIDC_INTERNAL_URL", "");
+
+export const oidcClientIdOnHost = onHost("OIDC_CLIENT_ID", "");
+
+export const oidcClientSecretOnHost = onHost("OIDC_CLIENT_SECRET", "");
+
+export const oidcDisplayNameOnHost = onHost(
+	"OIDC_DISPLAY_NAME",
+	"Single sign-on"
+);
+
+export const oidcAdminGroupOnHost = onHost("OIDC_ADMIN_GROUP", "admins");
+
+export const oidcScopesOnHost = onHost(
+	"OIDC_SCOPES",
+	"openid profile email groups"
+);
+
+export const localAuthOnHost = onHost("PROSODY_LOCAL_AUTH", "true");

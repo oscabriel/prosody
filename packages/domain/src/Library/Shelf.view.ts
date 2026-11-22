@@ -144,4 +144,7 @@ export class Shelf extends Domain.View("Shelf", {
 	},
 }) {}
 
-export const ShelfLive = Shelf.toLayer(Effect.succeed(() => Effect.void));
+export const judgeShelf = (_request: Domain.Read.Request<ShelfName>) =>
+	Effect.void;
+
+export const ShelfLive = Shelf.toLayer(Effect.succeed(judgeShelf));

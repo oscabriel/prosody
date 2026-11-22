@@ -15,6 +15,7 @@ import type { Places } from "../src/Model.ts";
 import { answered, learnPlace, sendWaiting } from "../src/Places.ts";
 import { AppRoute } from "../src/Route.ts";
 import { roomOf } from "../src/Steps.ts";
+import { adminAda, signedInAs } from "./Readers.ts";
 
 const at = (span: string) => Sentence.make(`OEBPS/ch1.xhtml#${span}`);
 
@@ -52,6 +53,7 @@ const withPlaces = (places: Places) =>
 		announcement: "",
 		shelfUi: DEFAULT_SHELF_UI,
 		deskUi: DEFAULT_DESK_UI,
+		...signedInAs(adminAda),
 	});
 
 const names = (commands: ReadonlyArray<{ readonly name: string }>) =>

@@ -1,9 +1,10 @@
 import * as Domain from "@alchemy.run/domain";
 import { Effect, Schema } from "effect";
 
-import { SHELF, ShelfName } from "../Library/Shelf.view.ts";
-import { Session } from "../Session.middleware.ts";
+import { ReaderId } from "../Reader.id.ts";
+import { asReader, Forbidden, Session } from "../Session.middleware.ts";
 import { Reading } from "./Reading.aggregate.ts";
+import { readerOf, workOf } from "./Reading.id.ts";
 import { Moment, Stage } from "./Stage.ts";
 
 export const Standing = Schema.Struct({ stage: Stage, ...Moment.fields });
@@ -18,28 +19,38 @@ const to = (stage: Stage, { at, device }: Moment): Standing => ({
 
 export class Nightstand extends Domain.View("Nightstand", {
 	from: [Reading],
-	key: ShelfName,
+	key: ReaderId,
 	middleware: [Session],
-	keyOf: { Reading: () => SHELF },
+	rejects: [Forbidden],
+	keyOf: { Reading: ({ source }) => readerOf(source.id) },
 	state: Schema.Struct({ works: Schema.Record(Schema.String, Standing) }),
 	initial: { works: {} },
 	evolve: {
-		PlaceKept: (stand, e, { source }) =>
-			stand.works[source.id]?.stage === "reading"
-				? { works: { ...stand.works, [source.id]: to("reading", e) } }
-				: stand,
+		PlaceKept: (stand, e, { source }) => {
+			const work = workOf(source.id);
+
+			return stand.works[work]?.stage === "reading"
+				? { works: { ...stand.works, [work]: to("reading", e) } }
+				: stand;
+		},
 		BookOpened: (stand, e, { source }) => ({
-			works: { ...stand.works, [source.id]: to("reading", e) },
+			works: { ...stand.works, [workOf(source.id)]: to("reading", e) },
 		}),
 		BookFinished: (stand, e, { source }) => ({
-			works: { ...stand.works, [source.id]: to("finished", e) },
+			works: { ...stand.works, [workOf(source.id)]: to("finished", e) },
 		}),
 		BookSetAside: (stand, e, { source }) => ({
-			works: { ...stand.works, [source.id]: to("setAside", e) },
+			works: { ...stand.works, [workOf(source.id)]: to("setAside", e) },
 		}),
 	},
 }) {}
 
+export const judgeNightstand = Effect.fn(function* (
+	request: Domain.Read.Request<ReaderId>
+) {
+	yield* asReader(request.key);
+});
+
 export const NightstandLive = Nightstand.toLayer(
-	Effect.succeed(() => Effect.void)
+	Effect.succeed(judgeNightstand)
 );

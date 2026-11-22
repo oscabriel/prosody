@@ -1,6 +1,7 @@
 import * as Domain from "@alchemy.run/domain";
 import { Effect, Schema } from "effect";
 
+import { asAdmin } from "../Session.middleware.ts";
 import { CatalogueWork, WorkCatalogued } from "./CatalogueWork.command.ts";
 import {
 	CorrectTitle,
@@ -94,15 +95,19 @@ export class Work extends Domain.Aggregate("Work", {
 				}),
 			];
 		},
-		CorrectTitle: (work, cmd) => {
+		CorrectTitle: Effect.fn(function* (work, cmd) {
+			yield* asAdmin;
+
 			if (!work.catalogued) {
-				return new NotCatalogued();
+				return yield* new NotCatalogued();
 			}
 
-			return isShelved(work)
-				? new OnTheShelf()
-				: [new TitleCorrected({ title: cmd.title, author: cmd.author })];
-		},
+			if (isShelved(work)) {
+				return yield* new OnTheShelf();
+			}
+
+			return [new TitleCorrected({ title: cmd.title, author: cmd.author })];
+		}),
 	},
 	evolve: {
 		WorkCatalogued: (work, e) => ({

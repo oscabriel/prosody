@@ -27,9 +27,9 @@ Every library walk logs how many works it found and any folders it could not rea
 
 | Problem | Cause and fix |
 |---|---|
-| `403` `"Prosody admits only your own devices."` | The request did not come from an untagged Tailscale device owned by the host's user. Verify that `prosody.example.com` resolves to the host's tailnet IP (not a LAN IP) and that the client device has no Tailscale tags. |
-| `403` when browsing from the host itself | Expected if the hostname resolves to a local LAN or loopback address on the host. Requests must arrive over Tailscale. |
-| `401` `"Signed out"` | The request reached Prosody without `X-Prosody-Device`. Check that Caddy's `forward_auth` block is in place and includes `copy_headers X-Prosody-Device`. |
+| Redirected to `/login?error=sso` | Single sign-on failed. Check the Api logs (`docker service logs`) for `"single sign-on failed"` and confirm `PROSODY_PUBLIC_URL`, the registered callback URL (`<PROSODY_PUBLIC_URL>/auth/oidc/callback`) and `OIDC_CLIENT_SECRET`. Set `OIDC_INTERNAL_URL` if container DNS cannot reach the issuer directly. |
+| `403` `"Prosody refuses requests from other sites"` | A mutating request arrived from another origin or a cross-site subrequest. Open Prosody directly at its own address. |
+| `401` `"Signed out"` | Your session expired or was revoked from another device. Sign in again at `/login`. |
 
 ## The shelf
 
@@ -54,7 +54,7 @@ Every library walk logs how many works it found and any folders it could not rea
 
 | Problem | Cause and fix |
 |---|---|
-| The app shows `Offline` while you have internet | The app lost contact with your host (for example during a deploy or when Tailscale disconnected). It checks again every five seconds and reconnects automatically. |
+| The app shows `Offline` while you have internet | The app lost contact with your host (for example during a deploy or when your VPN disconnected). It checks again every five seconds and reconnects automatically. |
 | A book opens at an older place | Another device read further while offline and has not synced yet. Open Prosody on that device while online so it sends its saved place. |
 | Opening a book shows `Align it again` or `Make it now` | Its reading copy is missing, failed to build or predates the reading room format. Click the button; the room opens automatically when the press finishes. |
 

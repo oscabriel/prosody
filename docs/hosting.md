@@ -1,6 +1,6 @@
 # Hosting Prosody
 
-This guide walks through deploying Prosody on a Linux host with Docker, Tailscale and Caddy. Everything specific to your machine is a setting in `.env`; anything else Prosody assumes is listed in [Where each assumption lives](#where-each-assumption-lives) with the file to change.
+This guide walks through deploying Prosody on a Linux host with Docker and Caddy. Everything specific to your machine is a setting in `.env`; anything else Prosody assumes is listed in [Where each assumption lives](#where-each-assumption-lives) with the file to change.
 
 Throughout this guide, the machine running Prosody is called "the host", and examples use `prosody.example.com` as its address.
 
@@ -9,14 +9,13 @@ Throughout this guide, the machine running Prosody is called "the host", and exa
 | Requirement | Details |
 |---|---|
 | Linux host with Docker in swarm mode | The stack runs four Docker swarm services (Postgres, the model's runner, the Api and the press) plus one plain Docker container (the relay). Run `docker swarm init` once; a single node is enough. |
-| Tailscale on the host | Sign-in queries the host's `tailscaled` socket to identify incoming peers. The host must be an untagged machine owned by your Tailscale user. |
-| Tailscale on every device | Only untagged machines belonging to the host's Tailscale user are admitted. |
-| Caddy on the host | Caddy terminates TLS, checks `/auth` on every request via `forward_auth`, and proxies traffic to the relay on loopback. Run it directly on the host or in a container with host networking so it can reach `127.0.0.1`. |
-| A hostname for the app | `prosody.example.com` must resolve to the host's tailnet IP, with a certificate Caddy can serve (a DNS challenge works for a private name). |
+| Caddy on the host | Caddy terminates TLS and proxies traffic to the relay on loopback. Run it directly on the host or in a container with host networking so it can reach `127.0.0.1`. |
+| A hostname for the app | `prosody.example.com` with a TLS certificate Caddy can serve (a DNS challenge works for a private name on your LAN or tailnet). |
+| OpenID Connect provider (optional) | Any OIDC provider supporting Authorization Code + PKCE (such as Pocket ID, Authelia or Authentik) works for single sign-on. Without one, Prosody's built-in local accounts and invite links work on their own. |
 | A library folder | One root folder containing `ebooks/` and `audiobooks/`. It can live on a local disk or a network share. |
 | A reading copies folder | Must live on a local disk. A synced pair stores both a copied `.m4b` and an EPUB with embedded audio, so budget roughly twice the audiobook's size per synced work. |
 | Node `>=26.11.0`, pnpm `12.21.0`, Bun | Needed to run checks, build the web app and deploy via Alchemy. `corepack enable` provides the pinned pnpm version. |
-| Fetching books at the desk (optional) | The desk can also fetch books you want; see [`acquiring/README.md`](acquiring/README.md). Reading and alignment work without it. |
+| Fetching books at the desk (optional) | Admins can also use the desk to fetch wanted books; see [`acquiring/README.md`](acquiring/README.md). Reading and alignment work without it. |
 
 ## 1. Organise the library
 
@@ -44,6 +43,15 @@ Copy `.env.example` to `.env` at the repository root and fill it in. Git ignores
 | `PROSODY_COPIES` | `/srv/prosody/copies` | Path for reading copies on a local disk. Mounted writable into the press and read-only into the Api. |
 | `PROSODY_UID` | `1000` | Numeric user ID the press runs as (`id -u`). Must have write access to `PROSODY_LIBRARY` and `PROSODY_COPIES`. |
 | `PROSODY_RELAY` | `127.0.0.1:3023` | Loopback address and port the relay container binds on the host. Keep it on loopback. |
+| `PROSODY_PUBLIC_URL` | unset (from proxy headers) | Canonical public origin (`https://prosody.example.com`, no trailing slash). Recommended in production for OIDC callback URLs and `Secure` cookies. |
+| `PROSODY_LOCAL_AUTH` | `true` | Enables built-in local password sign-in, first-run setup and invite registration. Set to `false` for OIDC-only hosts. |
+| `OIDC_ISSUER_URL` | unset | OpenID Connect issuer URL (`https://id.example.com`). Set together with `OIDC_CLIENT_ID` to enable single sign-on. |
+| `OIDC_INTERNAL_URL` | unset | Optional backchannel origin override for discovery, JWKS, token and userinfo calls from inside the Api container. |
+| `OIDC_CLIENT_ID` | unset | OIDC client ID registered with your identity provider. Callback URL is `<PROSODY_PUBLIC_URL>/auth/oidc/callback`. |
+| `OIDC_CLIENT_SECRET` | unset | OIDC client secret for confidential clients (leave unset for public PKCE clients). |
+| `OIDC_DISPLAY_NAME` | `Single sign-on` | Label shown on the OIDC sign-in button. |
+| `OIDC_ADMIN_GROUP` | `admins` | Group name in the OIDC `groups` claim that grants the `admin` role. |
+| `OIDC_SCOPES` | `openid profile email groups` | Space-separated OIDC scopes requested during sign-in. |
 
 `.env.example` also lists optional settings for fetching books at the desk (covered in [`acquiring/README.md`](acquiring/README.md)) and `PROSODY_SITE_DOMAIN` (only used when deploying the public site in `packages/site`). Leave them unset if you do not need them.
 
@@ -89,25 +97,19 @@ Notes on deploying and operating the stack:
 
 ## 5. Configure Caddy
 
-The relay container listens only on `PROSODY_RELAY` (`127.0.0.1:3023` by default) and forwards to the Api on the stack's overlay network. Put Caddy in front of it with `forward_auth`:
+The relay container listens only on `PROSODY_RELAY` (`127.0.0.1:3023` by default), trusts `private_ranges` so `X-Forwarded-Proto` and `X-Forwarded-For` pass through, and forwards to the Api on the stack's overlay network. Put Caddy in front of it:
 
 ```caddyfile
 prosody.example.com {
-	forward_auth 127.0.0.1:3023 {
-		uri /auth
-		header_up X-Prosody-Peer {remote_host}
-		copy_headers X-Prosody-Device
-	}
 	reverse_proxy 127.0.0.1:3023
 }
 ```
 
-- `header_up X-Prosody-Peer {remote_host}` sends the client's IP to `/auth`. The Api queries `tailscaled` and, if the peer is an untagged machine owned by the host's user and the request is not cross-site, responds `200` with `X-Prosody-Device` set to the machine's Tailscale name.
-- `copy_headers X-Prosody-Device` replaces any `X-Prosody-Device` header the browser sent with the one from `/auth`. Requests to `/api` and `/copies/` without `X-Prosody-Device` are refused with `401`.
-- Do not expose the relay on any other hostname or route that skips `forward_auth`, or a browser could supply its own `X-Prosody-Device` header.
-- Make sure `prosody.example.com` resolves to the host's tailnet IP. A request arriving over a LAN address is unknown to `tailscaled` and is refused with `403`.
+Reload Caddy, then open `https://prosody.example.com` in a browser:
 
-Reload Caddy, then open `https://prosody.example.com` from a device in your tailnet. On a phone, add the page to the home screen to install it.
+- If OIDC is configured, click the single sign-on button to sign in with your identity provider. Anyone in your provider can read; members of `OIDC_ADMIN_GROUP` (and the very first user on a fresh install) receive the `admin` role.
+- If using built-in local accounts, complete the one-time admin setup at `/setup`, then create invite links from **Account** for anyone else you want to admit.
+- On a phone, add the page to the home screen to install it.
 
 ## Where each assumption lives
 
@@ -116,8 +118,8 @@ For anything not covered by `.env`, change the source directly. Each assumption 
 | Assumption | Where | To change it |
 |---|---|---|
 | Library layout and file extensions | `HALVES` and `EXTENSIONS` in `packages/press/src/Stacks.ts`; the `"ebooks"` and `"audiobooks"` folder names in `packages/press/src/ReadingCopies.ts` | Rename the folders, add extensions or change the walk layout. |
-| Sign-in by Tailscale | `admission` in `packages/server/src/Tailscale.ts` and `authFetch` (`/auth`) in `packages/server/src/Session.ts` | Keep the Caddy contract (`X-Prosody-Peer` in, `X-Prosody-Device` out) and resolve identity from another source. |
-| `tailscaled` socket directory (`/var/run/tailscale`) | `TAILSCALE` in `packages/server/src/Tailscale.ts` | Point it at the directory holding `tailscaled.sock`. |
+| Sign-in, sessions and OIDC | `packages/server/src/AuthRoutes.ts`, `AuthStore.ts`, `Oidc.ts` and `Session.ts` | Change session lifetime, password rules, rate limits, cookie options or OIDC claim mapping. |
+| Role permissions in the model | `asAdmin` and `asReader` in `packages/domain/src/Session.middleware.ts`, each aggregate's `decide` and each view's validator | Change which commands or views require `admin` versus any signed-in `reader`. |
 | Fetching books at the desk | [`acquiring/README.md`](acquiring/README.md) | Lists its own settings and source files. |
 | External metadata (Open Library, Audible and Audnexus) | Port `packages/domain/src/Library/Metadata.external.ts` and adapter `packages/server/src/OpenLibraryMetadata.ts` | Write another adapter for the `Metadata` port and provide it in `packages/server/src/ProsodyLive.ts`. |
 | Speech models | `packages/press/image/Dockerfile`, `MODEL` in `packages/aligner/src/Acoustic.ts` and `CHECK_MODEL` in `packages/aligner/src/SpotCheck.ts` | Swap the model, then bump `IMAGE` in `packages/press/src/Press.ts` so the press image rebuilds. |
@@ -131,8 +133,8 @@ After editing the source, run `pnpm check` and inspect the planned changes with 
 | Symptom | Cause and what to check |
 |---|---|
 | `pnpm run plan` or `pnpm run deploy` stops with `PROSODY_LIBRARY is not set. Copy .env.example to .env and fill it in.` | `.env` is missing at the repository root, or `PROSODY_LIBRARY` is unset or empty. |
-| `403` (`Prosody admits only your own devices.`) on every request | Either the request did not arrive over Tailscale from an untagged machine owned by the host's user, `tailscaled` did not answer, or the request was flagged as cross-site. Confirm `prosody.example.com` resolves to the host's tailnet IP and check the Api logs for the `refused` reason. |
-| `401` (`Signed out` on `/copies/`, or `SignedOut` on `/api`) | The request reached the relay without passing through Caddy's `forward_auth` block, so `X-Prosody-Device` was missing. |
+| OIDC sign-in redirects back to `/login?error=sso` | Check the Api service logs (`docker service logs`) for `"single sign-on failed"`. Common causes are a mismatched callback URL (`<PROSODY_PUBLIC_URL>/auth/oidc/callback`), wrong `OIDC_CLIENT_SECRET`, or the Api container being unable to reach `OIDC_ISSUER_URL` (set `OIDC_INTERNAL_URL` if split-horizon DNS blocks container egress). |
+| `403` `"Prosody refuses requests from other sites"` | A mutating request arrived with a mismatched `Origin` or cross-site `Sec-Fetch-Site` header. |
+| `401` (`Signed out` on `/copies/`, or `SignedOut` on `/api`) | Your session expired or was signed out from another device. Sign in again at `/login`. |
 | The shelf is empty | The press could not read `PROSODY_LIBRARY`, or its folders do not match `<ebooks\|audiobooks>/<Author>/<Title>/`. Check the press service logs: each `walked the library` entry lists unreadable folders. |
 | A work never aligns | Alignment requires both an `.epub` and an `.m4b` (AAC-LC or MP3) under the same `<Author>/<Title>`. Check the press service logs for `not aligned` and its `reason`. |
-| The Api restarts after Tailscale restarts | Expected behaviour. When `tailscaled` restarts it recreates `/var/run/tailscale`, breaking the Api container's bind mount. The Api's healthcheck (`test -S /var/run/tailscale/tailscaled.sock`) fails and Docker swarm replaces the task with a fresh mount. |

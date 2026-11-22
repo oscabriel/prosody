@@ -7,7 +7,7 @@ Each entry gives the word, what it means in the code, and the words to avoid in 
 ## Books, editions, and the library
 
 **Work**:
-A book's identity in the model, independent of which files exist for it (`Work` aggregate in `packages/domain/src/Library/Work.aggregate.ts`). Its `WorkId` (`w-<hex>`) keys the work itself as well as its `Narration`, `Copy`, `Reading`, `Place`, and `Want`.
+A book's identity in the model, independent of which files exist for it (`Work` aggregate in `packages/domain/src/Library/Work.aggregate.ts`). Its `WorkId` (`w-<hex>`) keys the work itself as well as its `Narration`, `Copy`, and `Want`. Per-reader reading state pairs a `ReaderId` with a `WorkId` in a `ReadingId`.
 _Avoid_: Title, item, record
 
 **Book**:
@@ -139,11 +139,11 @@ The web view where one work is opened to read or listen (`packages/web/src/Room.
 _Avoid_: Reader, player, viewer
 
 **Reading**:
-The `Reading` aggregate (`packages/domain/src/Reading/Reading.aggregate.ts`), keyed by `WorkId`. It stores a work's current `place` and its `stage`.
+The `Reading` aggregate (`packages/domain/src/Reading/Reading.aggregate.ts`), keyed by `ReadingId` (`<readerId>:<workId>` in `packages/domain/src/Reading/Reading.id.ts`). It stores one reader's current `place` and `stage` in a work.
 _Avoid_: Progress, session
 
 **Place**:
-Your current spot in a work (`PlaceAt` and `KeptPlace` in `packages/domain/src/Reading/Sentence.ts`, exposed by the `Place` view in `packages/domain/src/Reading/Place.view.ts`): a `sentence` for text or paired works, a `time` for audio alone, or a `page` for pages, stamped with `at` and `device`. There is one place per work across all devices; older timestamps are rejected with `StalePlace`.
+A reader's current spot in a work (`PlaceAt` and `KeptPlace` in `packages/domain/src/Reading/Sentence.ts`, exposed by the `Place` view in `packages/domain/src/Reading/Place.view.ts`): a `sentence` for text or paired works, a `time` for audio alone, or a `page` for pages, stamped with `at` and `device`. Each reader keeps one place per work across all of their devices; older timestamps are rejected with `StalePlace`.
 _Avoid_: Position, progress, bookmark
 
 **Stage**:
@@ -155,7 +155,7 @@ A work's `stage` together with `at` and `device` (`Standing` in `packages/domain
 _Avoid_: Bedside, progress
 
 **Nightstand**:
-The `Nightstand` view (`packages/domain/src/Reading/Nightstand.view.ts`) and the top section of the shelf (`packages/web/src/Shelf.ts`). The view records the `Standing` of every opened work; the shelf displays those in stage `"reading"`, most recently read first, under "On the nightstand".
+The `Nightstand` view (`packages/domain/src/Reading/Nightstand.view.ts`, keyed by `ReaderId`) and the top section of the shelf (`packages/web/src/Shelf.ts`). The view records the `Standing` of every work a reader has opened; the shelf displays those in stage `"reading"`, most recently read first, under "On the nightstand".
 _Avoid_: Continue reading, in progress, recents
 
 **Set aside**:
@@ -198,8 +198,20 @@ _Avoid_: Alarm, auto-stop, snooze
 Device-local display preferences (`Appearance` in `packages/web/src/Appearance.ts`): theme (`Auto`, `Paper`, or `Ink`), reading-room text size, line spacing, column width, focus dimming while listening, and pages fit and dark-mode brightness. Stored in `localStorage`, never in the model.
 _Avoid_: Settings, preferences, theme (for the whole set)
 
+**Reader**:
+A person with an account in Prosody, identified by a `ReaderId` (`u-<hex>` in `packages/domain/src/Reader.id.ts`). Every reader shares the library shelf and reading copies while keeping their own places and nightstand.
+_Avoid_: User (in domain code)
+
+**Role**:
+A reader's permission level (`Role` in `packages/domain/src/Reader.id.ts`): `"admin"` or `"reader"`. Admins may also use the desk, realign narrations, remake copies, create invites and manage reader roles.
+_Avoid_: Permission, group
+
+**Actor**:
+The signed-in caller carried into domain command decisions and view validators (`Actor` request context in `packages/domain/src/Actor.context.ts`), holding `reader`, `role` and `device`.
+_Avoid_: CurrentUser, Principal
+
 **Device**:
-One of your own machines on your tailnet (`Device` request context in `packages/domain/src/Device.context.ts`), identified by its Tailscale `ComputedName` (`packages/server/src/Tailscale.ts`). Tagged nodes and nodes owned by other users are refused.
+The editable name of one signed-in session (defaulting to the browser and platform parsed from `User-Agent`, renamed via `PATCH /auth/session`), carried on `Actor.device` and recorded on each kept place and nightstand standing.
 _Avoid_: Client, user, account
 
 ## Wanting books
@@ -247,12 +259,12 @@ The `Runners` container pool (`packages/server/src/ProsodyLive.ts`) that hosts t
 _Avoid_: Worker, node
 
 **Api**:
-The `Api` service (`packages/server/src/Api.ts`): serves the web app, `/auth`, `ReaderApi` at `/api`, reading copy files at `/copies/` (mounted read-only), and `PressApi` at `/press` (refused if relayed via `x-forwarded-for`).
+The `Api` service (`packages/server/src/Api.ts`): serves the web app, `/auth/*` sign-in and account routes, `ReaderApi` at `/api`, reading copy files at `/copies/` (mounted read-only), `/health`, and `PressApi` at `/press` (refused if relayed via `x-forwarded-for`).
 _Avoid_: Backend, gateway
 
 **Session**:
-The `Session` RPC middleware (`packages/domain/src/Session.middleware.ts`, implemented in `packages/server/src/Session.ts`) that checks incoming requests and provides `Device`, or fails with `SignedOut`. Together with `/auth`, it admits only same-site requests from your own tailnet devices.
-_Avoid_: Login, auth, account
+The `Session` RPC middleware (`packages/domain/src/Session.middleware.ts`, implemented in `packages/server/src/Session.ts`) that checks incoming `prosody_session` cookies (enforcing `isCrossSite`) or `Authorization: Bearer` tokens against `AuthStore` and provides `Actor`, or fails with `SignedOut`. Also refers to one signed-in device record in `prosody_sessions`.
+_Avoid_: Login, auth
 
 **Press**:
 The `Press` service (`packages/press/src/Press.ts`): the only part that mounts the library or writes reading copies. It walks the library, shelves fetched books, and builds reading copies, implementing `Stacks`, `Aligner`, and `Copier`.

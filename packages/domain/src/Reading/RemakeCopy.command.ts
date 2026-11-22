@@ -1,7 +1,7 @@
 import * as Domain from "@alchemy.run/domain";
 
 import { WorkId } from "../Library/Work.id.ts";
-import { Session } from "../Session.middleware.ts";
+import { Forbidden, Session } from "../Session.middleware.ts";
 import { CopyStarted } from "./CopyEdition.command.ts";
 
 export class NothingToCopy extends Domain.Rejection(
@@ -14,5 +14,5 @@ export class RemakeCopy extends Domain.Command("RemakeCopy", {
 	target: WorkId,
 	middleware: [Session],
 	events: [CopyStarted],
-	rejects: [NothingToCopy],
+	rejects: [NothingToCopy, Forbidden],
 }) {}

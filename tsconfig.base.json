@@ -23,6 +23,7 @@
 				"allowedUnstableApis": [
 					"@effect/platform-bun",
 					"@effect/platform-node",
+					"@effect/sql-pg",
 					"@effect/vitest",
 					"effect/FileSystem",
 					"effect/Path",
@@ -32,7 +33,8 @@
 					"effect/http-api",
 					"effect/process",
 					"effect/rpc",
-					"effect/socket"
+					"effect/socket",
+					"effect/sql"
 				]
 			}
 		]

@@ -25,7 +25,7 @@ import {
 	WantWithdrawn,
 	WithdrawWant,
 } from "../src/Acquisition/WithdrawWant.command.ts";
-import { Device } from "../src/Device.context.ts";
+import { Actor } from "../src/Actor.context.ts";
 import { WorkCatalogued } from "../src/Library/CatalogueWork.command.ts";
 import { Metadata } from "../src/Library/Metadata.external.ts";
 import { SHELF, Shelf } from "../src/Library/Shelf.view.ts";
@@ -33,6 +33,7 @@ import { Stacks } from "../src/Library/Stacks.external.ts";
 import { Work } from "../src/Library/Work.aggregate.ts";
 import { Aligner } from "../src/Narration/Aligner.external.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
+import { ReaderId } from "../src/Reader.id.ts";
 import { Copier } from "../src/Reading/Copier.external.ts";
 
 const { call, fail, given, provide, rejected, succeed, then, view, when } =
@@ -83,7 +84,11 @@ const audiobook: Release = {
 
 const NEW_YEAR = Date.UTC(2026, 0, 1);
 
-const fromLaptop = provide(Device, "laptop");
+const fromLaptop = provide(Actor, {
+	reader: ReaderId.make("u-keeper"),
+	role: "admin",
+	device: "laptop",
+});
 
 describe("a book you want", () => {
 	it.effect("is searched for, and what the Indexer finds is offered", () =>

@@ -65,7 +65,7 @@ import {
 	NotWanted,
 	WantWithdrawn,
 } from "../src/Acquisition/WithdrawWant.command.ts";
-import { Device } from "../src/Device.context.ts";
+import { Actor } from "../src/Actor.context.ts";
 import { WorkCatalogued } from "../src/Library/CatalogueWork.command.ts";
 import { ShelfmarkClaimed } from "../src/Library/ClaimShelfmark.command.ts";
 import { Metadata } from "../src/Library/Metadata.external.ts";
@@ -77,6 +77,7 @@ import { Work } from "../src/Library/Work.aggregate.ts";
 import { WorkId } from "../src/Library/Work.id.ts";
 import { Aligner } from "../src/Narration/Aligner.external.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
+import { ReaderId } from "../src/Reader.id.ts";
 import { Copier } from "../src/Reading/Copier.external.ts";
 
 const { call, fail, given, provide, rejected, succeed, then, view, when } =
@@ -141,7 +142,11 @@ const seeded = (hours: number) =>
 		),
 	] as const;
 
-const fromLaptop = provide(Device, "laptop");
+const fromLaptop = provide(Actor, {
+	reader: ReaderId.make("u-keeper"),
+	role: "admin",
+	device: "laptop",
+});
 
 describe("a release you grab", () => {
 	it.effect("is downloaded, and the desk shows it", () =>

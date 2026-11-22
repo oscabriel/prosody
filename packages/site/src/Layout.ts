@@ -42,7 +42,7 @@ const footView = (h: HtmlBuilder<Message>): Html =>
 			h.p(
 				[],
 				[
-					"Prosody is open-source software under the MIT licence. Self-hosted on your own machine, accessed over your tailnet.",
+					"Prosody is open-source software under the MIT licence. Self-hosted on your own machine.",
 				]
 			),
 			h.nav(

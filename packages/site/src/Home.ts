@@ -39,8 +39,8 @@ const YOURS: ReadonlyArray<readonly [string, string]> = [
 		"Both speech models are baked into the container image and run on your CPU. Your books and audio never leave your machine.",
 	],
 	[
-		"Tailscale instead of accounts",
-		"There are no logins or passwords. Only untagged Tailscale devices belonging to the host’s owner are admitted, identified by device name.",
+		"Accounts and single sign-on",
+		"Share one library while keeping every reader’s places and nightstand separate. Sign in with OpenID Connect (such as Pocket ID) or built-in local accounts and invite links.",
 	],
 	[
 		"One TypeScript codebase",
@@ -133,13 +133,13 @@ export const homeView = (
 					h.li(
 						[],
 						[
-							"Tailscale on the host and on every device you read or listen with.",
+							"Caddy (or another reverse proxy) with a domain name and TLS certificate for the app.",
 						]
 					),
 					h.li(
 						[],
 						[
-							"Caddy as the reverse proxy, with a domain name pointing to the host’s tailnet address.",
+							"An optional OpenID Connect provider if you prefer single sign-on over built-in local accounts.",
 						]
 					),
 					h.li(

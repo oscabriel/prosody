@@ -1,8 +1,9 @@
 import * as Domain from "@alchemy.run/domain";
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 
 import { Shelfmark } from "../Library/Shelfmark.ts";
 import { WorkId } from "../Library/Work.id.ts";
+import { asAdmin } from "../Session.middleware.ts";
 import { ExpireAlignment } from "./ExpireAlignment.command.ts";
 import {
 	AlignmentStarted,
@@ -86,17 +87,19 @@ export class Narration extends Domain.Aggregate("Narration", {
 						}),
 					]
 				: [],
-		RealignNarration: (narration) => {
+		RealignNarration: Effect.fn(function* (narration) {
+			yield* asAdmin;
+
 			if (narration.pair === null) {
-				return new NotPaired();
+				return yield* new NotPaired();
 			}
 
 			if (narration.status === "aligning") {
-				return new AlreadyAligning();
+				return yield* new AlreadyAligning();
 			}
 
 			return [new AlignmentStarted({ attempt: narration.attempt + 1 })];
-		},
+		}),
 	},
 	evolve: {
 		EditionsPaired: (narration, e) => ({

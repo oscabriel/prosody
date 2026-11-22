@@ -1,8 +1,8 @@
 import * as Domain from "@alchemy.run/domain";
 import { Schema } from "effect";
 
-import { WorkId } from "../Library/Work.id.ts";
-import { Session } from "../Session.middleware.ts";
+import { Forbidden, Session } from "../Session.middleware.ts";
+import { ReadingId } from "./Reading.id.ts";
 import { Moment, Stage } from "./Stage.ts";
 
 export class BookSetAside extends Domain.Event("BookSetAside", Moment.fields) {}
@@ -14,9 +14,9 @@ export class NotReading extends Domain.Rejection(
 ) {}
 
 export class SetAside extends Domain.Command("SetAside", {
-	target: WorkId,
+	target: ReadingId,
 	middleware: [Session],
 	input: { at: Schema.Int },
 	events: [BookSetAside],
-	rejects: [NotReading],
+	rejects: [NotReading, Forbidden],
 }) {}

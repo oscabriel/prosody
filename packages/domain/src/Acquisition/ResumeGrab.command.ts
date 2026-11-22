@@ -1,6 +1,6 @@
 import * as Domain from "@alchemy.run/domain";
 
-import { Session } from "../Session.middleware.ts";
+import { Forbidden, Session } from "../Session.middleware.ts";
 import { NotDownloading } from "./AbandonGrab.command.ts";
 import { GrabId } from "./Grab.id.ts";
 
@@ -10,5 +10,5 @@ export class ResumeGrab extends Domain.Command("ResumeGrab", {
 	target: GrabId,
 	middleware: [Session],
 	events: [GrabResumed],
-	rejects: [NotDownloading],
+	rejects: [NotDownloading, Forbidden],
 }) {}

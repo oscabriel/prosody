@@ -1,7 +1,7 @@
 import * as Domain from "@alchemy.run/domain";
 import { Schema } from "effect";
 
-import { Session } from "../Session.middleware.ts";
+import { Forbidden, Session } from "../Session.middleware.ts";
 import { NotCatalogued } from "./ShelveEdition.command.ts";
 import { WorkId } from "./Work.id.ts";
 
@@ -21,5 +21,5 @@ export class CorrectTitle extends Domain.Command("CorrectTitle", {
 	input: { title: Schema.NonEmptyString, author: Schema.NonEmptyString },
 	middleware: [Session],
 	events: [TitleCorrected],
-	rejects: [NotCatalogued, OnTheShelf],
+	rejects: [NotCatalogued, OnTheShelf, Forbidden],
 }) {}

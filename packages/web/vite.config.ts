@@ -85,7 +85,11 @@ export default defineConfig(({ mode }) => {
 		host: "127.0.0.1",
 		port: 3022,
 		strictPort: true,
-		proxy: { "/api": { target: api, ws: true }, "/copies": api },
+		proxy: {
+			"/api": { target: api, ws: true },
+			"/auth": api,
+			"/copies": api,
+		},
 	};
 
 	const host = loadEnv(mode, import.meta.dirname, "").CADDY_DEV_HOST ?? "";

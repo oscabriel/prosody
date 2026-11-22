@@ -1,7 +1,7 @@
 import * as Domain from "@alchemy.run/domain";
 
 import { WorkId } from "../Library/Work.id.ts";
-import { Session } from "../Session.middleware.ts";
+import { Forbidden, Session } from "../Session.middleware.ts";
 import { AlignmentStarted } from "./PairEditions.command.ts";
 
 export class NotPaired extends Domain.Rejection(
@@ -20,5 +20,5 @@ export class RealignNarration extends Domain.Command("RealignNarration", {
 	target: WorkId,
 	middleware: [Session],
 	events: [AlignmentStarted],
-	rejects: [NotPaired, AlreadyAligning],
+	rejects: [NotPaired, AlreadyAligning, Forbidden],
 }) {}

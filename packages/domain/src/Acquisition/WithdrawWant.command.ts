@@ -1,7 +1,7 @@
 import * as Domain from "@alchemy.run/domain";
 
 import { WorkId } from "../Library/Work.id.ts";
-import { Session } from "../Session.middleware.ts";
+import { Forbidden, Session } from "../Session.middleware.ts";
 
 export class WantWithdrawn extends Domain.Event("WantWithdrawn", {}) {}
 
@@ -15,5 +15,5 @@ export class WithdrawWant extends Domain.Command("WithdrawWant", {
 	target: WorkId,
 	middleware: [Session],
 	events: [WantWithdrawn],
-	rejects: [NotWanted],
+	rejects: [NotWanted, Forbidden],
 }) {}

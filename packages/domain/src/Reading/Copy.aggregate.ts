@@ -1,9 +1,10 @@
 import * as Domain from "@alchemy.run/domain";
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 
 import { Shelfmark } from "../Library/Shelfmark.ts";
 import { EditionKind } from "../Library/ShelveEdition.command.ts";
 import { WorkId } from "../Library/Work.id.ts";
+import { asAdmin } from "../Session.middleware.ts";
 import { CopyEdition, CopyStarted } from "./CopyEdition.command.ts";
 import { CopyMade, RecordCopy } from "./RecordCopy.command.ts";
 import { CopyFailed, RecordCopyFailed } from "./RecordCopyFailed.command.ts";
@@ -53,10 +54,15 @@ export class Copy extends Domain.Aggregate("Copy", {
 			isRunning(copy, cmd.attempt)
 				? [new CopyFailed({ reason: cmd.reason })]
 				: [],
-		RemakeCopy: (copy) =>
-			copy.edition === null
-				? new NothingToCopy()
-				: [new CopyStarted({ ...copy.edition, attempt: copy.attempt + 1 })],
+		RemakeCopy: Effect.fn(function* (copy) {
+			yield* asAdmin;
+
+			if (copy.edition === null) {
+				return yield* new NothingToCopy();
+			}
+
+			return [new CopyStarted({ ...copy.edition, attempt: copy.attempt + 1 })];
+		}),
 	},
 	evolve: {
 		CopyStarted: (copy, e) => ({

@@ -6,6 +6,7 @@ import { Book, ConfirmAction, Message } from "./Model.ts";
 import type { Copying, DeviceCopy, Model, Room } from "./Model.ts";
 import { standingOf, dayOf } from "./Nightstand.ts";
 import { sizeIn } from "./OnDevice.ts";
+import { isAdmin } from "./Readers.ts";
 import { panelId } from "./RoomPanels.ts";
 import { isAlone } from "./Rooms.ts";
 import { entryOf } from "./Steps.ts";
@@ -289,6 +290,34 @@ const keepView = (
 	return keeping.canKeep ? retry : [keepNote("Not on this device", h)];
 };
 
+const realignView = (
+	model: Model,
+	room: Room,
+	h: HtmlBuilder<Message>
+): ReadonlyArray<Html> => [
+	h.p(
+		[],
+		[
+			"Aligning it again takes a minute or two for a book the press has heard before. The book closes here until it is done.",
+		]
+	),
+	h.button(
+		[
+			h.Type("button"),
+			h.Class("btn btn-danger-ghost btn-sm"),
+			h.OnClick(
+				Message.RequestedConfirm({
+					action: ConfirmAction.Realign({
+						work: room.work,
+						title: titleIn(model, room),
+					}),
+				})
+			),
+		],
+		["Align it again…"]
+	),
+];
+
 const syncedView = (
 	model: Model,
 	room: Room,
@@ -306,6 +335,8 @@ const syncedView = (
 		Option.fromUndefinedOr(syncs[room.work]?.note)
 	);
 
+	const realign = isAdmin(model) ? realignView(model, room, h) : [];
+
 	return [
 		h.div(
 			[h.Class("menu-section")],
@@ -321,27 +352,7 @@ const syncedView = (
 								onSome: (text) => [h.p([], [text])],
 							}
 						),
-						h.p(
-							[],
-							[
-								"Aligning it again takes a minute or two for a book the press has heard before. The book closes here until it is done.",
-							]
-						),
-						h.button(
-							[
-								h.Type("button"),
-								h.Class("btn btn-danger-ghost btn-sm"),
-								h.OnClick(
-									Message.RequestedConfirm({
-										action: ConfirmAction.Realign({
-											work: room.work,
-											title: titleIn(model, room),
-										}),
-									})
-								),
-							],
-							["Align it again…"]
-						),
+						...realign,
 					]
 				),
 			]

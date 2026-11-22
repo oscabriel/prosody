@@ -5,7 +5,7 @@ import { Description } from "../Library/Metadata.external.ts";
 import { SHELF, ShelfName } from "../Library/Shelf.view.ts";
 import { Shelfmark } from "../Library/Shelfmark.ts";
 import { Work } from "../Library/Work.aggregate.ts";
-import { Session } from "../Session.middleware.ts";
+import { asAdmin, Forbidden, Session } from "../Session.middleware.ts";
 import { Grab } from "./Grab.aggregate.ts";
 import { Release } from "./Release.ts";
 import { Want } from "./Want.aggregate.ts";
@@ -87,6 +87,7 @@ export class Wanted extends Domain.View("Wanted", {
 	from: [Want, Work, Grab],
 	key: ShelfName,
 	middleware: [Session],
+	rejects: [Forbidden],
 	keyOf: { Want: () => SHELF, Work: () => SHELF, Grab: () => SHELF },
 	state: State,
 	initial: { wants: {}, catalogue: {}, grabs: {} },
@@ -237,4 +238,10 @@ export class Wanted extends Domain.View("Wanted", {
 	},
 }) {}
 
-export const WantedLive = Wanted.toLayer(Effect.succeed(() => Effect.void));
+export const judgeWanted = Effect.fn(function* (
+	_request: Domain.Read.Request<ShelfName>
+) {
+	yield* asAdmin;
+});
+
+export const WantedLive = Wanted.toLayer(Effect.succeed(judgeWanted));

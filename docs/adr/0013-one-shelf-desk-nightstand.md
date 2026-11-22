@@ -1,12 +1,13 @@
-# Keep one singleton instance for Shelf, Wanted and Nightstand, with separate maps per aggregate
+# Keep one singleton instance for Shelf and Wanted, with separate maps per aggregate
 
 ## Decision
 
-Three views each exist as a single instance keyed by `SHELF` (`ShelfName.make("main")`):
+Two library-wide views each exist as a single instance keyed by `SHELF` (`ShelfName.make("main")`):
 
 - `Shelf` (`packages/domain/src/Library/Shelf.view.ts`): fed by `Work`, `Narration` and `Copy`, storing `works`, `syncs` and `copies` as separate records.
 - `Wanted` (`packages/domain/src/Acquisition/Wanted.view.ts`): fed by `Want`, `Work` and `Grab`, storing `wants`, `catalogue` and `grabs` as separate records.
-- `Nightstand` (`packages/domain/src/Reading/Nightstand.view.ts`): fed by `Reading`, storing `works` (each work's `Standing`).
+
+`Nightstand` (`packages/domain/src/Reading/Nightstand.view.ts`) originally shared the `SHELF` singleton, and was later partitioned per reader (`key: ReaderId`, storing `works` keyed by `WorkId`) when Prosody gained multi-user accounts ([ADR 0053](0053-readers-sessions-and-single-sign-on.md)).
 
 The web app joins these records when rendering (`booksOf` in `packages/web/src/ShelfBooks.ts`, `packages/web/src/Desk.ts`, `packages/web/src/Grabbed.ts`).
 

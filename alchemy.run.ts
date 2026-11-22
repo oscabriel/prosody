@@ -22,13 +22,24 @@ export default Alchemy.Stack(
 
 		const relay = yield* Docker.Container("Relay", {
 			image: "caddy:2-alpine",
+			environment: {
+				RELAY_CONFIG: [
+					"{",
+					"\tauto_https off",
+					"\tadmin off",
+					"\tservers {",
+					"\t\ttrusted_proxies static private_ranges",
+					"\t}",
+					"}",
+					":3000 {",
+					`\treverse_proxy http://${API_ALIAS}:3000`,
+					"}",
+				].join("\n"),
+			},
 			command: [
-				"caddy",
-				"reverse-proxy",
-				"--from",
-				":3000",
-				"--to",
-				`http://${API_ALIAS}:3000`,
+				"sh",
+				"-c",
+				"printf '%s\\n' \"$RELAY_CONFIG\" | caddy run --adapter caddyfile --config -",
 			],
 			networks: [{ name: front.name }],
 			ports: [{ external: address, internal: 3000 }],

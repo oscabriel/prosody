@@ -2,7 +2,7 @@
 
 ## Decision
 
-`Api` (`packages/server/src/Api.ts`) publishes no host port. Instead, `alchemy.run.ts` runs a small `caddy:2-alpine` container (`Relay`) attached to the stack's `Front` network, listening only on `PROSODY_RELAY` (default `127.0.0.1:3023`) and proxying to `http://prosody-api:3000` (`API_ALIAS` in `packages/server/src/Front.ts`).
+`Api` (`packages/server/src/Api.ts`) publishes no host port. Instead, `alchemy.run.ts` runs a small `caddy:2-alpine` container (`Relay`) attached to the stack's `Front` network, listening only on `PROSODY_RELAY` (default `127.0.0.1:3023`) and proxying to `http://prosody-api:3000` (`API_ALIAS` in `packages/server/src/Front.ts`) with `trusted_proxies static private_ranges` so `X-Forwarded-Proto` and `X-Forwarded-For` from the host's Caddy reach `Api`.
 
 The host's Caddy reverse proxy sends browser traffic to `Relay`. `Press` (`packages/press/src/Press.ts`) calls `http://prosody-api:3000/press` directly over the `Front` Docker network without passing through a proxy.
 
@@ -12,7 +12,8 @@ In `Api.ts`, any request to `/press` that carries an `x-forwarded-for` header is
 
 - The host's Caddy runs with host networking and cannot join a Docker Swarm overlay network directly.
 - Publishing a port on a Docker Swarm service binds every host interface by default, which would expose the Api outside loopback. A plain container (`Relay`) can bind strictly to `127.0.0.1`.
-- Because `Relay` and the host's Caddy always add `x-forwarded-for`, rejecting `/press` requests that contain `x-forwarded-for` ensures only containers on the internal `Front` network can invoke `PressApi` commands without tailnet auth.
+- Trusting `private_ranges` in `Relay` preserves the host proxy's `X-Forwarded-Proto` so `Api` knows when traffic arrived over HTTPS (for `Secure` cookies and OIDC callback URLs) while still appending to `X-Forwarded-For`.
+- Because `Relay` and the host's Caddy always send `x-forwarded-for`, rejecting `/press` requests that contain `x-forwarded-for` ensures only containers on the internal `Front` network can invoke `PressApi` commands without reader authentication.
 
 ## What breaks if you change this
 

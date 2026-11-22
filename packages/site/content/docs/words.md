@@ -36,13 +36,14 @@ Prosody uses a small, consistent vocabulary throughout the app and these docs. T
 | Word | Meaning |
 |---|---|
 | Reading room | The screen where you read or listen to a single work. |
-| Place | Where you are in a work: a sentence, an audio timestamp or a page number. One per work across all devices. |
-| Nightstand | The works you are currently reading, shown newest first at the top of the shelf. |
+| Place | Where a reader is in a work: a sentence, an audio timestamp or a page number. One per reader per work across all of their devices. |
+| Nightstand | The works a reader is currently reading, shown newest first at the top of the shelf. |
 | Set aside | Taking a work off the nightstand without finishing it; your place is kept and reopening it puts it back. |
 | Kept copy | A reading copy stored whole in a device's browser cache for offline use. |
-| Book menu | The **···** panel in a reading room: finishing, setting aside, keeping on the device and realigning. |
+| Book menu | The **···** panel in a reading room: finishing, setting aside, keeping on the device and (for admins) realigning. |
 | Sleep timer | A scheduled pause for playback, either after a set number of minutes or at the end of the chapter. |
 | Appearance | Device-local display settings: theme, text size, line spacing, column width, focus dimming and PDF page display. Not shared across devices. |
-| Device | One of your own machines, identified by its Tailscale name. |
-| Desk | Where you list books you want and follow them to the shelf. |
-| Want | A book on your desk list. |
+| Reader | A person with an account in Prosody. Every reader shares the shelf while keeping their own places and nightstand. |
+| Device | The editable name of a signed-in browser or app session, shown on your nightstand and reading places. |
+| Desk | The admin-only screen where books you want are listed and followed to the shelf. |
+| Want | A book on the desk list. |

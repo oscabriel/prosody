@@ -2,7 +2,7 @@ import * as Domain from "@alchemy.run/domain";
 import { Schema } from "effect";
 
 import { WorkId } from "../Library/Work.id.ts";
-import { Session } from "../Session.middleware.ts";
+import { Forbidden, Session } from "../Session.middleware.ts";
 import { GrabId } from "./Grab.id.ts";
 import { Release } from "./Release.ts";
 import { NotWanted } from "./WithdrawWant.command.ts";
@@ -23,5 +23,5 @@ export class GrabRelease extends Domain.Command("GrabRelease", {
 	input: { release: Schema.String },
 	middleware: [Session],
 	events: [ReleaseGrabbed],
-	rejects: [NotWanted, ReleaseNotOffered],
+	rejects: [NotWanted, ReleaseNotOffered, Forbidden],
 }) {}

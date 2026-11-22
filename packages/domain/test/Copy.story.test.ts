@@ -3,7 +3,7 @@ import { describe, it } from "@effect/vitest";
 
 import { Downloads } from "../src/Acquisition/Downloads.external.ts";
 import { Indexer } from "../src/Acquisition/Indexer.external.ts";
-import { Device } from "../src/Device.context.ts";
+import { Actor } from "../src/Actor.context.ts";
 import { WorkCatalogued } from "../src/Library/CatalogueWork.command.ts";
 import { Metadata } from "../src/Library/Metadata.external.ts";
 import { SHELF, Shelf } from "../src/Library/Shelf.view.ts";
@@ -14,6 +14,7 @@ import { Work } from "../src/Library/Work.aggregate.ts";
 import { WorkId } from "../src/Library/Work.id.ts";
 import { Aligner } from "../src/Narration/Aligner.external.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
+import { ReaderId } from "../src/Reader.id.ts";
 import { Copier } from "../src/Reading/Copier.external.ts";
 import { Copy } from "../src/Reading/Copy.aggregate.ts";
 import {
@@ -88,7 +89,11 @@ const asked = (attempt: number, edition: typeof epub | typeof pdf = epub) => ({
 	file: edition.file,
 });
 
-const fromLaptop = provide(Device, "laptop");
+const fromLaptop = provide(Actor, {
+	reader: ReaderId.make("u-keeper"),
+	role: "admin",
+	device: "laptop",
+});
 
 describe("the copy of a work with one edition", () => {
 	it.effect("starts its first try, and the press is asked", () =>

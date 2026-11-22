@@ -11,6 +11,13 @@ describe("the web app's paths", () => {
 		expect(isPage("/assets/index-Cja7xpds.js")).toBeTruthy();
 	});
 
+	it("are the account, sign-in, setup and invite pages", () => {
+		expect(isPage("/account")).toBeTruthy();
+		expect(isPage("/login")).toBeTruthy();
+		expect(isPage("/setup")).toBeTruthy();
+		expect(isPage("/invite/Zm9vYmFyLWludml0ZQ")).toBeTruthy();
+	});
+
 	it("are the service worker, the web manifest and the icons", () => {
 		expect(isPage("/worker.js")).toBeTruthy();
 		expect(isPage("/manifest.webmanifest")).toBeTruthy();
@@ -28,5 +35,13 @@ describe("the web app's paths", () => {
 	it("leave the Api's own paths alone that look like the desk's", () => {
 		expect(isPage("/desks")).toBeFalsy();
 		expect(isPage("/Wanted/main")).toBeFalsy();
+	});
+
+	it("leave the sign-in routes to the Api", () => {
+		expect(isPage("/auth/me")).toBeFalsy();
+		expect(isPage("/invite")).toBeFalsy();
+		expect(isPage("/invite/a/b")).toBeFalsy();
+		expect(isPage("/login/again")).toBeFalsy();
+		expect(isPage("/setups")).toBeFalsy();
 	});
 });

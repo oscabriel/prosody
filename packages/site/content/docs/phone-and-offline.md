@@ -8,7 +8,7 @@ Prosody is a web app that installs directly from your browser. Once installed, i
 
 ## Installing on a phone
 
-There is no app store listing. Make sure Tailscale is running on your phone, open your Prosody address in the browser and add it to the home screen:
+There is no app store listing. Open your Prosody address in the browser, sign in, and add it to the home screen:
 
 - **iPhone or iPad (Safari):** Tap Share, then **Add to Home Screen**.
 - **Android (Chrome):** Open the browser menu, then tap **Add to Home screen** or **Install app**.

@@ -16,7 +16,7 @@ Prosody deploys to a Docker Swarm host with `pnpm run deploy --yes` (preview cha
 
 | Path | File served | `cache-control` |
 |---|---|---|
-| `/`, `/read/<work>`, `/desk` | `/page/index.html` | `no-cache` |
+| `/`, `/read/<work>`, `/desk`, `/account`, `/login`, `/setup`, `/invite/<token>` | `/page/index.html` | `no-cache` |
 | `/assets/<file>` | Hashed build assets | `public, max-age=31536000, immutable` ([ADR 0034](adr/0034-built-files-kept-a-year.md)) |
 | `/worker.js`, `/manifest.webmanifest`, top-level `.png` icons | File from `/page/` | `no-cache` |
 
@@ -39,28 +39,22 @@ Because the press can start a walk while the Api is mid-replacement, the first w
 
 ## Signing in
 
-Prosody has no user accounts. Identity comes from Tailscale through Caddy's `forward_auth` ([ADR 0014](adr/0014-sign-in-is-the-tailnets.md)).
+Prosody identifies each reader by an account and a database-backed session ([ADR 0053](adr/0053-readers-sessions-and-single-sign-on.md)). OpenID Connect (Authorization Code + PKCE) is supported as a first-class sign-in method alongside built-in local accounts (first-run setup, `scrypt` passwords and admin invite links).
 
 ### Request flow and trust boundaries
 
-1. Caddy sends every request for the app's host name to the Api's `/auth` with `X-Prosody-Peer` set to the client's address.
-2. `/auth` ([`packages/server/src/Session.ts`](../packages/server/src/Session.ts)) checks:
-   - TLS early data with an empty peer header returns `425` (`Too early`).
-   - Cross-site requests (mismatched `Origin` or cross-site/same-site `Sec-Fetch-Site` other than a top-level document navigation) are refused with `403`, because the tailnet vouches for a machine, not for other sites open in its browser ([ADR 0015](adr/0015-other-sites-pages-refused.md)).
-   - `Tailscale.admit` ([`packages/server/src/Tailscale.ts`](../packages/server/src/Tailscale.ts)) queries `tailscaled` over its Unix socket and admits only an untagged machine owned by the host's own user, caching results for 30 seconds (transport failures are not cached).
-3. On admission, `/auth` returns `X-Prosody-Device` with the machine's name. Caddy copies that header onto the forwarded request, overwriting anything the browser sent.
-4. `SessionLive` refuses `/api` requests without `X-Prosody-Device` with `SignedOut` and provides `Device` to `decide`. `/copies/` returns `401` (`Signed out`) without it.
+1. The host's Caddy terminates TLS and proxies straight to the loopback `Relay`, which trusts `private_ranges` so `X-Forwarded-Proto` and `X-Forwarded-For` reach `Api` ([ADR 0016](adr/0016-relay-is-the-one-door.md)).
+2. `Api` ([`packages/server/src/Api.ts`](../packages/server/src/Api.ts)) rejects any non-`GET`/`HEAD` request carrying `early-data: 1` with `425` (`Too early`) before routing.
+3. `/auth/*` ([`packages/server/src/AuthRoutes.ts`](../packages/server/src/AuthRoutes.ts)) handles sign-in (`GET /auth/me`, `POST /auth/setup`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/oidc/start`, `GET /auth/oidc/callback`), per-reader device sessions (`GET /auth/sessions`, `PATCH /auth/session`, `DELETE /auth/sessions/:id`), invite registration (`GET /auth/invites/:token`, `POST /auth/register`) and admin management (`POST`/`GET`/`DELETE /auth/invites`, `GET`/`PATCH`/`DELETE /auth/users`).
+4. Sessions live in `prosody_users`, `prosody_sessions`, `prosody_invites` and `prosody_oidc_states` inside the cluster's Postgres database (`AuthStore` in [`packages/server/src/AuthStore.ts`](../packages/server/src/AuthStore.ts)). `AuthDatabase` connects lazily on first use so `pnpm run plan` on the host never tries to reach Postgres. Only SHA-256 hashes of opaque 32-byte tokens are stored, with a 90-day sliding expiry.
+5. `Sessions.authenticate` ([`packages/server/src/Session.ts`](../packages/server/src/Session.ts)) accepts either `Authorization: Bearer <token>` or the `prosody_session` cookie (`HttpOnly; SameSite=Lax`, marked `Secure` over HTTPS). Cookie requests fail closed when `isCrossSite(headers)` is true ([ADR 0015](adr/0015-other-sites-pages-refused.md)).
+6. `SessionLive` refuses unauthenticated `/api` calls with `SignedOut` (`401`) and provides `Actor` (`{ reader, role, device }`) to commands and view validators. `/copies/` returns `401` (`Signed out`) when unauthenticated or `503` if the auth store is unreachable.
+7. Every guarded command and view enforces `asAdmin` or `asReader` in `packages/domain` before any state check or no-op, returning `Forbidden` (`403`). Even admins cannot read or write another reader's `Reading`, `Place` or `Nightstand`.
 
 Keep two boundaries intact:
 
-- **One Caddy host name behind `forward_auth`.** The relay ([`alchemy.run.ts`](../alchemy.run.ts)) listens on loopback only ([ADR 0016](adr/0016-relay-is-the-one-door.md)). Anything on the host that calls the relay directly can supply any `X-Prosody-Device`; nothing off the host can reach it. Adding a second Caddy route straight to the relay without `forward_auth` would let a browser spoof `X-Prosody-Device`.
 - **`/press` is internal only.** The Api rejects any `/press` request carrying `x-forwarded-for` with `404` ([`packages/server/src/Api.ts`](../packages/server/src/Api.ts)), blocking everything that comes through the relay.
-
-### `tailscaled` socket and `USER nobody`
-
-The Api bind-mounts `/var/run/tailscale` read-only and runs as `USER nobody` ([`packages/web/Dockerfile`](../packages/web/Dockerfile)). `tailscaled` accepts configuration changes from root and its operator over that socket and only answers read queries from anyone else; a read-only bind mount does not restrict a Unix socket, so do not change `USER nobody` ([ADR 0017](adr/0017-api-runs-as-nobody.md)).
-
-When `tailscaled` restarts, systemd recreates `/var/run/tailscale`, leaving the Api's mount stale. The Api's healthcheck (`test -S /var/run/tailscale/tailscaled.sock` every 10 seconds, 2 retries) then fails and Swarm replaces the task. `docker service update --force` on the Api does the same on demand.
+- **Keep `USER nobody` and `/health`.** The Api runs as `USER nobody` ([`packages/web/Dockerfile`](../packages/web/Dockerfile), [ADR 0017](adr/0017-api-runs-as-nobody.md)). Its Docker Swarm healthcheck probes `GET /health` (which does not touch Postgres) so a transient database blip does not put Swarm in a restart loop.
 
 ## The model
 
@@ -154,7 +148,7 @@ Emissions are cached beside the copy as `heard-<size>.emissions` so realigning n
 
 ### The nightstand
 
-The nightstand is driven by `OpenBook`, `FinishBook` and `SetAside` on `Reading` and projected by the `Nightstand` view (keyed by `SHELF`, like `Shelf`).
+The nightstand is driven by `OpenBook`, `FinishBook` and `SetAside` on `Reading` (keyed by `ReadingId`, `<readerId>:<workId>`) and projected by the `Nightstand` view (keyed by `ReaderId`, storing `works` keyed by `WorkId`).
 
 `OpenBook` puts a finished or set-aside book back on the nightstand, so it is sent once a room's copy has opened (and retried on reconnect until `SucceededOpenBook`, tracked by `room.hasOpened`). Finishing a book or setting it aside from the book menu navigates to the shelf with `replaceUrl` (`CloseRoom` in [`packages/web/src/Main.ts`](../packages/web/src/Main.ts)), never `pushUrl`, so reloading or pressing Back cannot land in the room and send `OpenBook` again ([ADR 0038](adr/0038-opening-is-something-you-did.md)). The shelf then shows a toast whose **Open again** link is an ordinary link to the room ([ADR 0050](adr/0050-confirm-what-cannot-be-undone.md)). Readings stored before stages existed decode as `unopened` and join the nightstand the next time they are opened.
 
@@ -226,17 +220,17 @@ A work's `pages` edition is the first `.pdf` in its `ebooks/<Author>/<Title>/` f
 
 | Request | Strategy |
 |---|---|
-| Navigation to `/`, `/desk`, `/read/<work>` | Network first with a 3-second timeout, then cached `/` |
+| Navigation to `/`, `/desk`, `/account`, `/read/<work>` | Network first with a 3-second timeout, then cached `/` |
 | URLs in `SHELL` | Cache first, then network |
 | `/copies/<work>/...` (excluding `/audio/`) | Network first with a 3-second timeout, then any matching cache entry |
 | `/copies/<work>/audio/...?kept` | Served from cached 8 MiB pieces (synthesising `200`/`206`/`416` byte ranges) |
-| Everything else (including unkept audio and `/api`) | Untouched; goes straight to the network |
+| Everything else (including `/auth/*`, `/login`, `/setup`, `/invite/*`, unkept audio and `/api`) | Untouched; goes straight to the network |
 
 ### Queued places and connectivity
 
 Offline writes are queued intent ([ADR 0037](adr/0037-offline-is-queued-intent.md)):
 
-- Each kept place is saved in `localStorage` under `prosody:places` along with its `commandId` ([`packages/web/src/Places.ts`](../packages/web/src/Places.ts)). When online, it is sent immediately; on reconnect or reload, every entry with a non-null `commandId` is resent. The `commandId` clears once the model accepts it or rejects it (for example with `StalePlace`).
+- Each kept place is saved in `localStorage` under `prosody:places:<readerId>` along with its `commandId` ([`packages/web/src/Places.ts`](../packages/web/src/Places.ts)), and the last signed-in reader summary is kept under `prosody:reader` so kept copies remain readable offline. When online, places are sent immediately; on reconnect or reload, every entry with a non-null `commandId` is resent. The `commandId` clears once the model accepts it or rejects it (for example with `StalePlace`).
 - An `Unknown` transport failure marks the app offline and starts polling `HEAD /` every 5 seconds until a 2xx response returns; the browser's `online` event also triggers reconnection ([`packages/web/src/Connection.ts`](../packages/web/src/Connection.ts)).
 - When opening a book online, the room waits up to 3 seconds (`WaitForPlace`) for the model's `Place` snapshot before settling on the device's own saved place.
 

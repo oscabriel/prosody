@@ -2,7 +2,7 @@ import * as Domain from "@alchemy.run/domain";
 import { Schema } from "effect";
 
 import { WorkId } from "../Library/Work.id.ts";
-import { Session } from "../Session.middleware.ts";
+import { Forbidden, Session } from "../Session.middleware.ts";
 
 export class BookWanted extends Domain.Event("BookWanted", {
 	title: Schema.String,
@@ -18,4 +18,5 @@ export class WantBook extends Domain.Command("WantBook", {
 	input: { title: Schema.NonEmptyString, author: Schema.NonEmptyString },
 	middleware: [Session],
 	events: [BookWanted, SearchStarted],
+	rejects: [Forbidden],
 }) {}

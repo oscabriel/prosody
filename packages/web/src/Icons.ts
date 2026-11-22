@@ -342,3 +342,9 @@ export const externalIcon = <M>(h: HtmlBuilder<M>, size = 13): Html =>
 		h.polyline([h.Points("15 3 21 3 21 9")], []),
 		h.line([h.X1("10"), h.X2("21"), h.Y1("14"), h.Y2("3")], []),
 	]);
+
+export const userIcon = <M>(h: HtmlBuilder<M>, size = 20): Html =>
+	stroked(h, size, "1.7", [
+		h.circle([h.Cx("12"), h.Cy("8"), h.R("4")], []),
+		h.path([h.D("M4 21a8 8 0 0 1 16 0")], []),
+	]);

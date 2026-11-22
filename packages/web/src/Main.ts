@@ -1,6 +1,8 @@
 import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
 import { SHELF } from "@prosody/domain/Library/Shelf.view";
 import { WorkId } from "@prosody/domain/Library/Work.id";
+import { ReaderId } from "@prosody/domain/Reader.id";
+import { readingOf } from "@prosody/domain/Reading/Reading.id";
 import { Duration, Effect, Match, Option, Schema, Stream } from "effect";
 import { Command, Dom, Subscription } from "foldkit";
 import type { Document, HtmlBuilder } from "foldkit/html";
@@ -9,8 +11,23 @@ import { modifyFields } from "foldkit/struct";
 import type { Url } from "foldkit/url";
 import { toString as urlToString } from "foldkit/url";
 
+import { accountView } from "./Account.ts";
+import {
+	removeReader,
+	revokeInvite,
+	revokeSession,
+	updateAccount,
+} from "./AccountUpdate.ts";
 import { DEFAULT_APPEARANCE } from "./Appearance.ts";
 import type { Appearance } from "./Appearance.ts";
+import { checkingView, inviteView, loginView, setupView } from "./Auth.ts";
+import {
+	FetchMe,
+	guard,
+	recheck,
+	signInRedirect,
+	updateAuth,
+} from "./AuthUpdate.ts";
 import { lostConnection, networkChanges } from "./Connection.ts";
 import {
 	cancelCorrecting,
@@ -30,10 +47,12 @@ import {
 import { sendGrab, sendGrabMove } from "./Grabs.ts";
 import { announced } from "./LockScreen.ts";
 import {
+	AuthState,
 	Book,
 	ConfirmAction,
 	DEFAULT_DESK_UI,
 	DEFAULT_SHELF_UI,
+	EMPTY_AUTH_FORM,
 	Message,
 	Model,
 	Section,
@@ -45,13 +64,13 @@ import {
 	learnPlace,
 	keepIn,
 	placeOn,
-	sendWaiting,
 	WaitForPlace,
 } from "./Places.ts";
 import type { Kept } from "./Places.ts";
 import { Pause, Play } from "./Player.ts";
 import { Prosody } from "./Prosody.ts";
 import type { Reader } from "./Prosody.ts";
+import { isAdmin, isSignedIn, NO_READER_ID, readerIn } from "./Readers.ts";
 import { roomView } from "./Room.ts";
 import {
 	answeredRemake,
@@ -72,7 +91,13 @@ import {
 } from "./Rooms.ts";
 import { roomSubscriptions } from "./RoomSubscriptions.ts";
 import { updateRoom } from "./RoomUpdate.ts";
-import { AppRoute, roomRouter, shelfRouter, urlToAppRoute } from "./Route.ts";
+import {
+	AppRoute,
+	loginQueryOf,
+	roomRouter,
+	shelfRouter,
+	urlToAppRoute,
+} from "./Route.ts";
 import { shelfView } from "./Shelf.ts";
 import { shelfSubscriptions, updateShelf } from "./ShelfUpdate.ts";
 import {
@@ -102,6 +127,7 @@ import {
 	showToast,
 	toastView,
 } from "./Ui.ts";
+import type { NavDestination } from "./Ui.ts";
 import {
 	changeDesk,
 	deskFailed,
@@ -160,7 +186,31 @@ const executeConfirm = (model: Model, action: ConfirmAction): Return =>
 			andThen(sendGrabMove(model, grab, "release"), (next) => ({
 				model: showToast(next, "Released payload"),
 			})),
+		RevokeSession: ({ id }) => revokeSession(model, id),
+		RevokeInvite: ({ id }) => revokeInvite(model, id),
+		RemoveReader: ({ id }) => removeReader(model, id),
 	});
+
+const routed = (model: Model, url: Url): Return => {
+	const next = urlToAppRoute(url);
+
+	const prepared = modifyFields(model, {
+		login: () => loginQueryOf(url),
+		authForm: (form) =>
+			next._tag === model.route._tag ? form : EMPTY_AUTH_FORM,
+	});
+
+	return andThen(route(prepared, next), guard);
+};
+
+const askWhoIsSignedIn = (model: Model): Return => ({
+	model,
+	commands: [FetchMe()],
+});
+
+const isSignedOutReason = (reason: string): boolean => reason === "SignedOut";
+
+const isAuthPath = (pathname: string): boolean => pathname.startsWith("/auth/");
 
 const updateAppearance = (model: Model, appearance: Appearance): Return => ({
 	model: modifyFields(model, { appearance: () => appearance }),
@@ -173,9 +223,18 @@ const workTitleOf = (model: Model, work: string): string =>
 		onSome: (entry) => entry.title,
 	});
 
+const startingAuth = (flags: Flags): AuthState =>
+	Option.match(
+		Option.filter(flags.reader, () => !flags.isOnline),
+		{
+			onNone: () => AuthState.Checking(),
+			onSome: (user) => AuthState.SignedIn({ user, session: Option.none() }),
+		}
+	);
+
 export const init = (flags: Flags, url: Url): Return =>
 	andThen(
-		route(
+		routed(
 			Model.make({
 				route: AppRoute.Shelf(),
 				commandIds: DomainFoldkit.CommandIds.make({
@@ -208,12 +267,15 @@ export const init = (flags: Flags, url: Url): Return =>
 					layout: flags.shelfLayout,
 				},
 				deskUi: DEFAULT_DESK_UI,
+				auth: startingAuth(flags),
+				savedReader: flags.reader,
+				placesReader: Option.map(flags.reader, (user) => user.id),
 			}),
-			urlToAppRoute(url)
+			url
 		),
 		(model) => ({
 			model,
-			commands: model.isOnline ? sendWaiting(model) : [],
+			commands: model.isOnline ? [FetchMe()] : [],
 		})
 	);
 
@@ -225,10 +287,10 @@ const handle = (model: Model, message: Message): Return =>
 		ClickedLink: ({ request }) =>
 			Match.value(request).pipe(
 				Match.tagsExhaustive({
-					Internal: ({ url }) => ({
-						model,
-						commands: [Navigate({ url: urlToString(url) })],
-					}),
+					Internal: ({ url }) =>
+						isAuthPath(url.pathname)
+							? { model, commands: [Leave({ href: urlToString(url) })] }
+							: { model, commands: [Navigate({ url: urlToString(url) })] },
 					External: ({ href }) => ({ model, commands: [Leave({ href })] }),
 				})
 			),
@@ -239,7 +301,7 @@ const handle = (model: Model, message: Message): Return =>
 				? modifyFields(model, { confirm: () => Option.none() })
 				: model;
 
-			const navigated = route(cleared, urlToAppRoute(url));
+			const navigated = routed(cleared, url);
 
 			if (!hadConfirm) {
 				return navigated;
@@ -263,12 +325,14 @@ const handle = (model: Model, message: Message): Return =>
 				})
 			),
 		FailedWatchShelf: ({ reason }) =>
-			lostConnection(
-				modifyFields(model, {
-					hasAnswered: () => true,
-					error: () => Option.some(reason),
-				})
-			),
+			isSignedOutReason(reason)
+				? recheck(model)
+				: lostConnection(
+						modifyFields(model, {
+							hasAnswered: () => true,
+							error: () => Option.some(reason),
+						})
+					),
 
 		ReceivedPlace: ({ state }) => {
 			const place = Option.flatMap(state, (s) => Option.fromNullishOr(s.place));
@@ -297,12 +361,17 @@ const handle = (model: Model, message: Message): Return =>
 				)
 			);
 		},
-		FailedWatchPlace: () => andThen(lostConnection(model), hearOwn),
+		FailedWatchPlace: ({ reason }) =>
+			andThen(
+				isSignedOutReason(reason) ? recheck(model) : lostConnection(model),
+				hearOwn
+			),
 
 		ReceivedNightstand: ({ state }) => ({
 			model: modifyFields(model, { nightstand: () => state }),
 		}),
-		FailedWatchNightstand: () => lostConnection(model),
+		FailedWatchNightstand: ({ reason }) =>
+			isSignedOutReason(reason) ? recheck(model) : lostConnection(model),
 
 		OpenedCopy: ({ work, contents, timeline }) =>
 			withRoom(model, work, (room) => {
@@ -447,7 +516,7 @@ const handle = (model: Model, message: Message): Return =>
 					Match.value(failure).pipe(
 						Match.tagsExhaustive({
 							Rejected: () => answered(model, commandId),
-							Denied: () => answered(model, commandId),
+							Denied: () => recheck(model),
 							Unknown: () => lostConnection(model),
 						})
 					),
@@ -509,7 +578,7 @@ const handle = (model: Model, message: Message): Return =>
 						isOnline: () => true,
 						shelfUi: (ui) => ({ ...ui, showAllOffline: false }),
 					}),
-					commands: sendWaiting(model),
+					commands: [FetchMe()],
 				},
 				reopen
 			),
@@ -527,7 +596,12 @@ const handle = (model: Model, message: Message): Return =>
 					})),
 			}),
 		}),
-		FailedWatchWanted: () => lostConnection(model),
+		FailedWatchWanted: ({ reason }) =>
+			Match.value(reason).pipe(
+				Match.when("Forbidden", () => askWhoIsSignedIn(model)),
+				Match.when("SignedOut", () => recheck(model)),
+				Match.orElse(() => lostConnection(model))
+			),
 		ChangedWantTitle: ({ value }) => ({
 			model: changeDesk(model, (desk) => ({ ...desk, title: value })),
 		}),
@@ -643,9 +717,53 @@ const handle = (model: Model, message: Message): Return =>
 		AnnouncedStatus: ({ text }) => ({
 			model: modifyFields(model, { announcement: () => text }),
 		}),
+
+		ReceivedMe: (msg) => updateAuth(model, msg),
+		FailedMe: (msg) => updateAuth(model, msg),
+		LoadedPlaces: (msg) => updateAuth(model, msg),
+		SavedReader: (msg) => updateAuth(model, msg),
+		ChangedAuthField: (msg) => updateAuth(model, msg),
+		SubmittedLogin: (msg) => updateAuth(model, msg),
+		SubmittedSetup: (msg) => updateAuth(model, msg),
+		SubmittedRegister: (msg) => updateAuth(model, msg),
+		FailedAuthForm: (msg) => updateAuth(model, msg),
+		CheckedInvite: (msg) => updateAuth(model, msg),
+		FailedInvite: (msg) => updateAuth(model, msg),
+		ClickedSignOut: (msg) => updateAuth(model, msg),
+		FailedSignOut: (msg) => updateAuth(model, msg),
+
+		ReceivedSessions: (msg) => updateAccount(model, msg),
+		ReceivedInvites: (msg) => updateAccount(model, msg),
+		ReceivedUsers: (msg) => updateAccount(model, msg),
+		FailedAccount: (msg) => updateAccount(model, msg),
+		ChangedDeviceName: (msg) => updateAccount(model, msg),
+		SubmittedDeviceName: (msg) => updateAccount(model, msg),
+		RenamedDevice: (msg) => updateAccount(model, msg),
+		SelectedInviteRole: (msg) => updateAccount(model, msg),
+		ChangedInviteNote: (msg) => updateAccount(model, msg),
+		SubmittedInvite: (msg) => updateAccount(model, msg),
+		CreatedInvite: (msg) => updateAccount(model, msg),
+		ClickedCopyInvite: (msg) => updateAccount(model, msg),
+		CopiedInvite: (msg) => updateAccount(model, msg),
+		ClickedChangeRole: (msg) => updateAccount(model, msg),
+		ChangedRole: (msg) => updateAccount(model, msg),
+		RevokedSession: (msg) => updateAccount(model, msg),
+		RevokedInvite: (msg) => updateAccount(model, msg),
+		RemovedReader: (msg) => updateAccount(model, msg),
 	});
 
 const NO_ROOM = WorkId.make("w-none");
+
+const NO_READER = ReaderId.make(NO_READER_ID);
+
+const readerKeyOf = (model: Model): ReaderId =>
+	Option.getOrElse(readerIn(model), () => NO_READER);
+
+export const isWatching = (model: Model): boolean =>
+	model.isOnline && isSignedIn(model);
+
+export const canWatchWanted = (model: Model): boolean =>
+	model.isOnline && isAdmin(model) && AppRoute.guards.Desk(model.route);
 
 const coreSubscriptions = Subscription.make<Model, Message, Reader>()(
 	(entry) => ({
@@ -705,7 +823,7 @@ const coreSubscriptions = Subscription.make<Model, Message, Reader>()(
 		),
 		shelf: Prosody.Shelf.watch({
 			key: () => SHELF,
-			isEnabled: (model: Model) => model.isOnline,
+			isEnabled: isWatching,
 			toMessage: (snapshot): Message => Message.ReceivedShelf(snapshot),
 			onFailure: (error): Message =>
 				Message.FailedWatchShelf({ reason: error._tag }),
@@ -713,8 +831,8 @@ const coreSubscriptions = Subscription.make<Model, Message, Reader>()(
 				Message.FailedWatchShelf({ reason: "The connection failed" }),
 		}),
 		nightstand: Prosody.Nightstand.watch({
-			key: () => SHELF,
-			isEnabled: (model: Model) => model.isOnline,
+			key: readerKeyOf,
+			isEnabled: isWatching,
 			toMessage: (snapshot): Message => Message.ReceivedNightstand(snapshot),
 			onFailure: (error): Message =>
 				Message.FailedWatchNightstand({ reason: error._tag }),
@@ -723,8 +841,7 @@ const coreSubscriptions = Subscription.make<Model, Message, Reader>()(
 		}),
 		wanted: Prosody.Wanted.watch({
 			key: () => SHELF,
-			isEnabled: (model: Model) =>
-				model.isOnline && AppRoute.guards.Desk(model.route),
+			isEnabled: canWatchWanted,
 			toMessage: (snapshot): Message => Message.ReceivedWanted(snapshot),
 			onFailure: (error): Message =>
 				Message.FailedWatchWanted({ reason: error._tag }),
@@ -733,11 +850,15 @@ const coreSubscriptions = Subscription.make<Model, Message, Reader>()(
 		}),
 		place: Prosody.Place.watch({
 			key: (model: Model) =>
-				Option.match(model.room, {
-					onNone: () => NO_ROOM,
-					onSome: (room) => WorkId.make(room.work),
-				}),
-			isEnabled: (model: Model) => model.isOnline && Option.isSome(model.room),
+				readingOf(
+					readerKeyOf(model),
+					Option.match(model.room, {
+						onNone: () => NO_ROOM,
+						onSome: (room) => WorkId.make(room.work),
+					})
+				),
+			isEnabled: (model: Model) =>
+				isWatching(model) && Option.isSome(model.room),
 			toMessage: (snapshot): Message => Message.ReceivedPlace(snapshot),
 			onFailure: (error): Message =>
 				Message.FailedWatchPlace({ reason: error._tag }),
@@ -754,44 +875,67 @@ export const subscriptions: Subscription.Subscriptions<Model, Message, Reader> =
 		roomSubscriptions
 	);
 
-const pageView = (model: Model, h: HtmlBuilder<Message>): Document =>
+const inShell = (
+	model: Model,
+	active: NavDestination,
+	narrow: boolean,
+	doc: Document,
+	h: HtmlBuilder<Message>
+): Document => ({
+	...doc,
+	body: shellView(model, active, narrow, [doc.body], h),
+});
+
+const routedView = (model: Model, h: HtmlBuilder<Message>): Document =>
 	AppRoute.match<Document>(model.route, {
-		Shelf: () => {
-			const doc = shelfView(model, h);
-
-			return {
-				...doc,
-				body: shellView(model, "shelf", false, [doc.body], h),
-			};
-		},
-		Desk: () => {
-			const doc = deskView(model, h);
-
-			return {
-				...doc,
-				body: shellView(model, "desk", true, [doc.body], h),
-			};
-		},
-		NotFound: ({ path }) => {
-			const doc = notFoundView(path, h);
-
-			return {
-				...doc,
-				body: shellView(model, "none", false, [doc.body], h),
-			};
-		},
+		Shelf: () => inShell(model, "shelf", false, shelfView(model, h), h),
+		Desk: () => inShell(model, "desk", true, deskView(model, h), h),
+		Account: () => inShell(model, "account", true, accountView(model, h), h),
+		NotFound: ({ path }) =>
+			inShell(model, "none", false, notFoundView(path, h), h),
+		Login: () => checkingView(model, h),
+		Setup: () => checkingView(model, h),
+		Invite: () => inviteView(model, h),
 		Room: () =>
 			Option.match(model.room, {
-				onNone: () => {
-					const doc = shelfView(model, h);
-
-					return {
-						...doc,
-						body: shellView(model, "shelf", false, [doc.body], h),
-					};
-				},
+				onNone: () => inShell(model, "shelf", false, shelfView(model, h), h),
 				onSome: (room) => roomView(model, room, h),
 			}),
+	});
+
+const isKeptOffline = (model: Model): boolean =>
+	!model.isOnline &&
+	AppRoute.guards.Room(model.route) &&
+	model.copies[model.route.work] !== undefined;
+
+const signedOutView = (
+	model: Model,
+	signedOut: typeof AuthState.SignedOut.Type,
+	h: HtmlBuilder<Message>
+): Document => {
+	const askSignIn = () =>
+		signedOut.setupRequired
+			? setupView(model, h)
+			: loginView(model, signedOut, signInRedirect(model), h);
+
+	return AppRoute.match<Document>(model.route, {
+		Login: askSignIn,
+		Setup: () => setupView(model, h),
+		Invite: () => inviteView(model, h),
+		NotFound: () => routedView(model, h),
+		Room: () => (isKeptOffline(model) ? routedView(model, h) : askSignIn()),
+		Shelf: askSignIn,
+		Desk: askSignIn,
+		Account: askSignIn,
+	});
+};
+
+const pageView = (model: Model, h: HtmlBuilder<Message>): Document =>
+	AuthState.match<Document>(model.auth, {
+		Checking: () =>
+			model.isOnline ? checkingView(model, h) : routedView(model, h),
+		SignedOut: (signedOut) => signedOutView(model, signedOut, h),
+		SignedIn: () => routedView(model, h),
 	});
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => {

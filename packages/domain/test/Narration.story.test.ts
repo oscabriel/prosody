@@ -3,7 +3,7 @@ import { describe, it } from "@effect/vitest";
 
 import { Downloads } from "../src/Acquisition/Downloads.external.ts";
 import { Indexer } from "../src/Acquisition/Indexer.external.ts";
-import { Device } from "../src/Device.context.ts";
+import { Actor } from "../src/Actor.context.ts";
 import { Metadata } from "../src/Library/Metadata.external.ts";
 import { SHELF, Shelf } from "../src/Library/Shelf.view.ts";
 import { Shelfmark } from "../src/Library/Shelfmark.ts";
@@ -34,6 +34,7 @@ import {
 	RecordAlignmentFailed,
 } from "../src/Narration/RecordAlignmentFailed.command.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
+import { ReaderId } from "../src/Reader.id.ts";
 import { Copier } from "../src/Reading/Copier.external.ts";
 
 const { advance, call, given, provide, rejected, succeed, then, view, when } =
@@ -46,7 +47,11 @@ const story = Story.make(Prosody, {
 
 const carl = Narration.ref("w-carl");
 
-const fromLaptop = provide(Device, "laptop");
+const fromLaptop = provide(Actor, {
+	reader: ReaderId.make("u-keeper"),
+	role: "admin",
+	device: "laptop",
+});
 
 const pair = {
 	shelfmark: Shelfmark.make("Matt Dinniman/Dungeon Crawler Carl"),

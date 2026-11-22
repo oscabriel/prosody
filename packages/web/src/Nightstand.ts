@@ -1,6 +1,8 @@
 import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
 import { WorkId } from "@prosody/domain/Library/Work.id";
+import type { ReaderId } from "@prosody/domain/Reader.id";
 import type { Standing } from "@prosody/domain/Reading/Nightstand.view";
+import { readingOf } from "@prosody/domain/Reading/Reading.id";
 import { Clock, Effect, Match, Option, Schema } from "effect";
 import { Command } from "foldkit";
 import { modifyFields } from "foldkit/struct";
@@ -8,6 +10,7 @@ import { modifyFields } from "foldkit/struct";
 import { Message, Move } from "./Model.ts";
 import type { Model } from "./Model.ts";
 import { Prosody } from "./Prosody.ts";
+import { readerIn } from "./Readers.ts";
 import type { Return } from "./Steps.ts";
 
 export const Stamp = Command.define("Stamp", {
@@ -22,8 +25,9 @@ export const Stamp = Command.define("Stamp", {
 const toMessage = (result: typeof Prosody.Message.Type) =>
 	Message.ReceivedResult({ result });
 
-export const sendMove = (
+const sendMoveAs = (
 	model: Model,
+	reader: ReaderId,
 	work: string,
 	move: Move,
 	at: number
@@ -31,7 +35,7 @@ export const sendMove = (
 	const allocation = DomainFoldkit.next(model.commandIds);
 
 	const args = {
-		target: WorkId.make(work),
+		target: readingOf(reader, WorkId.make(work)),
 		input: { at },
 		commandId: allocation.commandId,
 	};
@@ -54,6 +58,17 @@ export const sendMove = (
 		commands: [command],
 	};
 };
+
+export const sendMove = (
+	model: Model,
+	work: string,
+	move: Move,
+	at: number
+): Return =>
+	Option.match(readerIn(model), {
+		onNone: () => ({ model }),
+		onSome: (reader) => sendMoveAs(model, reader, work, move, at),
+	});
 
 export const standingOf = (
 	model: Model,

@@ -20,7 +20,7 @@ export const PageImage = Effect.gen(function* () {
 
 const FOREVER = "public, max-age=31536000, immutable";
 
-const ROUTED = /^\/(?:read\/.*|desk)?$/u;
+const ROUTED = /^\/(?:read\/.*|desk|account|login|setup|invite\/[^/]+)?$/u;
 
 const ASSET = /^\/assets\/[\w.-]+$/u;
 

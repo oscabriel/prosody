@@ -6,7 +6,7 @@ import { Schema } from "effect";
 import { Downloads } from "../src/Acquisition/Downloads.external.ts";
 import { Indexer } from "../src/Acquisition/Indexer.external.ts";
 import { Wanted } from "../src/Acquisition/Wanted.view.ts";
-import { Device } from "../src/Device.context.ts";
+import { Actor } from "../src/Actor.context.ts";
 import {
 	CatalogueWork,
 	WorkCatalogued,
@@ -36,6 +36,7 @@ import { Work } from "../src/Library/Work.aggregate.ts";
 import { WorkId } from "../src/Library/Work.id.ts";
 import { Aligner } from "../src/Narration/Aligner.external.ts";
 import { Prosody, ProsodyHandlers } from "../src/Prosody.model.ts";
+import { ReaderId } from "../src/Reader.id.ts";
 import { Copier } from "../src/Reading/Copier.external.ts";
 
 const { given, provide, rejected, then, view, when } = Story;
@@ -202,7 +203,11 @@ describe("a work you wanted", () => {
 
 	it.effect("has its title corrected until it is on the shelf", () =>
 		story(
-			provide(Device, "laptop"),
+			provide(Actor, {
+				reader: ReaderId.make("u-keeper"),
+				role: "admin",
+				device: "laptop",
+			}),
 			given(carl, wanted),
 			when(
 				carl,
@@ -229,7 +234,11 @@ describe("a work you wanted", () => {
 
 	it.effect("has no title to correct before it is catalogued", () =>
 		story(
-			provide(Device, "laptop"),
+			provide(Actor, {
+				reader: ReaderId.make("u-keeper"),
+				role: "admin",
+				device: "laptop",
+			}),
 			when(carl, new CorrectTitle({ title: "Carl", author: "Matt Dinniman" })),
 			rejected(new NotCatalogued())
 		)

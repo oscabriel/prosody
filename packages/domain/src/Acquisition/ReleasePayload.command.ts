@@ -1,7 +1,7 @@
 import * as Domain from "@alchemy.run/domain";
 import { Schema } from "effect";
 
-import { Session } from "../Session.middleware.ts";
+import { Forbidden, Session } from "../Session.middleware.ts";
 import { NotDownloading } from "./AbandonGrab.command.ts";
 import { GrabId, GrabStatus } from "./Grab.id.ts";
 
@@ -25,5 +25,5 @@ export class ReleasePayload extends Domain.Command("ReleasePayload", {
 	target: GrabId,
 	middleware: [Session],
 	events: [PayloadReleased],
-	rejects: [StillObligated, NotDownloading, NotArrived],
+	rejects: [StillObligated, NotDownloading, NotArrived, Forbidden],
 }) {}

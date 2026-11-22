@@ -2,6 +2,7 @@ import * as Domain from "@alchemy.run/domain";
 import { Effect, Schema } from "effect";
 
 import { WorkId } from "../Library/Work.id.ts";
+import { asAdmin } from "../Session.middleware.ts";
 import {
 	AbandonGrab,
 	GrabAbandoned,
@@ -93,14 +94,24 @@ export class Grab extends Domain.Aggregate("Grab", {
 			grab.status === "downloading"
 				? [new GrabStalled({ reason: cmd.reason })]
 				: [],
-		ResumeGrab: (grab) =>
-			isDownloading(grab)
-				? [new GrabResumed()]
-				: new NotDownloading({ status: grab.status }),
-		AbandonGrab: (grab) =>
-			isDownloading(grab)
-				? [new GrabAbandoned()]
-				: new NotDownloading({ status: grab.status }),
+		ResumeGrab: Effect.fn(function* (grab) {
+			yield* asAdmin;
+
+			if (!isDownloading(grab)) {
+				return yield* new NotDownloading({ status: grab.status });
+			}
+
+			return [new GrabResumed()];
+		}),
+		AbandonGrab: Effect.fn(function* (grab) {
+			yield* asAdmin;
+
+			if (!isDownloading(grab)) {
+				return yield* new NotDownloading({ status: grab.status });
+			}
+
+			return [new GrabAbandoned()];
+		}),
 		RecordPayloadArrived: (grab, cmd) =>
 			isDownloading(grab) ? [new PayloadArrived({ payload: cmd.payload })] : [],
 		RecordSeeding: (grab, cmd) =>
@@ -115,25 +126,29 @@ export class Grab extends Domain.Aggregate("Grab", {
 			isWaiting(grab) && grab.note !== cmd.reason
 				? [new PayloadNotShelved({ reason: cmd.reason })]
 				: [],
-		ReleasePayload: (grab) => {
+		ReleasePayload: Effect.fn(function* (grab) {
+			yield* asAdmin;
+
 			if (grab.status === "released") {
 				return [];
 			}
 
 			if (grab.status === "none" || grab.status === "abandoned") {
-				return new NotDownloading({ status: grab.status });
+				return yield* new NotDownloading({ status: grab.status });
 			}
 
 			if (grab.status !== "arrived") {
-				return new NotArrived({ status: grab.status });
+				return yield* new NotArrived({ status: grab.status });
 			}
 
 			const owed = OBLIGATION.hours - grab.seeded;
 
-			return owed > 0
-				? new StillObligated({ hours: owed })
-				: [new PayloadReleased()];
-		},
+			if (owed > 0) {
+				return yield* new StillObligated({ hours: owed });
+			}
+
+			return [new PayloadReleased()];
+		}),
 	},
 	evolve: {
 		DownloadStarted: (grab, e) => ({

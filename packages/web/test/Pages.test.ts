@@ -15,6 +15,7 @@ import type { Room } from "../src/Model.ts";
 import { turnOf } from "../src/Pages.ts";
 import { AppRoute } from "../src/Route.ts";
 import { roomOf } from "../src/Steps.ts";
+import { adminAda, signedInAs } from "./Readers.ts";
 
 const contents = {
 	audio: null,
@@ -63,6 +64,7 @@ const inEvans = (room: Partial<Room> = {}) =>
 		announcement: "",
 		shelfUi: DEFAULT_SHELF_UI,
 		deskUi: DEFAULT_DESK_UI,
+		...signedInAs(adminAda),
 	});
 
 const names = (commands: ReadonlyArray<{ readonly name: string }>) =>

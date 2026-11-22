@@ -15,6 +15,8 @@ import { ConfirmAction, Message } from "./Model.ts";
 import type { Correction, DeskTab, Model } from "./Model.ts";
 import { dayOf } from "./Nightstand.ts";
 import { sizeIn } from "./OnDevice.ts";
+import { isAdmin } from "./Readers.ts";
+import { shelfRouter } from "./Route.ts";
 import { badgeView, emptyStateView, offlineBannerView } from "./Ui.ts";
 
 const PANEL_ID: Readonly<Record<DeskTab, string>> = {
@@ -575,7 +577,23 @@ const statusOf = (model: Model): string =>
 				: countedOf(Object.keys(grabs).length, "grab", "grabs"),
 	});
 
-export const deskView = (model: Model, h: HtmlBuilder<Message>): Document => {
+const adminsOnlyView = (h: HtmlBuilder<Message>): Document => ({
+	title: "The desk · Prosody",
+	body: emptyStateView(
+		1,
+		"The desk is for admins",
+		"Ask an admin if there is a book you would like added to the library.",
+		[
+			h.a(
+				[h.Class("btn btn-primary"), h.Href(shelfRouter())],
+				["Go to the shelf"]
+			),
+		],
+		h
+	),
+});
+
+const adminDeskView = (model: Model, h: HtmlBuilder<Message>): Document => {
 	const { tab } = model.deskUi;
 	const isOpening = Option.isNone(model.wanted) && model.isOnline;
 
@@ -652,3 +670,6 @@ export const deskView = (model: Model, h: HtmlBuilder<Message>): Document => {
 		),
 	};
 };
+
+export const deskView = (model: Model, h: HtmlBuilder<Message>): Document =>
+	isAdmin(model) ? adminDeskView(model, h) : adminsOnlyView(h);

@@ -13,18 +13,25 @@ import {
 	saveAppearance,
 } from "./Appearance.ts";
 import { copyUrl } from "./Copy.ts";
-import { deskIcon, moonIcon, shelfIcon, sunIcon } from "./Icons.ts";
+import { deskIcon, moonIcon, shelfIcon, sunIcon, userIcon } from "./Icons.ts";
 import { ConfirmAction, Message } from "./Model.ts";
 import type { Copying, Model, Room, ToastAction } from "./Model.ts";
 import { percentOf, sizeIn } from "./OnDevice.ts";
-import { AppRoute, deskRouter, roomRouter, shelfRouter } from "./Route.ts";
+import { isAdmin, userOf } from "./Readers.ts";
+import {
+	accountRouter,
+	AppRoute,
+	deskRouter,
+	roomRouter,
+	shelfRouter,
+} from "./Route.ts";
 import { kindIn } from "./Steps.ts";
 
 export const CONFIRM_DIALOG_ID = "confirm-dialog";
 
 export const CONFIRM_CANCEL_ID = "confirm-cancel";
 
-export type NavDestination = "shelf" | "desk" | "none";
+export type NavDestination = "shelf" | "desk" | "account" | "none";
 
 export type BadgeTone = "neutral" | "ink" | "ok" | "warn" | "danger";
 
@@ -207,6 +214,41 @@ export const themeButtonView = (
 	);
 };
 
+const navAttrs = (
+	className: string,
+	href: string,
+	isActive: boolean,
+	h: HtmlBuilder<Message>
+) =>
+	isActive
+		? [h.Class(className), h.Href(href), h.AriaCurrent("page")]
+		: [h.Class(className), h.Href(href)];
+
+export const accountLinkView = (
+	model: Model,
+	active: NavDestination,
+	h: HtmlBuilder<Message>
+): ReadonlyArray<Html> =>
+	Option.match(userOf(model), {
+		onNone: () => [],
+		onSome: (user) => [
+			h.a(
+				[
+					...navAttrs("account-link", accountRouter(), active === "account", h),
+					h.AriaLabel(`Account: ${user.displayName}`),
+					h.Title(`Signed in as ${user.displayName}`),
+				],
+				[
+					userIcon(h, 18),
+					h.span(
+						[h.Class("account-link-name hide-narrow")],
+						[user.displayName]
+					),
+				]
+			),
+		],
+	});
+
 export const shellView = (
 	model: Model,
 	active: NavDestination,
@@ -219,25 +261,47 @@ export const shellView = (
 		onSome: (activeCopy) => copyingPillView(activeCopy, h),
 	});
 
-	const shelfAttrs =
-		active === "shelf"
-			? [h.Class("topnav-link"), h.Href(shelfRouter()), h.AriaCurrent("page")]
-			: [h.Class("topnav-link"), h.Href(shelfRouter())];
+	const hasDesk = isAdmin(model);
+	const hasAccount = Option.isSome(userOf(model));
 
-	const deskAttrs =
-		active === "desk"
-			? [h.Class("topnav-link"), h.Href(deskRouter()), h.AriaCurrent("page")]
-			: [h.Class("topnav-link"), h.Href(deskRouter())];
+	const shelfLink = h.a(
+		navAttrs("topnav-link", shelfRouter(), active === "shelf", h),
+		["The shelf"]
+	);
 
-	const shelfTabAttrs =
-		active === "shelf"
-			? [h.Class("tabbar-link"), h.Href(shelfRouter()), h.AriaCurrent("page")]
-			: [h.Class("tabbar-link"), h.Href(shelfRouter())];
+	const deskLinks = hasDesk
+		? [
+				h.a(navAttrs("topnav-link", deskRouter(), active === "desk", h), [
+					"The desk",
+				]),
+			]
+		: [];
 
-	const deskTabAttrs =
-		active === "desk"
-			? [h.Class("tabbar-link"), h.Href(deskRouter()), h.AriaCurrent("page")]
-			: [h.Class("tabbar-link"), h.Href(deskRouter())];
+	const shelfTab = h.a(
+		navAttrs("tabbar-link", shelfRouter(), active === "shelf", h),
+		[shelfIcon(h), h.span([], ["Shelf"])]
+	);
+
+	const deskTabs = hasDesk
+		? [
+				h.a(navAttrs("tabbar-link", deskRouter(), active === "desk", h), [
+					deskIcon(h),
+					h.span([], ["Desk"]),
+				]),
+			]
+		: [];
+
+	const accountTabs = hasAccount
+		? [
+				h.a(navAttrs("tabbar-link", accountRouter(), active === "account", h), [
+					userIcon(h),
+					h.span([], ["Account"]),
+				]),
+			]
+		: [];
+
+	const topLinks = [shelfLink, ...deskLinks];
+	const tabs = [shelfTab, ...deskTabs, ...accountTabs];
 
 	return h.div(
 		[],
@@ -255,18 +319,16 @@ export const shellView = (
 										[h.Class("wordmark"), h.Href(shelfRouter())],
 										["Prosody"]
 									),
-									h.nav(
-										[h.Class("topnav"), h.AriaLabel("Primary")],
-										[
-											h.a(shelfAttrs, ["The shelf"]),
-											h.a(deskAttrs, ["The desk"]),
-										]
-									),
+									h.nav([h.Class("topnav"), h.AriaLabel("Primary")], topLinks),
 								]
 							),
 							h.div(
 								[h.Class("topbar-right")],
-								[...copying, themeButtonView(model, h)]
+								[
+									...copying,
+									themeButtonView(model, h),
+									...accountLinkView(model, active, h),
+								]
 							),
 						]
 					),
@@ -276,13 +338,7 @@ export const shellView = (
 				[h.Class(narrow ? "app-main narrow" : "app-main"), h.Id("main")],
 				children
 			),
-			h.nav(
-				[h.Class("tabbar"), h.AriaLabel("Primary")],
-				[
-					h.a(shelfTabAttrs, [shelfIcon(h), h.span([], ["Shelf"])]),
-					h.a(deskTabAttrs, [deskIcon(h), h.span([], ["Desk"])]),
-				]
-			),
+			h.nav([h.Class("tabbar"), h.AriaLabel("Primary")], tabs),
 		]
 	);
 };
@@ -486,6 +542,21 @@ const confirmCopyOf = (action: ConfirmAction): ConfirmCopy =>
 			title: `Release ${title}?`,
 			body: `Make sure your tracker counts all ${OBLIGATION.hours} seeded hours first. The files in downloads remain untouched.`,
 			confirmLabel: "Release",
+		}),
+		RevokeSession: ({ deviceName }) => ({
+			title: `Sign out of ${deviceName}?`,
+			body: "That device will need to sign in again before it can open the shelf. Books kept on it stay there.",
+			confirmLabel: "Sign out",
+		}),
+		RevokeInvite: ({ role }) => ({
+			title: "Revoke this invite?",
+			body: `The link stops working at once, so nobody can use it to join as ${role === "admin" ? "an admin" : "a reader"}.`,
+			confirmLabel: "Revoke",
+		}),
+		RemoveReader: ({ displayName }) => ({
+			title: `Remove ${displayName}?`,
+			body: `${displayName} will be signed out on every device and can no longer open Prosody.`,
+			confirmLabel: "Remove",
 		}),
 	});
 

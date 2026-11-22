@@ -34,6 +34,7 @@ import {
 	pagesBarView,
 	pagesView,
 } from "./Pages.ts";
+import { isAdmin } from "./Readers.ts";
 import { isOpen, openerId, panelId } from "./RoomPanels.ts";
 import {
 	changed,
@@ -952,6 +953,8 @@ const stateHeadView = (
 	);
 };
 
+const NOT_READY = "This book is not ready to open yet.";
+
 const unmadeWords = (alone: boolean, hasFailed: boolean) =>
 	alone
 		? {
@@ -986,6 +989,23 @@ const unmadeView = (
 	const failure = copyFailureOf(model, room.work);
 	const words = unmadeWords(isAlone(model, room.work), Option.isSome(failure));
 	const isIdle = phase === "idle";
+	const canAsk = isAdmin(model);
+	const idleWords = canAsk ? words.idle : NOT_READY;
+
+	const asks = canAsk
+		? [
+				h.button(
+					[
+						h.Type("button"),
+						h.Class("btn btn-primary"),
+						h.Disabled(!isIdle || !model.isOnline),
+						h.AriaBusy(!isIdle),
+						h.OnClick(Message.ClickedRealign()),
+					],
+					[isIdle ? words.button : words.busy]
+				),
+			]
+		: [];
 
 	const badge = isIdle
 		? [
@@ -1004,10 +1024,10 @@ const unmadeView = (
 			stateHeadView(model, room, badge, h),
 			h.p(
 				[h.Class("state-body"), h.Role("status")],
-				[isIdle ? words.idle : words[phase]]
+				[isIdle ? idleWords : words[phase]]
 			),
 			...Option.match(
-				Option.filter(failure, () => isIdle),
+				Option.filter(failure, () => isIdle && canAsk),
 				{
 					onNone: () => [],
 					onSome: (reason) => [techView(reason, h)],
@@ -1015,19 +1035,7 @@ const unmadeView = (
 			),
 			h.div(
 				[h.Class("state-actions")],
-				[
-					h.button(
-						[
-							h.Type("button"),
-							h.Class("btn btn-primary"),
-							h.Disabled(!isIdle || !model.isOnline),
-							h.AriaBusy(!isIdle),
-							h.OnClick(Message.ClickedRealign()),
-						],
-						[isIdle ? words.button : words.busy]
-					),
-					shelfLinkView("Back to shelf", h),
-				]
+				[...asks, shelfLinkView("Back to shelf", h)]
 			),
 		]
 	);

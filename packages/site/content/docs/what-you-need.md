@@ -33,10 +33,9 @@ Across those five books, listening ran 13 to 23 times faster than real time (19 
 
 | Requirement | Why it is needed |
 |---|---|
-| Tailscale on the host | The Api queries the host's Tailscale daemon over `/var/run/tailscale/tailscaled.sock` to identify each device. |
-| Tailscale on every reading device | Only your own untagged Tailscale devices are admitted. |
-| Caddy on the host | Caddy terminates TLS, checks every request via `forward_auth`, and proxies to the relay on loopback. |
-| A domain name for the app | For example `prosody.example.com`, pointing to the host's tailnet address, with a TLS certificate Caddy can serve. |
+| Caddy on the host | Caddy terminates TLS and proxies traffic to the relay on loopback. |
+| A domain name for the app | For example `prosody.example.com`, reachable on your network or tailnet, with a TLS certificate Caddy can serve. |
+| OpenID Connect provider (optional) | Any OIDC provider supporting Authorization Code + PKCE (such as Pocket ID) works for single sign-on. Without one, built-in local accounts and invite links work on their own. |
 
 ## Tools for installing and updating
 

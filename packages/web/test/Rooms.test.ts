@@ -23,6 +23,7 @@ import { chromeAfter, travelled } from "../src/RoomSubscriptions.ts";
 import { AppRoute, urlToAppRoute } from "../src/Route.ts";
 import { roomOf } from "../src/Steps.ts";
 import { panelBesideToast, beneathToast, firstLetterOf } from "../src/Ui.ts";
+import { adminAda, signedInAs } from "./Readers.ts";
 
 const inCarl = Model.make({
 	route: AppRoute.Room({ work: "w-carl" }),
@@ -63,6 +64,7 @@ const inCarl = Model.make({
 	announcement: "",
 	shelfUi: DEFAULT_SHELF_UI,
 	deskUi: DEFAULT_DESK_UI,
+	...signedInAs(adminAda),
 });
 
 const names = (commands: ReadonlyArray<{ readonly name: string }>) =>
@@ -72,7 +74,7 @@ describe("the open room, back online", () => {
 	it("opens the book again when the model has not answered its open", () => {
 		const { commands } = update(inCarl, Message.WentOnline());
 
-		expect(names(commands ?? [])).toStrictEqual(["Stamp"]);
+		expect(names(commands ?? [])).toStrictEqual(["FetchMe", "Stamp"]);
 	});
 
 	it("leaves the nightstand alone once the model has answered", () => {
@@ -89,7 +91,7 @@ describe("the open room, back online", () => {
 
 		const { commands } = update(answered.model, Message.WentOnline());
 
-		expect(commands ?? []).toStrictEqual([]);
+		expect(names(commands ?? [])).toStrictEqual(["FetchMe"]);
 	});
 });
 

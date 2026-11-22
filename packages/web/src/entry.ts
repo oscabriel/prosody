@@ -1,6 +1,6 @@
 import * as Domain from "@alchemy.run/domain";
 import { ReaderApi } from "@prosody/domain/ReaderApi.api";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Option } from "effect";
 import { SecureRandom } from "effect/crypto";
 import { FetchHttpClient } from "effect/http";
 import { Socket } from "effect/socket";
@@ -11,6 +11,7 @@ import {
 	savedAppearance,
 	savedShelfLayout,
 } from "./Appearance.ts";
+import { savedReader } from "./AuthApi.ts";
 import { savedCopies } from "./DeviceCopies.ts";
 import { init, subscriptions, update, view } from "./Main.ts";
 import { Flags, Message, Model } from "./Model.ts";
@@ -32,10 +33,13 @@ const flags = Effect.gen(function* () {
 
 	applyAppearance(appearance);
 
+	const reader = yield* savedReader;
+
 	return {
 		session: yield* random.uuidV4(),
 		isOnline: navigator.onLine,
-		places: yield* savedPlaces,
+		reader,
+		places: yield* savedPlaces(Option.map(reader, (user) => user.id)),
 		copies: yield* savedCopies,
 		appearance,
 		shelfLayout: yield* savedShelfLayout,

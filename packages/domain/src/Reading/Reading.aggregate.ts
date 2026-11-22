@@ -1,11 +1,11 @@
 import * as Domain from "@alchemy.run/domain";
 import { Effect, Schema } from "effect";
 
-import { Device } from "../Device.context.ts";
-import { WorkId } from "../Library/Work.id.ts";
+import { asReader } from "../Session.middleware.ts";
 import { BookFinished, FinishBook } from "./FinishBook.command.ts";
 import { KeepPlace, PlaceKept, StalePlace } from "./KeepPlace.command.ts";
 import { BookOpened, OpenBook } from "./OpenBook.command.ts";
+import { readerOf, ReadingId } from "./Reading.id.ts";
 import { KeptPlace } from "./Sentence.ts";
 import { BookSetAside, NotReading, SetAside } from "./SetAside.command.ts";
 import { Stage } from "./Stage.ts";
@@ -18,12 +18,13 @@ const State = Schema.Struct({
 }).annotate({ identifier: "ReadingState" });
 
 export class Reading extends Domain.Aggregate("Reading", {
-	id: WorkId,
+	id: ReadingId,
 	state: State,
 	initial: { place: null, stage: "unopened" },
 	commands: [KeepPlace, OpenBook, FinishBook, SetAside],
 	decide: {
-		KeepPlace: Effect.fn(function* (reading, cmd) {
+		KeepPlace: Effect.fn(function* (reading, cmd, { id }) {
+			const { device } = yield* asReader(readerOf(id));
 			const { place } = reading;
 
 			if (place !== null && place.at > cmd.at) {
@@ -46,21 +47,27 @@ export class Reading extends Domain.Aggregate("Reading", {
 					time: cmd.time,
 					page: cmd.page,
 					at: cmd.at,
-					device: yield* Device,
+					device,
 				}),
 			];
 		}),
-		OpenBook: Effect.fn(function* (reading, cmd) {
+		OpenBook: Effect.fn(function* (reading, cmd, { id }) {
+			const { device } = yield* asReader(readerOf(id));
+
 			return reading.stage === "reading"
 				? []
-				: [new BookOpened({ at: cmd.at, device: yield* Device })];
+				: [new BookOpened({ at: cmd.at, device })];
 		}),
-		FinishBook: Effect.fn(function* (reading, cmd) {
+		FinishBook: Effect.fn(function* (reading, cmd, { id }) {
+			const { device } = yield* asReader(readerOf(id));
+
 			return reading.stage === "finished"
 				? []
-				: [new BookFinished({ at: cmd.at, device: yield* Device })];
+				: [new BookFinished({ at: cmd.at, device })];
 		}),
-		SetAside: Effect.fn(function* (reading, cmd) {
+		SetAside: Effect.fn(function* (reading, cmd, { id }) {
+			const { device } = yield* asReader(readerOf(id));
+
 			if (reading.stage === "setAside") {
 				return [];
 			}
@@ -69,7 +76,7 @@ export class Reading extends Domain.Aggregate("Reading", {
 				return yield* new NotReading({ stage: reading.stage });
 			}
 
-			return [new BookSetAside({ at: cmd.at, device: yield* Device })];
+			return [new BookSetAside({ at: cmd.at, device })];
 		}),
 	},
 	evolve: {

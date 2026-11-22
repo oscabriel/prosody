@@ -47,7 +47,7 @@ Keep the old host running until you have verified the new one:
 1. Follow [Installing](/docs/installing) on the new host using the same library.
 2. Restore your Postgres backup if you want to preserve reading places, finished books and wants.
 3. Copy `PROSODY_COPIES` to the new host to avoid re-syncing every book.
-4. Update DNS so your app's hostname points to the new host's tailnet IP.
+4. Update DNS so your app's hostname points to the new host.
 
 ## Removing the stack
 

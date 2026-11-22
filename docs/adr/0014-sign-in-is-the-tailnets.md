@@ -1,5 +1,7 @@
 # Authenticate every request through the host's tailnet
 
+> Superseded by [ADR 0053](0053-readers-sessions-and-single-sign-on.md). Prosody now authenticates readers with accounts, database-backed sessions and optional OpenID Connect, and no longer mounts `tailscaled.sock` or uses Caddy `forward_auth`.
+
 ## Decision
 
 Prosody has no user accounts or passwords. Caddy forwards every request to `/auth` (`packages/server/src/Session.ts`) with the peer address in `x-prosody-peer`.

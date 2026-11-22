@@ -146,6 +146,7 @@ self.addEventListener("fetch", (event) => {
 		request.mode === "navigate" &&
 		(url.pathname === "/" ||
 			url.pathname === "/desk" ||
+			url.pathname === "/account" ||
 			url.pathname.startsWith("/read/"))
 	) {
 		event.respondWith(page(request));

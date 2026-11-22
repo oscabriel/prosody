@@ -68,7 +68,7 @@ A few things to know about deploying:
 
 ## 6. Put Caddy in front
 
-After deploying, Prosody listens only on `PROSODY_RELAY` (`127.0.0.1:3023` by default). Follow [Signing in](/docs/signing-in) to expose it over Tailscale through Caddy.
+After deploying, Prosody listens only on `PROSODY_RELAY` (`127.0.0.1:3023` by default). Follow [Signing in](/docs/signing-in) to put Caddy in front and set up your first account or connect an OpenID Connect provider.
 
 ## Next steps
 

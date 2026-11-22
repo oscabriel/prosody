@@ -8,14 +8,14 @@ Prosody is a self-hosted app for ebooks and audiobooks. It pairs an EPUB with it
 - **Unpaired books.** An EPUB opens to read on its own, an M4B plays by its chapters, and a PDF opens a page at a time.
 - **One place per book.** Your place follows you between devices, tracked by sentence, timestamp or page. Books you are currently reading appear on the nightstand.
 - **Offline and mobile ready.** The web app installs to a phone's home screen, integrates with lock-screen media controls, opens without a network connection, and can save a kept copy of a full book on the device.
-- **A desk for wanted books.** Look up books in public catalogues and track what you want. You can also connect services you already run so the desk fetches, shelves, pairs and aligns books automatically; see [`docs/acquiring/README.md`](docs/acquiring/README.md).
-- **Tailscale sign-in.** Access is restricted to your own devices on your tailnet. There are no user accounts or passwords.
+- **A desk for wanted books.** Admins can look up books in public catalogues and track what they want. You can also connect services you already run so the desk fetches, shelves, pairs and aligns books automatically; see [`docs/acquiring/README.md`](docs/acquiring/README.md).
+- **Accounts and single sign-on.** Every reader shares the library while keeping their own reading places and nightstand. Sign in with OpenID Connect (such as Pocket ID) or built-in local accounts with admin invite links.
 
 ## Requirements
 
 - A Linux host with Docker in swarm mode. Alignment runs on the host's CPU (benchmarked on 8 CPU cores; no GPU required).
-- Tailscale on the host and on every device that opens the app.
-- Caddy on the host, with a TLS certificate for the domain you give Prosody.
+- Caddy (or another reverse proxy) on the host, with a TLS certificate for the domain you give Prosody.
+- An optional OpenID Connect provider if you prefer single sign-on over built-in local accounts.
 - A library directory split into `ebooks/<Author>/<Title>/` (`.epub`, `.pdf`) and `audiobooks/<Author>/<Title>/` (`.m4b`).
 - Node 26.11 or newer, pnpm 12 and Bun to run checks and deploy.
 
@@ -40,7 +40,7 @@ Use `pnpm run deploy` rather than `pnpm deploy` (which is a different built-in p
 | Package | Role |
 |---|---|
 | `packages/domain` | The model: aggregates, commands, policies, views and API contracts, with no I/O. |
-| `packages/server` | The Api, Tailscale sign-in (`Session`), and adapters for external services. |
+| `packages/server` | The Api, sign-in (`Session`, `AuthRoutes`, `OidcClient`, `AuthStore`), and adapters for external services. |
 | `packages/press` | The only service that touches book files: walks the library, builds reading copies and shelves fetched books. |
 | `packages/aligner` | Local forced alignment: Parakeet CTC maps each sentence to the audio, and Whisper spot-checks the result. |
 | `packages/web` | The reader web app (Foldkit) and its service worker for offline use and kept copies. |

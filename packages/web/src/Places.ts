@@ -1,5 +1,7 @@
 import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
 import { WorkId } from "@prosody/domain/Library/Work.id";
+import { ReaderId } from "@prosody/domain/Reader.id";
+import { readingOf } from "@prosody/domain/Reading/Reading.id";
 import type { PlaceAt } from "@prosody/domain/Reading/Sentence";
 import { Duration, Effect, Option, Schema } from "effect";
 import { Command } from "foldkit";
@@ -8,36 +10,54 @@ import { modifyFields } from "foldkit/struct";
 import { Message, Places } from "./Model.ts";
 import type { DevicePlace, Model, Room } from "./Model.ts";
 import { Prosody } from "./Prosody.ts";
+import { placesReaderIn } from "./Readers.ts";
 import type { Commands, Return, Spot } from "./Steps.ts";
 
 const KEEP_EVERY = 15_000;
 
 const PLACE_WAIT = Duration.seconds(3);
 
-const STORE = "prosody:places";
+export const placesStoreOf = (reader: ReaderId): string =>
+	`prosody:places:${reader}`;
 
 const PlacesJson = Schema.fromJsonString(Places);
 
-export const savedPlaces = Effect.sync(() =>
-	Option.getOrElse(
-		Schema.decodeOption(PlacesJson)(localStorage.getItem(STORE) ?? "{}"),
-		(): Places => ({})
-	)
-);
+export const savedPlaces = (reader: Option.Option<ReaderId>) =>
+	Effect.sync(() =>
+		Option.match(reader, {
+			onNone: (): Places => ({}),
+			onSome: (owner) =>
+				Option.getOrElse(
+					Schema.decodeOption(PlacesJson)(
+						localStorage.getItem(placesStoreOf(owner)) ?? "{}"
+					),
+					(): Places => ({})
+				),
+		})
+	);
 
 const SavePlaces = Command.define("SavePlaces", {
-	args: { places: Places },
+	args: { reader: ReaderId, places: Places },
 	messages: [Message.SavedPlaces],
-	execute: ({ places }) =>
+	execute: ({ reader, places }) =>
 		Effect.sync(() => {
 			const json = Schema.encodeOption(PlacesJson)(places);
 
 			if (Option.isSome(json)) {
-				localStorage.setItem(STORE, json.value);
+				localStorage.setItem(placesStoreOf(reader), json.value);
 			}
 
 			return Message.SavedPlaces();
 		}),
+});
+
+export const LoadPlaces = Command.define("LoadPlaces", {
+	args: { reader: ReaderId },
+	messages: [Message.LoadedPlaces],
+	execute: ({ reader }) =>
+		Effect.map(savedPlaces(Option.some(reader)), (places) =>
+			Message.LoadedPlaces({ reader, places })
+		),
 });
 
 const placeAtOf = ({ sentence, time, page, at }: DevicePlace): PlaceAt => ({
@@ -47,25 +67,41 @@ const placeAtOf = ({ sentence, time, page, at }: DevicePlace): PlaceAt => ({
 	at,
 });
 
-const send = (work: string, commandId: string, place: PlaceAt) =>
+const send = (
+	reader: ReaderId,
+	work: string,
+	commandId: string,
+	place: PlaceAt
+) =>
 	Command.mapMessage(
-		Prosody.KeepPlace({ target: WorkId.make(work), input: place, commandId }),
+		Prosody.KeepPlace({
+			target: readingOf(reader, WorkId.make(work)),
+			input: place,
+			commandId,
+		}),
 		(result) => Message.ReceivedResult({ result })
 	);
 
 export const sendWaiting = (model: Model): Commands =>
-	Object.entries(model.places).flatMap(([work, place]) =>
-		place.commandId === null
-			? []
-			: [send(work, place.commandId, placeAtOf(place))]
-	);
+	Option.match(placesReaderIn(model), {
+		onNone: () => [],
+		onSome: (reader) =>
+			Object.entries(model.places).flatMap(([work, place]) =>
+				place.commandId === null
+					? []
+					: [send(reader, work, place.commandId, placeAtOf(place))]
+			),
+	});
 
 const withPlaces = (
 	model: Model,
 	places: Places
 ): readonly [Model, Commands] => [
 	modifyFields(model, { places: () => places }),
-	[SavePlaces({ places })],
+	Option.match(model.placesReader, {
+		onNone: () => [],
+		onSome: (reader) => [SavePlaces({ reader, places })],
+	}),
 ];
 
 const keep = (
@@ -85,13 +121,17 @@ const keep = (
 		}
 	);
 
-	return [
-		saved,
-		{ ...room, kept: Option.some(place) },
-		model.isOnline
-			? [...saves, send(room.work, allocation.commandId, place)]
-			: saves,
-	];
+	const sends = Option.match(
+		Option.filter(placesReaderIn(model), () => model.isOnline),
+		{
+			onNone: () => [],
+			onSome: (reader) => [
+				send(reader, room.work, allocation.commandId, place),
+			],
+		}
+	);
+
+	return [saved, { ...room, kept: Option.some(place) }, [...saves, ...sends]];
 };
 
 export type Kept = readonly [Room, Spot, number, Commands];

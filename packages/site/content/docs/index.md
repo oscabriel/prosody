@@ -14,19 +14,18 @@ When a book has both an EPUB and an audiobook, Prosody aligns them on your machi
 - **Single editions.** An EPUB alone opens to read, an audiobook alone plays chapter by chapter, and a PDF opens one page at a time.
 - **One place per book.** Your place (a sentence, a timestamp or a page number) is stored on your host and stays in sync across your devices.
 - **Phone and offline reading.** Install the web app to your home screen, control playback from the lock screen, keep full books on a device and read without a network.
-- **Tailnet sign-in.** Access is tied to your own Tailscale devices. There are no accounts or passwords to manage.
+- **Accounts and single sign-on.** Every reader shares the library while keeping their own places and nightstand. Sign in with OpenID Connect (such as Pocket ID) or built-in local accounts and admin invite links.
 
 ## What Prosody is not
 
 - **Not a hosted service.** You run it on your own Linux machine. Your files, audio and reading history stay there.
 - **Not a store or DRM tool.** Prosody only reads plain files without DRM. See [where books come from](/docs/where-books-come-from) for places that sell or distribute DRM-free books.
-- **Not multi-user.** Every untagged device belonging to the host's owner on the tailnet shares one shelf and one reading place per book.
 
 ## Getting started
 
 1. Check the requirements in [What you need](/docs/what-you-need).
 2. Deploy the stack with [Installing](/docs/installing).
-3. Put Caddy and Tailscale in front with [Signing in](/docs/signing-in).
+3. Put Caddy in front and configure accounts or OpenID Connect with [Signing in](/docs/signing-in).
 4. Point Prosody at your library in [Adding books](/docs/adding-books).
 
 These pages live in `packages/site/content/docs` in the repository. If anything here disagrees with the app, please report it.

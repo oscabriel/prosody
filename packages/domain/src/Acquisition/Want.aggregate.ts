@@ -2,6 +2,7 @@ import * as Domain from "@alchemy.run/domain";
 import { Effect, Schema } from "effect";
 
 import { WorkId } from "../Library/Work.id.ts";
+import { asAdmin } from "../Session.middleware.ts";
 import { GrabId } from "./Grab.id.ts";
 import {
 	GrabRelease,
@@ -58,19 +59,34 @@ export class Want extends Domain.Aggregate("Want", {
 		GrabRelease,
 	],
 	decide: {
-		WantBook: (want, cmd) =>
-			want.isWanted
+		WantBook: Effect.fn(function* (want, cmd) {
+			yield* asAdmin;
+
+			return want.isWanted
 				? []
 				: [
 						new BookWanted({ title: cmd.title, author: cmd.author }),
 						new SearchStarted({ search: want.search + 1 }),
-					],
-		WithdrawWant: (want) =>
-			want.isWanted ? [new WantWithdrawn()] : new NotWanted(),
-		SearchAgain: (want) =>
-			want.isWanted
-				? [new SearchStarted({ search: want.search + 1 })]
-				: new NotWanted(),
+					];
+		}),
+		WithdrawWant: Effect.fn(function* (want) {
+			yield* asAdmin;
+
+			if (!want.isWanted) {
+				return yield* new NotWanted();
+			}
+
+			return [new WantWithdrawn()];
+		}),
+		SearchAgain: Effect.fn(function* (want) {
+			yield* asAdmin;
+
+			if (!want.isWanted) {
+				return yield* new NotWanted();
+			}
+
+			return [new SearchStarted({ search: want.search + 1 })];
+		}),
 		OfferReleases: (want, cmd) =>
 			isLatest(want, cmd.search)
 				? [new ReleasesOffered({ releases: cmd.releases })]
@@ -79,9 +95,11 @@ export class Want extends Domain.Aggregate("Want", {
 			isLatest(want, cmd.search)
 				? [new SearchFailed({ reason: cmd.reason })]
 				: [],
-		GrabRelease: (want, cmd, { id: work }) => {
+		GrabRelease: Effect.fn(function* (want, cmd, { id: work }) {
+			yield* asAdmin;
+
 			if (!want.isWanted) {
-				return new NotWanted();
+				return yield* new NotWanted();
 			}
 
 			if (want.grabbed.includes(cmd.release)) {
@@ -91,13 +109,13 @@ export class Want extends Domain.Aggregate("Want", {
 			const release = want.offers.find(({ id }) => id === cmd.release);
 
 			if (release === undefined) {
-				return new ReleaseNotOffered();
+				return yield* new ReleaseNotOffered();
 			}
 
 			const grab = GrabId.make(`${work}.${want.grabbed.length + 1}`);
 
 			return [new ReleaseGrabbed({ grab, release })];
-		},
+		}),
 	},
 	evolve: {
 		BookWanted: (want, e) => ({

@@ -1,10 +1,11 @@
 import * as DomainFoldkit from "@alchemy.run/domain/Foldkit";
 import { Wanted } from "@prosody/domain/Acquisition/Wanted.view";
 import { Shelf } from "@prosody/domain/Library/Shelf.view";
+import { ReaderId, Role } from "@prosody/domain/Reader.id";
 import { Contents, Timeline } from "@prosody/domain/Reading/Copy";
 import { Nightstand } from "@prosody/domain/Reading/Nightstand.view";
 import { KeptPlace, PlaceAt, Sentence } from "@prosody/domain/Reading/Sentence";
-import { Effect, Schema } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { defineMessageUnion } from "foldkit/message";
 import { UrlRequest } from "foldkit/navigation";
 import { defineTaggedUnion } from "foldkit/schema";
@@ -13,6 +14,127 @@ import { Url } from "foldkit/url";
 import { Appearance, DEFAULT_SHELF_LAYOUT, ShelfLayout } from "./Appearance.ts";
 import { Prosody } from "./Prosody.ts";
 import { AppRoute } from "./Route.ts";
+
+export const AuthUser = Schema.Struct({
+	id: ReaderId,
+	username: Schema.String,
+	displayName: Schema.String,
+	role: Role,
+	createdAt: Schema.Finite,
+});
+
+export type AuthUser = typeof AuthUser.Type;
+
+export const AuthSession = Schema.Struct({
+	id: Schema.String,
+	deviceName: Schema.String,
+	createdAt: Schema.Finite,
+	lastSeenAt: Schema.Finite,
+	expiresAt: Schema.Finite,
+	current: Schema.Boolean,
+});
+
+export type AuthSession = typeof AuthSession.Type;
+
+export const Invite = Schema.Struct({
+	id: Schema.String,
+	role: Role,
+	note: Schema.String,
+	createdBy: Schema.String,
+	createdAt: Schema.Finite,
+	expiresAt: Schema.Finite,
+});
+
+export type Invite = typeof Invite.Type;
+
+export const SingleSignOn = Schema.Struct({ displayName: Schema.String });
+
+export type SingleSignOn = typeof SingleSignOn.Type;
+
+export const AuthState = defineTaggedUnion({
+	Checking: {},
+	SignedOut: {
+		setupRequired: Schema.Boolean,
+		localAuth: Schema.Boolean,
+		oidc: Schema.Option(SingleSignOn),
+	},
+	SignedIn: { user: AuthUser, session: Schema.Option(AuthSession) },
+});
+
+export type AuthState = typeof AuthState.Type;
+
+export const AuthField = Schema.Literals([
+	"displayName",
+	"username",
+	"password",
+]);
+
+export type AuthField = typeof AuthField.Type;
+
+export const AuthForm = Schema.Struct({
+	displayName: Schema.String,
+	username: Schema.String,
+	password: Schema.String,
+	isSubmitting: Schema.Boolean,
+	problem: Schema.Option(Schema.String),
+});
+
+export type AuthForm = typeof AuthForm.Type;
+
+export const EMPTY_AUTH_FORM: AuthForm = AuthForm.make({
+	displayName: "",
+	username: "",
+	password: "",
+	isSubmitting: false,
+	problem: Option.none(),
+});
+
+export const LoginQuery = Schema.Struct({
+	redirect: Schema.String,
+	ssoFailed: Schema.Boolean,
+});
+
+export type LoginQuery = typeof LoginQuery.Type;
+
+export const InviteCheck = defineTaggedUnion({
+	Idle: {},
+	Checking: { token: Schema.String },
+	Valid: {
+		token: Schema.String,
+		role: Role,
+		expiresAt: Schema.Finite,
+		localAuth: Schema.Boolean,
+	},
+	Invalid: { token: Schema.String, reason: Schema.String },
+});
+
+export type InviteCheck = typeof InviteCheck.Type;
+
+export const Account = Schema.Struct({
+	sessions: Schema.Option(Schema.Array(AuthSession)),
+	invites: Schema.Option(Schema.Array(Invite)),
+	users: Schema.Option(Schema.Array(AuthUser)),
+	deviceName: Schema.Option(Schema.String),
+	inviteRole: Role,
+	inviteNote: Schema.String,
+	created: Schema.Option(Schema.String),
+	isCreating: Schema.Boolean,
+	problem: Schema.Option(Schema.String),
+});
+
+export type Account = typeof Account.Type;
+
+export const EMPTY_ACCOUNT: Account = Account.make({
+	sessions: Option.none(),
+	invites: Option.none(),
+	users: Option.none(),
+	deviceName: Option.none(),
+	inviteRole: "reader",
+	inviteNote: "",
+	created: Option.none(),
+	isCreating: false,
+	problem: Option.none(),
+});
 
 export const DevicePlace = Schema.Struct({
 	...PlaceAt.fields,
@@ -152,6 +274,9 @@ export const ConfirmAction = defineTaggedUnion({
 	Withdraw: { work: Schema.String, title: Schema.String },
 	Abandon: { grab: Schema.String, title: Schema.String },
 	Release: { grab: Schema.String, title: Schema.String },
+	RevokeSession: { id: Schema.String, deviceName: Schema.String },
+	RevokeInvite: { id: Schema.String, role: Role },
+	RemoveReader: { id: Schema.String, displayName: Schema.String },
 });
 
 export type ConfirmAction = typeof ConfirmAction.Type;
@@ -159,6 +284,7 @@ export type ConfirmAction = typeof ConfirmAction.Type;
 export const Flags = Schema.Struct({
 	session: Schema.String,
 	isOnline: Schema.Boolean,
+	reader: Schema.Option(AuthUser),
 	places: Places,
 	copies: DeviceCopies,
 	appearance: Appearance,
@@ -286,9 +412,45 @@ export const Model = Schema.Struct({
 	announcement: Schema.String,
 	shelfUi: ShelfUi,
 	deskUi: DeskUi,
+	auth: AuthState.pipe(
+		Schema.withConstructorDefault(Effect.succeed(AuthState.Checking()))
+	),
+	savedReader: Schema.Option(AuthUser).pipe(
+		Schema.withConstructorDefault(Effect.succeedNone)
+	),
+	placesReader: Schema.Option(ReaderId).pipe(
+		Schema.withConstructorDefault(Effect.succeedNone)
+	),
+	socketStale: Schema.Boolean.pipe(
+		Schema.withConstructorDefault(Effect.succeed(false))
+	),
+	login: LoginQuery.pipe(
+		Schema.withConstructorDefault(
+			Effect.succeed(LoginQuery.make({ redirect: "/", ssoFailed: false }))
+		)
+	),
+	authForm: AuthForm.pipe(
+		Schema.withConstructorDefault(Effect.succeed(EMPTY_AUTH_FORM))
+	),
+	invite: InviteCheck.pipe(
+		Schema.withConstructorDefault(Effect.succeed(InviteCheck.Idle()))
+	),
+	account: Account.pipe(
+		Schema.withConstructorDefault(Effect.succeed(EMPTY_ACCOUNT))
+	),
 });
 
 export type Model = typeof Model.Type;
+
+export const Me = Schema.Struct({
+	user: Schema.Option(AuthUser),
+	session: Schema.Option(AuthSession),
+	setupRequired: Schema.Boolean,
+	localAuth: Schema.Boolean,
+	oidc: Schema.Option(SingleSignOn),
+});
+
+export type Me = typeof Me.Type;
 
 export const Message = defineMessageUnion({
 	ClickedLink: { request: UrlRequest },
@@ -419,6 +581,42 @@ export const Message = defineMessageUnion({
 	ResumedToast: {},
 	DismissedToast: {},
 	AnnouncedStatus: { text: Schema.String },
+	ReceivedMe: { me: Me },
+	FailedMe: { reason: Schema.String },
+	LoadedPlaces: { reader: ReaderId, places: Places },
+	SavedReader: {},
+	ChangedAuthField: { field: AuthField, value: Schema.String },
+	SubmittedLogin: {},
+	SubmittedSetup: {},
+	SubmittedRegister: {},
+	FailedAuthForm: { reason: Schema.String },
+	CheckedInvite: {
+		token: Schema.String,
+		role: Role,
+		expiresAt: Schema.Finite,
+		localAuth: Schema.Boolean,
+	},
+	FailedInvite: { token: Schema.String, reason: Schema.String },
+	ClickedSignOut: {},
+	FailedSignOut: { reason: Schema.String },
+	ReceivedSessions: { sessions: Schema.Array(AuthSession) },
+	ReceivedInvites: { invites: Schema.Array(Invite) },
+	ReceivedUsers: { users: Schema.Array(AuthUser) },
+	FailedAccount: { reason: Schema.String },
+	ChangedDeviceName: { value: Schema.String },
+	SubmittedDeviceName: {},
+	RenamedDevice: { session: AuthSession },
+	SelectedInviteRole: { role: Role },
+	ChangedInviteNote: { value: Schema.String },
+	SubmittedInvite: {},
+	CreatedInvite: { invite: Invite, url: Schema.String },
+	ClickedCopyInvite: { url: Schema.String },
+	CopiedInvite: { isCopied: Schema.Boolean },
+	ClickedChangeRole: { id: Schema.String, role: Role },
+	ChangedRole: { user: AuthUser },
+	RevokedSession: { id: Schema.String },
+	RevokedInvite: { id: Schema.String },
+	RemovedReader: { id: Schema.String },
 });
 
 export type Message = typeof Message.Type;
@@ -456,3 +654,38 @@ export type RoomMessage =
 	| typeof Message.PressedRoomKey.Type
 	| typeof Message.DismissedElsewhere.Type
 	| typeof Message.ClickedOpenAgain.Type;
+
+export type AuthMessage =
+	| typeof Message.ReceivedMe.Type
+	| typeof Message.FailedMe.Type
+	| typeof Message.LoadedPlaces.Type
+	| typeof Message.SavedReader.Type
+	| typeof Message.ChangedAuthField.Type
+	| typeof Message.SubmittedLogin.Type
+	| typeof Message.SubmittedSetup.Type
+	| typeof Message.SubmittedRegister.Type
+	| typeof Message.FailedAuthForm.Type
+	| typeof Message.CheckedInvite.Type
+	| typeof Message.FailedInvite.Type
+	| typeof Message.ClickedSignOut.Type
+	| typeof Message.FailedSignOut.Type;
+
+export type AccountMessage =
+	| typeof Message.ReceivedSessions.Type
+	| typeof Message.ReceivedInvites.Type
+	| typeof Message.ReceivedUsers.Type
+	| typeof Message.FailedAccount.Type
+	| typeof Message.ChangedDeviceName.Type
+	| typeof Message.SubmittedDeviceName.Type
+	| typeof Message.RenamedDevice.Type
+	| typeof Message.SelectedInviteRole.Type
+	| typeof Message.ChangedInviteNote.Type
+	| typeof Message.SubmittedInvite.Type
+	| typeof Message.CreatedInvite.Type
+	| typeof Message.ClickedCopyInvite.Type
+	| typeof Message.CopiedInvite.Type
+	| typeof Message.ClickedChangeRole.Type
+	| typeof Message.ChangedRole.Type
+	| typeof Message.RevokedSession.Type
+	| typeof Message.RevokedInvite.Type
+	| typeof Message.RemovedReader.Type;

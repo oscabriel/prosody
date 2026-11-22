@@ -525,6 +525,13 @@ export const reopen = (model: Model): Return =>
 		})
 	);
 
+const leaveRoom = (model: Model, next: AppRoute): Return => ({
+	model: modifyFields(model, {
+		route: () => next,
+		room: () => Option.none(),
+	}),
+});
+
 export const route = (model: Model, next: AppRoute): Return =>
 	AppRoute.match<Return>(next, {
 		Room: ({ work }) =>
@@ -543,12 +550,11 @@ export const route = (model: Model, next: AppRoute): Return =>
 				room: () => Option.none(),
 			}),
 		}),
-		NotFound: () => ({
-			model: modifyFields(model, {
-				route: () => next,
-				room: () => Option.none(),
-			}),
-		}),
+		NotFound: () => leaveRoom(model, next),
+		Login: () => leaveRoom(model, next),
+		Setup: () => leaveRoom(model, next),
+		Invite: () => leaveRoom(model, next),
+		Account: () => leaveRoom(model, next),
 	});
 
 export const isAlone = (model: Model, work: string): boolean =>

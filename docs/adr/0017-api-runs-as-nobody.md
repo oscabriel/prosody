@@ -1,4 +1,6 @@
-# Run the Api as nobody and replace it when tailscaled restarts
+# Run the Api as nobody
+
+> Amended by [ADR 0053](0053-readers-sessions-and-single-sign-on.md). `Api` still runs as `USER nobody` for least privilege, but no longer bind-mounts `/var/run/tailscale` or probes `tailscaled.sock`; its Docker Swarm healthcheck now probes `GET /health` on port `3000`.
 
 ## Decision
 
